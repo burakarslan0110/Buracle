@@ -424,7 +424,7 @@
     },
     "harness/claude/hooks/core/compact.ts": {
       "by": "claude",
-      "sha256": "74f5f49f88795c7897f34493739e0bd8624820d45a9c9866ab9e66505dc6b489",
+      "sha256": "7ab8004b2d2aa8890e7b3c4b691f88fa51e7f973c740381d1042d7663cede4ab",
       "exec": false
     },
     "harness/claude/hooks/core/config.ts": {
@@ -669,12 +669,12 @@
     },
     "harness/claude/hooks/core/plan/reviews.ts": {
       "by": "claude",
-      "sha256": "c6bf24ec6b3117114df408f129e88e8231b14fdec131aad1e3264c280571cec9",
+      "sha256": "e039d53697c1d1c2b46081177673f8379bbdbcd7b7ebb167cab1c7c46ea77257",
       "exec": false
     },
     "harness/claude/hooks/core/plan/state.ts": {
       "by": "claude",
-      "sha256": "71b31b91fae005c8580a04f7cbe3a8b4e6f9e2486082e8ad2ed4beaf94021668",
+      "sha256": "86af098fbaeb97667e0f1325394531395565fb5bdc86f21ba910182ebeb528d5",
       "exec": false
     },
     "harness/claude/hooks/core/plan/vague.ts": {
@@ -739,7 +739,7 @@
     },
     "harness/claude/hooks/core/policy/lane-guard.ts": {
       "by": "claude",
-      "sha256": "5d27b1090ad29d0011a2da70810e85b94a0f635aa6b9dcb30822a729e097ed8a",
+      "sha256": "daaea9f6f2e88e8ed433479adef101de4c597ed183007ae5abf1abfc68fb234b",
       "exec": false
     },
     "harness/claude/hooks/core/policy/launchers.ts": {
@@ -1389,7 +1389,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "578e84a0b87946e0c494e0e19323bea8470162b5638d571a8f46aa2168e2a689",
+      "sha256": "a81cb28b8a7139966fa6321be45877648b5d6c5ff4575a2426838f240cbdca56",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1489,12 +1489,12 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "1358f63eddd405195ba22d547f14cfb60a79de1677a6c8fed7a70ed5fcc9c5ff",
+      "sha256": "795739fbf27d19c1e27320f8eec246fc1904dc6e9588e1dbc5889f0c2fe70733",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "0a4b85b8d8a36fbc4826a596894a43e161bee254212a4d2300ab325354f827eb",
+      "sha256": "3881c1d0730c1f0bd9ee0f6a2038db6a6defa1dd75fdf69216f14a159adfa81b",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {

@@ -4,7 +4,7 @@ import type { Finding, PlanStatus, PlanType } from './format'
 import { planOutline } from './format'
 import { objectiveLine, planObjectiveOf, tickedTasks, type PlanObjective } from './objective'
 import type { Intent } from '../policy/intents'
-import type { LaneReview, ReviewRecord } from './reviews'
+import type { ReviewRecord } from './reviews'
 import type { NativeBinding } from './native'
 import { nativeBinding } from './native'
 import { GUARD_MARKERS, RUNAWAY_REASON, VERIFICATION_OFF_REASON, isResultReview, resumableDecision } from '../policy/intents'
@@ -16,7 +16,6 @@ export interface SessionState {
   guard: { blocksForPlan: number; blocksInChain: number; lastBlockAt?: number; ticked?: number[]; escalated?: 'plan' | 'chain'; readOnlyNoticed?: true; earlyEditNoted?: true }
   approvals?: { planApprovedAt?: number; resultApprovedAt?: number; switches?: LockedSwitches }
   reviews?: ReviewRecord[]
-  laneReviews?: LaneReview[]
   native?: NativeBinding
 }
 

@@ -12,10 +12,8 @@ import { planCapture } from '../../workflow/plan-capture'
 import { planPrepareNative } from '../../workflow/plan-native'
 import { loadConfigSync } from '../../engine/config'
 import { planNotes } from '../../workflow/plan-notes'
-import { resolveLane, withLanes, type LaneTarget } from '../../workflow/plan-lanes'
 import { planReview } from '../../workflow/plan-review'
 import { emit, isResult, needSession, optionalSession, processCtx, usageError, warnCwdGone, type CmdResult, type WorkflowCtx } from '../../workflow/result'
-import type { ResolvedSession } from '../../workflow/session-store'
 
 export const name = 'plan'
 export const summary = 'Plan contract and state machine (init, capture, validate, register, prepare-native, status, set, pause, resume, complete, approve-result, verify, review, audit, notes)'
@@ -105,11 +103,6 @@ export const usage = `Usage: buracle plan <subcommand> [args…] [--json]
                           lines of the diff review-scope picks (--slug as there); --done marks
                           the notes you applied. No notes is never an approval. Exit 0 · 1 error
 
-Lanes: --lane <slug> on register, status, set, pause, resume, complete, approve-result, verify,
-review, unregister and audit binds a whole workflow run in a lane worktree ('buracle worktree
-create <slug> --lane', from any checkout of the repository) to a session of its own, the lead's
-session id plus ".lane-<slug>", so it never replaces the lead's plan; plain 'status' lists them.
-
 Session (register, prepare-native, status, set, pause, resume, complete, approve-result, verify, review, unregister; optional for init, capture, audit and notes): --session <id> wins
 (harness from --harness or the environment). Otherwise the ids each harness sets: BURACLE_SESSION_ID
 with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID or CODEX_THREAD_ID (a Codex subagent
@@ -120,23 +113,22 @@ ids (one started from another's shell), the nearest harness process decides. No 
 Exit codes: 0 ok · 1 error · 2 refused or user action needed.`
 
 const SESSION: Record<string, FlagKind> = { session: 'string', harness: 'string' }
-const BOUND: Record<string, FlagKind> = { ...SESSION, lane: 'string' }
 const SPECS: Record<string, Record<string, FlagKind>> = {
   init: { type: 'string', title: 'string', slug: 'string', dir: 'string', ...SESSION },
   capture: { title: 'string', file: 'string', draft: 'bool', ...SESSION },
   validate: { strict: 'bool' },
-  register: { phase: 'string', ...BOUND },
+  register: { phase: 'string', ...SESSION },
   'prepare-native': { cancel: 'bool', ...SESSION },
-  status: BOUND,
-  set: BOUND,
-  pause: { kind: 'string', reason: 'string', ...BOUND },
-  resume: BOUND,
-  complete: BOUND,
-  'approve-result': BOUND,
-  verify: BOUND,
-  review: { role: 'string', handle: 'string', provider: 'string', verdict: 'string', on: 'string', input: 'string', goal: 'string', slug: 'string', 'timeout-min': 'string', wait: 'string', job: 'string', ...BOUND },
-  unregister: BOUND,
-  audit: { base: 'string', slug: 'string', ...BOUND },
+  status: SESSION,
+  set: SESSION,
+  pause: { kind: 'string', reason: 'string', ...SESSION },
+  resume: SESSION,
+  complete: SESSION,
+  'approve-result': SESSION,
+  verify: SESSION,
+  review: { role: 'string', handle: 'string', provider: 'string', verdict: 'string', on: 'string', input: 'string', goal: 'string', slug: 'string', 'timeout-min': 'string', wait: 'string', job: 'string', ...SESSION },
+  unregister: SESSION,
+  audit: { base: 'string', slug: 'string', ...SESSION },
   notes: { kind: 'string', slug: 'string', done: 'string', ...SESSION },
 }
 const ALL: Record<string, FlagKind> = Object.assign({}, ...Object.values(SPECS)) as Record<string, FlagKind>
@@ -190,23 +182,11 @@ export async function runPlan(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
     for (const k of ['kind', 'slug', 'done'] as const) { const v = strFlag(flags, k); if (v !== undefined) o[k] = v }
     return out(await planNotes(pos[0], o, ctx, optionalSession(sflags, ctx.env)))
   }
-  const lane = strFlag(flags, 'lane')
-  let laneLead: LaneTarget | undefined
-  const laneSession = async (): Promise<ResolvedSession | CmdResult | undefined> => {
-    if (lane === undefined) return undefined
-    const t = await resolveLane(lane, ctx, optionalSession(sflags, ctx.env), { gone: sub === 'unregister' })
-    if (isResult(t)) return t
-    laneLead = t
-    return t.session
-  }
   if (sub === 'audit') {
     if (pos.length > 1) return out(usageError(usage, [`unexpected argument '${pos[1]}'`]))
     const o: { base?: string, slug?: string } = {}
     for (const k of ['base', 'slug'] as const) { const v = strFlag(flags, k); if (v !== undefined) o[k] = v }
-    if (lane !== undefined) o.slug ??= lane
-    const ls = await laneSession()
-    if (isResult(ls)) return out(ls)
-    return out(await planAudit(pos[0], o, ctx, ls ?? optionalSession(sflags, ctx.env)))
+    return out(await planAudit(pos[0], o, ctx, optionalSession(sflags, ctx.env)))
   }
   const companion = sub === 'review' && pos[0] === 'companion'
   if (sub === 'review' && !companion) {
@@ -227,7 +207,6 @@ export async function runPlan(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
       return companionRun(job)
     }
     if (action !== 'start' && action !== 'collect' && action !== 'cancel') return out(usageError(usage, [`plan review companion <start|collect|cancel>${action !== undefined ? `: unknown action '${action}'` : ': missing action'}`]))
-    if (lane !== undefined) return out(usageError(usage, ['a second opinion belongs to the lead: run it without --lane, on the lead\'s plan']))
     const cs = needSession(sflags, ctx.env)
     if (isResult(cs)) return out(cs)
     const role = strFlag(flags, 'role')
@@ -244,19 +223,16 @@ export async function runPlan(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
     const t = strFlag(flags, 'timeout-min')
     return out(await companionStart(t !== undefined ? { ...o, timeoutMin: t } : o, ctx, cs))
   }
-  const ls = await laneSession()
-  if (isResult(ls)) return out(ls)
-  const s = ls ?? needSession(sflags, ctx.env)
+  const s = needSession(sflags, ctx.env)
   if (isResult(s)) return out(s)
   switch (sub) {
     case 'register': return out(await planRegister(pos[0], strFlag(flags, 'phase'), ctx, s))
     case 'prepare-native': return out(planPrepareNative(pos[0], { cancel: boolFlag(flags, 'cancel') }, loadConfigSync().config.plan, ctx, s))
-    case 'status': return out(lane === undefined ? withLanes(planStatus(ctx, s), s) : planStatus(ctx, s))
+    case 'status': return out(planStatus(ctx, s))
     case 'review': {
       const o: { role?: string, handle?: string, provider?: string, verdict?: string, slug?: string } = {}
       for (const k of ['role', 'handle', 'provider', 'verdict'] as const) { const v = strFlag(flags, k); if (v !== undefined) o[k] = v }
-      if (lane !== undefined) o.slug = lane
-      return out(await planReview(pos[0], o, ctx, s, laneLead))
+      return out(await planReview(pos[0], o, ctx, s))
     }
     case 'set': return out(await planSet(pos[0], pos[1], ctx, s))
     case 'pause': return out(planPause(strFlag(flags, 'kind'), strFlag(flags, 'reason'), ctx, s))
@@ -264,7 +240,7 @@ export async function runPlan(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
     case 'complete': return out(await planComplete(ctx, s))
     case 'approve-result': return out(await planApproveResult(ctx, s))
     case 'verify': return out(await planVerify(ctx, s))
-    default: return out(await planUnregister(ctx, s, laneLead))
+    default: return out(await planUnregister(ctx, s))
   }
 }
 

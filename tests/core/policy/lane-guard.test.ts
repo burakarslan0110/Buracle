@@ -13,7 +13,7 @@ describe('laneStateDenial (H01 for subagents)', () => {
       'bun src/cli/main.ts plan complete',
       'buracle --json plan set status IN_PROGRESS',
       'env FOO=1 buracle flow end --outcome done',
-      'buracle worktree sync rate-limit --json',
+      'buracle worktree cleanup rate-limit --json',
       'buracle worktree cleanup rate-limit --discard',
       'buracle --json worktree cleanup rate-limit',
     ]) expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: true })
@@ -22,9 +22,9 @@ describe('laneStateDenial (H01 for subagents)', () => {
   test('a shell or runtime that runs the shim or the entry file does not hide the command', () => {
     for (const command of [
       'sh ~/.buracle/bin/buracle plan verify', 'bash /Users/u/.buracle/bin/buracle plan complete', 'zsh -f "${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" flow end',
-      'bash -o pipefail /Users/u/.buracle/bin/buracle plan set approved true', 'source /Users/u/.buracle/bin/buracle worktree sync x',
+      'bash -o pipefail /Users/u/.buracle/bin/buracle plan set approved true', 'source /Users/u/.buracle/bin/buracle worktree cleanup x',
       'bun --bun /r/src/cli/main.ts plan set approved true', 'bun -r x /r/src/cli/main.ts plan complete', 'bun --cwd /r src/cli/main.ts worktree cleanup x',
-      'node --import tsx /r/src/cli/main.ts worktree sync x', 'deno run -A /r/src/cli/main.ts plan verify',
+      'node --import tsx /r/src/cli/main.ts worktree cleanup x', 'deno run -A /r/src/cli/main.ts plan verify',
     ]) expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: true })
     for (const command of ['sh ~/.buracle/bin/buracle plan status', 'bun --bun /r/src/cli/main.ts plan validate docs/plans/x.md', 'bash script.sh plan verify']) {
       expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: false })
@@ -49,20 +49,14 @@ describe('laneStateDenial (H01 for subagents)', () => {
     }
   })
 
-  test('a plan lane runs its own binding with --lane <slug>; the user\'s approvals and the lead\'s binding stay out of reach', () => {
+  test('--lane exempts nothing any more: the plan lanes it served are gone, so a lane flag does not let a subagent change plan state', () => {
     for (const command of [
-      'buracle plan register /r/.worktrees/billing/docs/plans/x.md --phase plan --lane billing',
-      'buracle plan pause --lane billing --kind decision --reason "plan approval"',
-      'buracle plan resume --lane=billing', 'buracle plan set status IN_PROGRESS --lane billing', 'buracle plan set phase verify --lane billing',
-      'buracle plan complete --lane billing', 'buracle plan verify --lane billing --json', 'buracle plan review done --role changes --verdict pass --lane billing',
-      'buracle plan --lane billing unregister',
-    ]) expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: false })
-    for (const command of [
-      'buracle plan set approved true --lane billing', 'buracle plan approve-result --lane billing', 'buracle plan pause --lane billing --session lead-1',
-      'buracle plan resume --lane', 'buracle plan resume --lane --json', 'buracle plan resume -- --lane billing', 'buracle plan review start --role plan',
+      'buracle plan register /r/x.md --phase plan --lane billing', 'buracle plan pause --lane billing --kind decision --reason "plan approval"',
+      'buracle plan resume --lane=billing', 'buracle plan verify --lane billing --json', 'buracle plan set approved true --lane billing',
+      'buracle plan approve-result --lane billing', 'buracle plan review done --role changes --verdict pass --lane billing',
     ]) expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: true })
     expect(laneStateDenial('buracle plan set approved true --lane billing')).toContain('`buracle plan set approved`')
-    expect(laneStateDenial('buracle plan review done --role plan --verdict pass')).toContain('for the lane worktree the lead created (')
+    expect(laneStateDenial('buracle plan review done --role plan --verdict pass')).not.toContain('--lane')
   })
 
   test('a lane does not start, collect or cancel a second opinion; the companion flags take a value, so one cannot pass for `review status`', () => {
@@ -92,7 +86,7 @@ describe('laneStateDenial (H01 for subagents)', () => {
     for (const [language, code] of [
       ['javascript', "require('child_process').execSync('buracle plan resume')"],
       ['js', "const { spawnSync } = require('node:child_process'); spawnSync('buracle', ['plan', 'pause', '--kind', 'decision'])"],
-      ['js', 'await Bun.$`buracle worktree sync rate-limit`'],
+      ['js', 'await Bun.$`buracle worktree cleanup rate-limit`'],
       ['python', "import subprocess\nsubprocess.run(['buracle', 'flow', 'end', '--outcome', 'done'])"],
       ['py', "import os\nos.system('bun src/cli/main.ts plan set status IN_PROGRESS')"],
     ] as const) expect({ language, denied: laneCodeDenial(code, language) !== undefined }).toEqual({ language, denied: true })

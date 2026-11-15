@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { SessionState } from '../../../src/core/plan/state'
 import { emptyState } from '../../../src/core/plan/state'
 import {
-  companionOf, fileListText, laneReviewCleared, laneReviewLabel, laneReviewStarted, laneReviewsInFlight, planReviews, reviewCollected, reviewFreshness, reviewLabel, reviewOf,
+  companionOf, fileListText, planReviews, reviewCollected, reviewFreshness, reviewLabel, reviewOf,
   reviewStarted, reviewSubjectText, reviewsInFlight,
 } from '../../../src/core/plan/reviews'
 
@@ -43,20 +43,6 @@ describe('review records (core reviews.ts)', () => {
     const other = { ...bound(), reviews: [{ role: 'plan' as const, plan: '/r/docs/plans/other.md', state: 'running' as const, startedAt: 1 }, { role: 'oops' } as never] }
     expect(planReviews(other)).toEqual([])
     expect(reviewsInFlight(other)).toEqual([])
-  })
-
-  test('a lane\'s reviewer is mirrored in the lead\'s state without a plan of its own: one per lane and role, cleared per role or per lane', () => {
-    const lead = emptyState()
-    const a = laneReviewStarted(lead, { lane: 'billing', role: 'changes', handle: 'agent-9', provider: 'claude' }, 10)
-    const b = laneReviewStarted(laneReviewStarted(a, { lane: 'billing', role: 'changes', handle: 'agent-10' }, 20), { lane: 'export', role: 'plan' }, 30)
-    expect(laneReviewsInFlight(b)).toEqual([{ lane: 'billing', role: 'changes', startedAt: 20, handle: 'agent-10' }, { lane: 'export', role: 'plan', startedAt: 30 }])
-    expect(laneReviewsInFlight(b).map(laneReviewLabel)).toEqual(['changes-review for lane billing (handle agent-10)', 'plan-build-review for lane export'])
-    expect(planReviews(b)).toEqual([])
-    expect(laneReviewsInFlight(laneReviewCleared(b, 'billing', 'plan'))).toHaveLength(2)
-    expect(laneReviewsInFlight(laneReviewCleared(b, 'billing', 'changes'))).toEqual([{ lane: 'export', role: 'plan', startedAt: 30 }])
-    expect(laneReviewCleared(laneReviewCleared(b, 'billing'), 'export').laneReviews).toBeUndefined()
-    expect(laneReviewStarted(lead, { lane: ' ', role: 'plan' }, 1)).toBe(lead)
-    expect(laneReviewStarted(lead, { lane: 'x', role: 'security' as never }, 1)).toBe(lead)
   })
 
   test('at most 12 records are kept, the newest last', () => {

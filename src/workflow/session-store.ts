@@ -52,32 +52,11 @@ export function updateState(h: Harness, sid: string, fn: (s: SessionState) => Se
   }, opts.timeoutMs ?? 2000, opts.staleMs ?? 10_000)
 }
 
-export const LANE_INFIX = '.lane-'
-
-export function laneSessionId(sid: string, lane: string): string { return `${sid}${LANE_INFIX}${lane}` }
-
-export function laneLead(owner: { harness: Harness, session: string } | null | undefined, s: ResolvedSession | undefined): ResolvedSession | undefined {
-  const known = owner !== undefined && owner !== null && HARNESSES.includes(owner.harness) && isValidSessionId(owner.session)
-  return known ? { harness: owner.harness, sessionId: owner.session, source: 'lane worktree owner' } : s
-}
-
-export function laneSessions(h: Harness, sid: string): Array<{ lane: string, sessionId: string }> {
-  if (!isValidSessionId(sid) || sid.includes(LANE_INFIX)) return []
-  const prefix = laneSessionId(sid, '')
-  let names: string[] = []
-  try { names = readdirSync(sessionsDir(h)) } catch { return [] }
-  return names.filter(n => n.length > prefix.length && n.startsWith(prefix) && isValidSessionId(n)).sort().map(n => ({ lane: n.slice(prefix.length), sessionId: n }))
-}
-
 export function reviewSubjects(h: Harness, sid: string | undefined): string[] {
   if (!isValidSessionId(sid)) return []
   try {
-    const out = new Set<string>()
-    for (const id of [sid, ...laneSessions(h, sid).map(l => l.sessionId)]) {
-      const st = loadState(h, id)
-      if (st.plan !== undefined && !isPlanFinished(st)) out.add(st.plan.path)
-    }
-    return [...out]
+    const st = loadState(h, sid)
+    return st.plan !== undefined && !isPlanFinished(st) ? [st.plan.path] : []
   } catch (e) {
     log('debug', 'review subjects unavailable', { h, error: e })
     return []

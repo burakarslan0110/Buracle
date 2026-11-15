@@ -2,11 +2,9 @@ import { existsSync, readdirSync, unlinkSync } from 'node:fs'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import { isPlanFinished } from '../core/plan/state'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../engine/fsx'
-import { log } from '../engine/log'
-import { isValidSessionId } from '../engine/paths'
 import { isValidSlug } from './plan-file'
-import { actOnMergeDecision, markPlanWorktree, planUnregister } from './plan'
-import { laneLead, laneSessionId, loadState, type ResolvedSession } from './session-store'
+import { actOnMergeDecision, markPlanWorktree } from './plan'
+import { loadState, type ResolvedSession } from './session-store'
 import {
   acquireRepoLock, git, gitError, listWorktrees, porcelain, realish,
   refExists, repoFacts, updateExclude, type RepoFacts, type WorktreeEntry,
@@ -27,15 +25,6 @@ export interface WorktreeMeta {
   createdAt: number
   baseCommit?: string
   planPath?: string
-  /**
-   * Records of an older Buracle, never written any more: `lane`, `parent` and `owner` by
-   * `worktree create --lane`, `synced` by `worktree sync`. They are still read, so a lane worktree
-   * left on disk is not taken for a plan's worktree and its `plan --lane` binding is released on cleanup.
-   */
-  lane?: boolean
-  parent?: string
-  owner?: { harness: ResolvedSession['harness'], session: string }
-  synced?: { at: number, commit?: string }
   inferred?: boolean
 }
 
@@ -66,7 +55,7 @@ export function listMeta(commonDir: string): WorktreeMeta[] {
 
 export function metaForPlan(commonDir: string, planPath: string): WorktreeMeta | undefined {
   return listMeta(commonDir)
-    .filter(m => m.planPath === planPath && m.lane !== true && existsSync(m.path))
+    .filter(m => m.planPath === planPath && existsSync(m.path))
     .sort((a, b) => b.createdAt - a.createdAt)[0]
 }
 
@@ -175,10 +164,6 @@ export async function worktreeCreate(slugArg: string | undefined, o: { base?: st
   return ok({ ...result.data, ...planJson(plan) }, result.lines, warnings)
 }
 
-function laneJson(m: Pick<WorktreeMeta, 'lane' | 'parent'>): Record<string, unknown> {
-  return m.lane === true ? { lane: true, ...(m.parent !== undefined ? { parent: m.parent } : {}) } : {}
-}
-
 async function createLocked(facts: RepoFacts, slug: string, prefix: Prefix, baseArg: string | undefined, ctx: WorkflowCtx, planPath: string | undefined): Promise<CmdResult> {
   const branch = `${prefix}/${slug}`
   const root = worktreeRoot(facts)
@@ -256,10 +241,8 @@ export async function worktreeDetect(ctx: WorkflowCtx, s: ResolvedSession | unde
       if (rel !== '' && !rel.startsWith('..') && !rel.includes('/') && isValidSlug(rel)) m = await resolveMeta(facts, rel)
     }
     if (m !== undefined) {
-      Object.assign(data, { inWorktree: true, path: facts.top, branch: facts.branch ?? m.branch, base: m.base, slug: m.slug, ...(m.inferred ? { inferred: true } : {}), ...laneJson(m) })
-      lines.push(m.lane === true
-        ? `In lane worktree '${m.slug}': ${facts.top} on ${facts.branch ?? m.branch} (base ${m.base}${m.parent !== undefined ? `, created in '${m.parent}'` : ''}).`
-        : `In plan worktree '${m.slug}': ${facts.top} on ${facts.branch ?? m.branch} (base ${m.base}).`)
+      Object.assign(data, { inWorktree: true, path: facts.top, branch: facts.branch ?? m.branch, base: m.base, slug: m.slug, ...(m.inferred ? { inferred: true } : {}) })
+      lines.push(`In plan worktree '${m.slug}': ${facts.top} on ${facts.branch ?? m.branch} (base ${m.base}).`)
     } else {
       data['linked'] = { path: facts.top, branch: facts.branch ?? null }
       lines.push(`In a linked worktree that Buracle does not manage: ${facts.top}.`)
@@ -272,7 +255,7 @@ export async function worktreeDetect(ctx: WorkflowCtx, s: ResolvedSession | unde
     if (st.plan !== undefined) {
       const planPath = st.plan.path
       const m = metaForPlan(facts.commonDir, planPath) ?? await resolveMeta(facts, st.plan.slug)
-      if (m !== undefined && m.lane !== true && existsSync(m.path)) {
+      if (m !== undefined && existsSync(m.path)) {
         data['planWorktree'] = { slug: m.slug, path: m.path, branch: m.branch, base: m.base }
         if (data['inWorktree'] !== true) lines.push(`This session's plan has a worktree: ${m.path} (cd there to work).`)
       }
@@ -293,7 +276,6 @@ async function describe(facts: RepoFacts, m: WorktreeMeta, entries: WorktreeEntr
   }
   if (m.planPath !== undefined) out['plan'] = m.planPath
   if (m.inferred) out['inferred'] = true
-  Object.assign(out, laneJson(m))
   return out
 }
 
@@ -316,10 +298,10 @@ export async function worktreeStatus(ctx: WorkflowCtx, s: ResolvedSession | unde
     const st = loadState(s.harness, s.sessionId)
     const planSlug = st.plan?.slug
     const planPath = st.plan?.path
-    const mine = planPath === undefined ? undefined : metaForPlan(facts.commonDir, planPath) ?? metas.find(m => m.slug === planSlug && m.lane !== true)
+    const mine = planPath === undefined ? undefined : metaForPlan(facts.commonDir, planPath) ?? metas.find(m => m.slug === planSlug)
     sessionInfo = { harness: s.harness, id: s.sessionId, plan: planSlug ?? null, worktree: mine?.slug ?? null }
   }
-  const lines = worktrees.length === 0 ? ['No plan worktrees.'] : worktrees.map(w => `${String(w['slug'])}: ${String(w['path'])} [${String(w['branch'])} → ${String(w['base'])}]${w['lane'] === true ? ' (lane)' : ''}${w['exists'] === false ? ' (missing)' : ''}${typeof w['ahead'] === 'number' ? ` ahead ${String(w['ahead'])}` : ''}${typeof w['dirty'] === 'number' && (w['dirty'] as number) > 0 ? `, ${String(w['dirty'])} uncommitted` : ''}`)
+  const lines = worktrees.length === 0 ? ['No plan worktrees.'] : worktrees.map(w => `${String(w['slug'])}: ${String(w['path'])} [${String(w['branch'])} → ${String(w['base'])}]${w['exists'] === false ? ' (missing)' : ''}${typeof w['ahead'] === 'number' ? ` ahead ${String(w['ahead'])}` : ''}${typeof w['dirty'] === 'number' && (w['dirty'] as number) > 0 ? `, ${String(w['dirty'])} uncommitted` : ''}`)
   if (sessionInfo !== undefined && sessionInfo['worktree'] !== null) lines.push(`This session's plan worktree: ${String(sessionInfo['worktree'])}`)
   return ok({ repo: facts.mainRoot, worktrees, ...(sessionInfo !== undefined ? { session: sessionInfo } : {}) }, lines)
 }
@@ -368,18 +350,6 @@ async function containedIn(cwd: string, base: string, branch: string): Promise<b
   if (mt.code !== 0) return false
   const baseTree = await git(cwd, ['rev-parse', `${base}^{tree}`], { readOnly: true })
   return baseTree.ok && (mt.out.split('\n')[0] ?? '') === baseTree.out
-}
-
-async function releaseLane(m: WorktreeMeta, ctx: WorkflowCtx, s: ResolvedSession | undefined): Promise<void> {
-  const lead = laneLead(m.owner, s)
-  if (lead === undefined) return
-  const id = laneSessionId(lead.sessionId, m.slug)
-  if (!isValidSessionId(id)) return
-  try {
-    await planUnregister(ctx, { harness: lead.harness, sessionId: id, source: `--lane ${m.slug}` }, { lane: m.slug, lead })
-  } catch (e) {
-    log('warn', 'worktree cleanup: the lane binding could not be released', { slug: m.slug, error: e })
-  }
 }
 
 export async function worktreeCleanup(slugArg: string | undefined, o: { force: boolean, discard: boolean }, ctx: WorkflowCtx, s?: ResolvedSession): Promise<CmdResult> {
@@ -441,7 +411,6 @@ export async function worktreeCleanup(slugArg: string | undefined, o: { force: b
     }
     removeMeta(facts.commonDir, slug)
     await git(root, ['worktree', 'prune'])
-    if (m.lane === true) await releaseLane(m, ctx, s)
     const lines = [`Removed ${removed.worktree ? `worktree ${m.path}` : 'no worktree'} and ${removed.branch ? `branch ${m.branch} (${mergedHow})` : 'no branch'}.`, `Main checkout: ${root} (cd there if your shell was inside the worktree).`]
     const acted = o.discard ? actOnMergeDecision(s, m, ctx.now) : undefined
     const data = { ok: true, slug, path: m.path, branch: m.branch, removed, repoRoot: root, project_root: root }

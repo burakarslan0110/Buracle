@@ -7421,10 +7421,6 @@ __export(exports_core, {
   isTopLevelFlow: () => isTopLevelFlow,
   isUserText: () => isUserText,
   laneCodeDenial: () => laneCodeDenial,
-  laneReviewCleared: () => laneReviewCleared,
-  laneReviewLabel: () => laneReviewLabel,
-  laneReviewStarted: () => laneReviewStarted,
-  laneReviewsInFlight: () => laneReviewsInFlight,
   laneStateDenial: () => laneStateDenial,
   laneStateDenialAll: () => laneStateDenialAll,
   ledgerAudited: () => ledgerAudited,
@@ -24128,8 +24124,8 @@ function ledgerAudited(l, _decision) {
 // src/core/policy/lane-guard.ts
 var LANE_PLAN_COMMANDS = ["pause", "resume", "set", "complete", "verify", "register", "unregister", "approve-result", "review", "prepare-native"];
 var LANE_FLOW_COMMANDS = ["start", "phase", "end"];
-var LANE_WORKTREE_COMMANDS = ["sync", "cleanup"];
-var LANE_VALUE_FLAGS = ["session", "harness", "kind", "reason", "phase", "base", "prefix", "slug", "type", "title", "dir", "outcome", "note", "done", "total", "lane", "role", "handle", "provider", "verdict", "on", "input", "goal", "timeout-min", "wait", "job"];
+var LANE_WORKTREE_COMMANDS = ["cleanup"];
+var LANE_VALUE_FLAGS = ["session", "harness", "kind", "reason", "phase", "base", "prefix", "slug", "type", "title", "dir", "outcome", "note", "done", "total", "role", "handle", "provider", "verdict", "on", "input", "goal", "timeout-min", "wait", "job"];
 var MENTIONS_BURACLE = /buracle|src\/cli\/main\.ts|bin\/buracle/;
 function positionals(args) {
   const out = [];
@@ -24148,11 +24144,6 @@ function positionals(args) {
   }
   return out;
 }
-function flagGiven(args, name) {
-  const end = args.indexOf("--");
-  const flags = end < 0 ? args : args.slice(0, end);
-  return flags.some((a, i) => a === `--${name}` && !(flags[i + 1] ?? "-").startsWith("-") || a.startsWith(`--${name}=`) && a.length > name.length + 3);
-}
 function userApproval(sub, rest) {
   return sub === "approve-result" || sub === "set" && rest[0] === "approved";
 }
@@ -24164,8 +24155,6 @@ function stateCommand(args) {
     if (sub === "review" && rest[0] === "status")
       return;
     const approval = userApproval(sub, rest);
-    if (!approval && flagGiven(args, "lane") && !flagGiven(args, "session"))
-      return;
     return `buracle plan ${sub}${approval && sub === "set" ? " approved" : ""}`;
   }
   if (group === "flow" && LANE_FLOW_COMMANDS.includes(sub))
@@ -24185,7 +24174,7 @@ function laneStateDenial(command) {
   });
   if (hit === undefined)
     return;
-  return `Buracle lane guard: a lane (subagent) does not run \`${hit}\`, because the plan, the workflow state and the worktree merges belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed, and so does a plan lane's own binding: \`buracle plan <command> --lane <slug>\` for the lane worktree the lead created (the user's approvals, \`set approved\` and \`approve-result\`, stay with the lead).`;
+  return `Buracle lane guard: a lane (subagent) does not run \`${hit}\`, because the plan, the workflow state and the worktree merges belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed.`;
 }
 function laneStateDenialAll(commands) {
   try {
@@ -26291,47 +26280,6 @@ function reviewLabel(r) {
     return `${REVIEW_AGENT_OF[r.role]} second opinion${r.provider !== undefined ? ` on ${r.provider}` : ""}${r.handle !== undefined ? ` (job ${r.handle})` : ""}`;
   return `${REVIEW_AGENT_OF[r.role]}${handleText(r)}`;
 }
-function isLaneReview(x) {
-  if (x === null || typeof x !== "object")
-    return false;
-  const r = x;
-  return typeof r["lane"] === "string" && r["lane"] !== "" && REVIEW_ROLES.includes(r["role"]) && typeof r["startedAt"] === "number";
-}
-function laneReviewsInFlight(state) {
-  const list = state?.laneReviews;
-  return Array.isArray(list) ? list.filter(isLaneReview) : [];
-}
-function withLaneReviews(state, list) {
-  const out = { ...state };
-  if (list.length > 0)
-    out.laneReviews = list.slice(-REVIEWS_MAX);
-  else
-    delete out.laneReviews;
-  return out;
-}
-function laneReviewStarted(state, o, now) {
-  const lane = clean(o.lane);
-  if (state === null || typeof state !== "object" || lane === undefined || !REVIEW_ROLES.includes(o.role))
-    return state;
-  const rec = { lane, role: o.role, startedAt: now };
-  const handle = clean(o.handle);
-  const provider = clean(o.provider);
-  if (handle !== undefined)
-    rec.handle = handle;
-  if (provider !== undefined)
-    rec.provider = provider;
-  return withLaneReviews(state, [...laneReviewsInFlight(state).filter((r) => !(r.lane === lane && r.role === o.role)), rec]);
-}
-function laneReviewCleared(state, lane, role) {
-  if (state === null || typeof state !== "object")
-    return state;
-  const before = laneReviewsInFlight(state);
-  const after = before.filter((r) => !(r.lane === lane && (role === undefined || r.role === role)));
-  return after.length === before.length ? state : withLaneReviews(state, after);
-}
-function laneReviewLabel(r) {
-  return `${REVIEW_AGENT_OF[r.role]} for lane ${r.lane}${handleText(r)}`;
-}
 function reviewSubjectText(planText) {
   const body = parseFrontmatter(typeof planText === "string" ? planText : "").body;
   return body.replace(/\r\n?/g, `
@@ -26613,10 +26561,9 @@ function reviewsLine(state) {
   const running = activePlan(state) !== undefined ? reviewsInFlight(state) : [];
   const own = running.filter((r) => r.companion !== true).map(reviewLabel);
   const second = running.filter((r) => r.companion === true).map(reviewLabel);
-  const lanes = laneReviewsInFlight(state).map(laneReviewLabel);
   const out = [];
-  if (own.length + lanes.length > 0)
-    out.push(`Reviewers launched in the background and not collected yet: ${[...own, ...lanes].join("; ")}. Collect each report (wait for it, or read it through the agent tool that launched it) instead of launching a new one; \`buracle plan review done --role <role> --verdict <verdict>\`${lanes.length > 0 ? " (plus `--lane <slug>` for a lane's reviewer)" : ""} records it.`);
+  if (own.length > 0)
+    out.push(`Reviewers launched in the background and not collected yet: ${own.join("; ")}. Collect each report (wait for it, or read it through the agent tool that launched it) instead of launching a new one; \`buracle plan review done --role <role> --verdict <verdict>\` records it.`);
   if (second.length > 0)
     out.push(`Second opinions running on another harness and not collected yet: ${second.join("; ")}. Collect each with \`buracle plan review companion collect --role <role>\` instead of starting it again.`);
   return out.length > 0 ? out.join(" ") : undefined;
@@ -30591,33 +30538,12 @@ function updateState(h, sid, fn, opts = {}) {
     return next;
   }, opts.timeoutMs ?? 2000, opts.staleMs ?? 1e4);
 }
-var LANE_INFIX = ".lane-";
-function laneSessionId(sid, lane) {
-  return `${sid}${LANE_INFIX}${lane}`;
-}
-function laneSessions(h, sid) {
-  if (!isValidSessionId(sid) || sid.includes(LANE_INFIX))
-    return [];
-  const prefix = laneSessionId(sid, "");
-  let names = [];
-  try {
-    names = readdirSync7(sessionsDir(h));
-  } catch {
-    return [];
-  }
-  return names.filter((n) => n.length > prefix.length && n.startsWith(prefix) && isValidSessionId(n)).sort().map((n) => ({ lane: n.slice(prefix.length), sessionId: n }));
-}
 function reviewSubjects(h, sid) {
   if (!isValidSessionId(sid))
     return [];
   try {
-    const out = new Set;
-    for (const id of [sid, ...laneSessions(h, sid).map((l) => l.sessionId)]) {
-      const st = loadState(h, id);
-      if (st.plan !== undefined && !isPlanFinished(st))
-        out.add(st.plan.path);
-    }
-    return [...out];
+    const st = loadState(h, sid);
+    return st.plan !== undefined && !isPlanFinished(st) ? [st.plan.path] : [];
   } catch (e) {
     log("debug", "review subjects unavailable", { h, error: e });
     return [];

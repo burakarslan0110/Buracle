@@ -111,48 +111,6 @@ export function reviewLabel(r: ReviewRecord): string {
   return `${REVIEW_AGENT_OF[r.role]}${handleText(r)}`
 }
 
-export interface LaneReview { lane: string, role: ReviewRole, startedAt: number, handle?: string, provider?: string }
-
-function isLaneReview(x: unknown): x is LaneReview {
-  if (x === null || typeof x !== 'object') return false
-  const r = x as Record<string, unknown>
-  return typeof r['lane'] === 'string' && r['lane'] !== '' && REVIEW_ROLES.includes(r['role'] as ReviewRole) && typeof r['startedAt'] === 'number'
-}
-
-export function laneReviewsInFlight(state: SessionState): LaneReview[] {
-  const list = (state as { laneReviews?: unknown })?.laneReviews
-  return Array.isArray(list) ? list.filter(isLaneReview) : []
-}
-
-function withLaneReviews(state: SessionState, list: LaneReview[]): SessionState {
-  const out: SessionState = { ...state }
-  if (list.length > 0) out.laneReviews = list.slice(-REVIEWS_MAX)
-  else delete out.laneReviews
-  return out
-}
-
-export function laneReviewStarted(state: SessionState, o: { lane: string, role: ReviewRole, handle?: string, provider?: string }, now: number): SessionState {
-  const lane = clean(o.lane)
-  if (state === null || typeof state !== 'object' || lane === undefined || !REVIEW_ROLES.includes(o.role)) return state
-  const rec: LaneReview = { lane, role: o.role, startedAt: now }
-  const handle = clean(o.handle)
-  const provider = clean(o.provider)
-  if (handle !== undefined) rec.handle = handle
-  if (provider !== undefined) rec.provider = provider
-  return withLaneReviews(state, [...laneReviewsInFlight(state).filter(r => !(r.lane === lane && r.role === o.role)), rec])
-}
-
-export function laneReviewCleared(state: SessionState, lane: string, role?: ReviewRole): SessionState {
-  if (state === null || typeof state !== 'object') return state
-  const before = laneReviewsInFlight(state)
-  const after = before.filter(r => !(r.lane === lane && (role === undefined || r.role === role)))
-  return after.length === before.length ? state : withLaneReviews(state, after)
-}
-
-export function laneReviewLabel(r: LaneReview): string {
-  return `${REVIEW_AGENT_OF[r.role]} for lane ${r.lane}${handleText(r)}`
-}
-
 export function reviewSubjectText(planText: string): string {
   const body = parseFrontmatter(typeof planText === 'string' ? planText : '').body
   return body

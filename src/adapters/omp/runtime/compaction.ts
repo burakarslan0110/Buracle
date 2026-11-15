@@ -1,4 +1,3 @@
-import { laneReviewsInFlight } from '../../../core/plan/reviews'
 import * as paths from '../../../engine/paths'
 import { compactRestore, preCompact, type PipelineDeps } from '../../shared/pipeline/index'
 import type { ExtensionDeps } from './deps'
@@ -26,7 +25,7 @@ async function compactSave(sid: string, ctx: OmpContext, host: CompactionHost): 
   const { deps } = host
   const saved = await preCompact({ harness: 'omp', sessionId: sid, cwd: ctx.cwd, now: deps.now() }, { ...host.pipe(sid), openTodos: () => host.todos?.(sid) ?? [] })
   const state = deps.state.load(sid)
-  if (state.plan === undefined && state.interaction === undefined && saved.todo.length === 0 && laneReviewsInFlight(state).length === 0) return undefined
+  if (state.plan === undefined && state.interaction === undefined && saved.todo.length === 0) return undefined
   const instructions = host.guarded('H06 compactInstructions', () => deps.compact.compactInstructions(undefined, state))
   return instructions && instructions.trim() !== '' ? { context: [instructions] } : undefined
 }
