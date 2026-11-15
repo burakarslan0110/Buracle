@@ -7,6 +7,7 @@ import type { Plan } from '../../../src/engine/txn'
 import { opsDeps, type CliResult, type OpsDeps } from '../../../src/engine/update/deps'
 import type { FetchOptions, FetchResult, Fetcher } from '../../../src/engine/update/fetch'
 import { run as procRun } from '../../../src/engine/proc'
+import { BUILT } from '../../helpers/built-harness'
 import { fakeExe } from '../../helpers/fake-exe'
 
 export const REAL_REPO = join(import.meta.dir, '..', '..', '..')
@@ -93,12 +94,13 @@ export function makeRepo(root: string, extra: Record<string, string> = {}): stri
   return repo
 }
 
-// A full copy of this checkout (sources, canonical/, the generated harness/), sharing node_modules:
+// A full copy of this checkout (sources, canonical/, the harness/ the test run built), sharing node_modules:
 // commands that build or install into a checkout never write into the real one.
 export function fullCheckout(root: string): string {
   const repo = join(root, 'check out')
   mkdirSync(repo, { recursive: true })
-  for (const d of ['src', 'canonical', 'harness']) cpSync(join(REAL_REPO, d), join(repo, d), { recursive: true })
+  for (const d of ['src', 'canonical']) cpSync(join(REAL_REPO, d), join(repo, d), { recursive: true })
+  cpSync(BUILT.harness, join(repo, 'harness'), { recursive: true })
   for (const f of ['package.json', 'bun.lock', 'tsconfig.json']) cpSync(join(REAL_REPO, f), join(repo, f))
   symlinkSync(join(REAL_REPO, 'node_modules'), join(repo, 'node_modules'))
   return repo

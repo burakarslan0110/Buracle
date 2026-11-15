@@ -5,6 +5,7 @@ import type { CanonicalBundle, RuleDoc } from '../../../src/core/catalog'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { PATH_RULES_OWNER, pathGlobs, pathRuleFile, pathRuleFiles } from '../../../src/adapters/shared/rules'
 import { codexBuildFiles } from '../../../src/adapters/codex/generate'
+import { BUILT } from '../../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
@@ -34,7 +35,7 @@ describe('path rules (shared)', () => {
     const build = new Map(codexBuildFiles(canonical).files.map(f => [f.path, f.content]))
     for (const f of pathRuleFiles(canonical)) {
       expect(build.get(`rules/paths/${f.file}`)).toBe(f.content)
-      expect(readFileSync(join(REPO, 'harness', 'codex', 'rules', 'paths', f.file), 'utf8')).toBe(f.content)
+      expect(readFileSync(join(BUILT.harness, 'codex', 'rules', 'paths', f.file), 'utf8')).toBe(f.content)
     }
   })
 })

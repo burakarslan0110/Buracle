@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { BUILT } from '../helpers/built-harness'
 
 // Buracle runs on macOS and native Linux. This scan keeps code that exists only so that Buracle runs on a Windows
 // host out of the repository. A few guard files still name Windows places in the paths and code an agent writes.
@@ -44,9 +45,11 @@ describe('no Windows host code', () => {
   })
 
   test('the generated harness/ has no Windows shim and no Codex Windows command (R5)', () => {
-    expect(existsSync(join(ROOT, 'harness', 'claude', 'bin', 'buracle.cmd'))).toBe(false)
-    expect(files(join(ROOT, 'harness'), /./).map(rel).filter(f => /\.cmd$/.test(f))).toEqual([])
-    expect(hits('harness', /commandWindows/, /\.(?:json|toml|js|ts)$/)).toEqual([])
+    // harness/ is not committed: this is the tree the run built
+    const built = (p: string): string => relative(BUILT.root, p).split('\\').join('/')
+    expect(existsSync(join(BUILT.harness, 'claude', 'bin', 'buracle.cmd'))).toBe(false)
+    expect(files(BUILT.harness, /./).map(built).filter(f => /\.cmd$/.test(f))).toEqual([])
+    expect(files(BUILT.harness, /\.(?:json|toml|js|ts)$/).filter(f => /commandWindows/.test(readFileSync(f, 'utf8'))).map(built)).toEqual([])
   })
 
   test('the tools catalog has no Windows package manager and the pins no Windows download (R6)', () => {

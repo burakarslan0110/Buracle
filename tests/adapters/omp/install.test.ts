@@ -16,12 +16,13 @@ import * as paths from '../../../src/engine/paths'
 import { applyPlans, rollbackTxn, type Plan } from '../../../src/engine/txn'
 import { fakeExe, narrowPath, pathOf } from '../../helpers/fake-exe'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
+import { BUILT } from '../../helpers/built-harness'
 
 // The version the fake omp prints unless a test asks for another: any release at or above the minimum.
 const FAKE_OMP = '18.10.1'
 
 const REPO = paths.repoRoot()
-const HARNESS_BUILT = existsSync(join(REPO, 'harness', 'omp', 'package.json'))
+const HARNESS_BUILT = existsSync(join(BUILT.harness, 'omp', 'package.json'))
 
 // A fake omp in <root>/bin: it records its calls and its plugin link under $HOME. `configPath`
 // replaces what `omp config path` prints (the agent dir: $PI_CODING_AGENT_DIR or ~/.omp/agent).

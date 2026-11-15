@@ -14,6 +14,7 @@ import { codexBuildFiles } from '../../../src/adapters/codex/generate'
 import { CODEX_HOOK_EVENTS, HOOK_COMMAND_PREFIX, POST_ANSWER_MATCHER, POST_CAPTURE_MATCHER, POST_MASK_HANDLER, POST_MASK_MATCHER, PRE_TOOL_MATCHER } from '../../../src/adapters/codex/hooks-config'
 import { approvalPolicyProblem, BYPASS_APPROVAL_POLICY, CODEX_ENUMS, codexMcpTables, CRITICAL_OMIT_TOOLS_FROM, renderTomlTables, STATUS_LINE_ITEMS, TERMINAL_TITLE_ITEMS } from '../../../src/adapters/codex/config'
 import type { AdapterContext } from '../../../src/adapters/registry'
+import { BUILT } from '../../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
@@ -37,7 +38,7 @@ const file = (p: string) => (built.find(f => f.path === p) as { content: string 
 
 describe('codex build (harness/codex)', () => {
   test('matches the committed tree byte for byte (no missing or stale files)', () => {
-    const root = join(REPO, 'harness', 'codex')
+    const root = join(BUILT.harness, 'codex')
     expect(listFiles(root)).toEqual(built.map(f => f.path).sort())
     for (const f of built) expect({ path: f.path, content: readFileSync(join(root, f.path), 'utf8') }).toEqual({ path: f.path, content: f.content })
   })

@@ -7,6 +7,7 @@ import { sessionStart } from '../../src/memory/session-record'
 import { appendSpool } from '../../src/memory/spool'
 import { listAll, personRef, projectRef } from '../../src/memory/store'
 import { withBrain } from '../memory/helpers'
+import { BUILT } from '../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..')
 
@@ -148,11 +149,11 @@ describe('language guard (R1): what Buracle ships is English', () => {
   })
 
   test('the generated harness/ output, the JS bundles decoded, carries Turkish only in category D', () => {
-    const r = scan(join(REPO, 'harness'), REPO)
+    const r = scan(BUILT.harness, BUILT.root)
     expect(r.files).toBeGreaterThanOrEqual(200)
     expect(r.hits).toEqual([])
     for (const bundle of ['harness/opencode/plugins/buracle/index.js', 'harness/opencode/plugins/buracle/tui.js', 'harness/omp/extensions/buracle.js', 'harness/pi/extensions/buracle.js']) {
-      const modules = readFileSync(join(REPO, bundle), 'utf8').split('\n').filter(l => /^\/\/ src\//.test(l))
+      const modules = readFileSync(join(BUILT.root, bundle), 'utf8').split('\n').filter(l => /^\/\/ src\//.test(l))
       expect({ bundle, split: modules.length >= 50 }).toEqual({ bundle, split: true })
     }
   })

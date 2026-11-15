@@ -18,7 +18,7 @@ tests are the reference.
 | `src/workflow/` | Plans, flows, worktrees, review scope, project sync, skill and rule lint, the session store, the second opinion (companion) | |
 | `src/memory/` | The Brain on CortexDB: store, MCP server, capture, handoff, backup, the Buracle Console (`src/memory/ui/`) | The prefixed ids live in `src/memory/store.ts` only |
 | `src/usage/` | Per-harness usage collectors and the status line bars | |
-| `harness/` | Generated output, committed, listed in `harness/.manifest.json` | Never edited by hand |
+| `harness/` | Generated output, listed in `harness/.manifest.json`; not committed on `dev`, built by CI into the release tree for `main` | Never edited by hand |
 
 The CLI is `src/cli/main.ts`, a thin entry, plus `src/cli/router.ts` and one module per command in
 `src/cli/commands/`.
@@ -170,10 +170,13 @@ no start-up jobs.
 `buracle build` runs every adapter's generator over `canonical/` and `src/core/` and writes `harness/<harness>/`,
 `harness/agents-skills/` and `harness/hook-data.json`. Output is deterministic (no timestamps, stable key order) and
 every file is listed in `harness/.manifest.json`; only listed files are ever deleted as stale. It also writes the command
-summary skill reference and `docs/reference/` (local, outside git). `buracle build --check` compares instead of writing
-and fails on any drift, so CI proves that the committed `harness/` is what `canonical/` and `src/` produce. Because every
-CLI run refreshes `$BURACLE_HOME/state/runtime-config.json`, which installed harnesses read, development runs point `HOME`
+summary skill reference (the one generated file that stays committed, under `canonical/`) and `docs/reference/` (local,
+outside git). `harness/` itself is not committed on `dev`: the `release` job in CI builds it into the release tree, so
+`main` holds it, and `buracle install` / `buracle update` build it first in a checkout that has none. `buracle build
+--check` writes nothing: it builds twice into temporary output roots and fails unless the two trees are byte-identical
+and the manifest lists exactly the files written; when a local `harness/` exists it is compared too, and the
+committed command reference always is. Because every CLI run refreshes `$BURACLE_HOME/state/runtime-config.json`, which installed harnesses read, development runs point `HOME`
 and `BURACLE_HOME` at a temp folder.
 
-The three release checks (typecheck, drift check, tests) run in CI on macOS arm64 and Linux x64; `AGENTS.md` has the
+The three release checks (typecheck, determinism check, tests) run in CI on macOS arm64 and Linux x64; `AGENTS.md` has the
 commands and the branch model.

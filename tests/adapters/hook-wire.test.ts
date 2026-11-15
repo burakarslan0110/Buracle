@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buracleHooksFile, HOOK_COMMAND_PREFIX, type CodexCommandHandler } from '../../src/adapters/codex/hooks-config'
 import { isFailClosedReason } from '../../src/engine/hook-fail'
-import { CLAUDE_PLUGIN, installShim, preToolUsePayload, REPO, runWire, decisionOf, type RunWire } from '../helpers/wire'
+import { CLAUDE_PLUGIN, installShim, preToolUsePayload, runWire, decisionOf, type RunWire } from '../helpers/wire'
 import { withSandbox } from '../helpers/sandbox'
+import { BUILT } from '../helpers/built-harness'
 
 // "Wire" tests: the command lines the generators write into the harness configs are run as written, the way the
 // harness runs them, against a sandbox install (the shim `buracle install` writes, this checkout behind it), with a
@@ -48,7 +49,7 @@ describe('hook wire: the generated PreToolUse commands guard a Bash call', () =>
 
   test('Codex on macOS and Linux: `command` of harness/codex/hooks.json, run by sh -c', () => withSandbox(async ({ home }) => {
     installShim()
-    const committed = JSON.parse(readFileSync(join(REPO, 'harness', 'codex', 'hooks.json'), 'utf8')) as ReturnType<typeof buracleHooksFile>
+    const committed = JSON.parse(readFileSync(join(BUILT.harness, 'codex', 'hooks.json'), 'utf8')) as ReturnType<typeof buracleHooksFile>
     const { matcher, handler } = codexPreToolUse(committed)
     expect(new RegExp(matcher).test('Bash')).toBe(true)
     expect(handler.command).toBe(`${HOOK_COMMAND_PREFIX}PreToolUse`)

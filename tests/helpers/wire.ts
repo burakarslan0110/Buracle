@@ -1,13 +1,14 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { run, type RunResult } from '../../src/engine/proc'
+import { BUILT } from './built-harness'
 import { bunPath, shimPlanOps } from '../../src/engine/update/install-core'
 
 // Helpers of the tests that run the command lines the generators write into the harness configs
 // (tests/adapters/hook-wire.test.ts, tests/adapters/mcp-wire.test.ts).
 
 export const REPO = join(import.meta.dir, '..', '..')
-export const CLAUDE_PLUGIN = join(REPO, 'harness', 'claude')
+export const CLAUDE_PLUGIN = join(BUILT.harness, 'claude')
 
 /** Writes the shim `buracle install` writes (checkout mode: it runs this checkout) into the sandbox's BURACLE_HOME. */
 export function installShim(): void {
