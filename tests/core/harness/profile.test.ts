@@ -122,7 +122,7 @@ describe('a fifth harness is one profile', () => {
     expect(five.table(p => p.label)).toEqual({ ...HARNESS_LABEL, quill: 'Quill' })
     expect(five.table(p => p.bin)['quill']).toBe('quill')
     expect(five.where(p => p.skills.readsAgentsDir)).toEqual(['codex', 'opencode', 'omp', 'qwen', 'pi'])
-    expect(five.where(p => p.skills.linkDir !== undefined)).toEqual(['quill'])
+    expect(five.where(p => p.skills.linkDir !== undefined)).toEqual(['agy', 'quill'])
     expect(five.where(p => p.runtime === 'command')).toEqual(['claude', 'codex', 'qwen', 'agy', 'quill'])
   })
 
