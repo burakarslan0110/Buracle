@@ -127,6 +127,8 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 ## Testing
 
 - Read `.claude/rules/tests.md` before writing a test: sandbox, fake CortexDB, fault injection.
+- Live harness checks that need a login or a real model run (`agy`, `qwen -p`) run only with
+  `BURACLE_LIVE_SMOKE=1` (`tests/helpers/live-smoke.ts`); a mock model on a local port is not live.
 - Tests never touch the real `~/.claude`, `~/.codex`, `~/.config/opencode`, `~/.omp`, `~/.agents`,
   `~/.buracle` (the brain included) or `~/Documents/Buracle` (the old memory vault).
   `tests/zz-real-home-untouched.test.ts` fails the run when one of them changed.
