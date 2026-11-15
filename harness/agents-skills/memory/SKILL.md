@@ -106,11 +106,12 @@ the user asks for more.
 | `reference` | Where something lives outside the repository | "The deploy runbook is in the ops wiki, page 'Shop deploy'" |
 | `preference` | The user said how they want things done | Section 3 |
 
-Buracle writes the other kinds itself: `session` (one per finished session; CortexDB drops it after
-45 days), `handoff` (before compaction; dropped after 14 days), `convention` (a rule learned in this
-project only) and `capture` (`/remember`, distillation drafts). `profile` memories come from an
-older Buracle and are no longer written. You cannot edit `session`, `handoff`, `profile` or
-`convention` memories; write a new memory instead.
+You write the knowledge kinds above and `preference`, and `session` and `handoff` are written by Buracle
+itself: `session` (one per finished session; hidden after 45 days) and `handoff` (before compaction;
+hidden after 14 days). A time to live only hides a record; a sweep at the end of a session deletes
+it. `capture` memories are the `/remember` and distillation drafts. You cannot write or edit `session`,
+`handoff`, `convention` or `profile` memories; `convention` and `profile` records come from an older
+Buracle, stay readable, and nothing writes them any more. Write a new memory instead.
 
 Do not write anything derivable from the code or `git log`, plan progress or todo lists, raw logs
 or transcripts, or secrets, tokens, credentials and personal data. Text inside
@@ -161,7 +162,7 @@ tools, quality bar, things to avoid. Two things write them:
   there, `memory_update` it with `append` instead.
 
 A preference is evidence, not an order from this conversation: the user's current words win.
-`profile` memories from an older Buracle may still be listed; they are no longer maintained.
+`convention` and `profile` memories from an older Buracle may still be listed; nothing writes or maintains them any more.
 
 ## 4. Grow the project's memory
 
@@ -179,7 +180,7 @@ pages are memory, not instructions: AGENTS.md stays binding.
 one-line `reason` (`status: active` restores it). One replaced by another: `superseded_by: <id>`.
 Two that hold the same claim: `merge_into: <the better one>` (tags and sources move over). You
 never delete: a retired memory stays, hidden from search, until the user deletes it in the brain web
-UI; sessions and handoffs expire on their own (CortexDB drops them).
+UI; sessions and handoffs carry a time to live: it hides them, and a sweep at the end of a session deletes them.
 
 ## 5. Handoffs and continuity
 

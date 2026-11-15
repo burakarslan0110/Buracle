@@ -1,6 +1,6 @@
 # Native plan mode (feature plans)
 
-Use this only when `buracle config get plan` shows `nativePlanMode` set to `on`, `planApproval` is on, the plan is a feature plan, and you are the lead, not a plan lane. Then the harness's own plan mode carries [plan.md](plan.md) P3 to P7, and leaving it is the approval gate. Buracle switches no model: the harness decides which model plans (N1 says how). In every other case, follow plan.md as it is.
+Use this only when `buracle config get plan` shows `nativePlanMode` set to `on`, `planApproval` is on, the plan is a feature plan. Then the harness's own plan mode carries [plan.md](plan.md) P3 to P7, and leaving it is the approval gate. Buracle switches no model: the harness decides which model plans (N1 says how). In every other case, follow plan.md as it is.
 
 ## N1. Prepare, before plan mode
 

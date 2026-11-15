@@ -10,7 +10,7 @@ import { harnessLinks, toolchainLinks } from '../toolchain/links'
 import { readToolchainState } from '../toolchain/state'
 import { inCheckout, type LiveContext } from './context'
 import {
-  AGENTS_SKILLS_CONSUMERS, AGENTS_SKILLS_OWNER, agentsSkillsPlan, bunPath, corePlan, dropMixedRemovals, keyPath, pathRulesDir, planKeys, pruneOps,
+  AGENTS_SKILLS_CONSUMERS, agentsSkillsPlan, bunPath, corePlan, dropMixedRemovals, keyPath, pathRulesDir, planKeys, pruneOps,
   readInstallRecord, type PathRuleFile,
 } from './install-core'
 import { errText, isInside } from './output'
@@ -139,9 +139,7 @@ export async function composeInstall(opts: ComposeOptions): Promise<ComposeResul
     const unseenConsumer = res.harnesses.some(h => AGENTS_SKILLS_CONSUMERS.includes(h.harness) && (!h.inScope || (h.reason ?? '').startsWith('detect failed')))
     const skillCarried = unseenConsumer ? record.plans['agents-skills']?.keys ?? [] : []
     if (included.some(h => AGENTS_SKILLS_CONSUMERS.includes(h)) || record.plans['agents-skills'] !== undefined) {
-      // A skill folder that is a link of an earlier Buracle is replaced only when this run also removes the link.
-      const ownedLinks = new Set(unseenConsumer ? [] : Object.values(ledger).filter(e => e.owner === AGENTS_SKILLS_OWNER && e.kind === 'symlink').map(e => resolve(e.path)))
-      raw.push({ key: 'agents-skills', plan: agentsSkillsPlan(opts.repoRoot, included, ownedLinks), carried: skillCarried })
+      raw.push({ key: 'agents-skills', plan: agentsSkillsPlan(opts.repoRoot, included), carried: skillCarried })
     }
     for (const h of included) {
       const adapter = opts.adapters.find(a => a.harness === h) as Adapter

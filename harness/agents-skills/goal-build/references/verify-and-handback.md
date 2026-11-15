@@ -82,10 +82,9 @@ Mark the phase: `buracle flow phase handback`.
 **Worktree merge** (done outcome, worktree runs only). The user chose "separate worktree, squash-merged and removed when the build verifies" in phase 1, so this step needs no new question.
 
 1. Commit everything in the worktree; `git -C <worktree> status --porcelain` prints nothing.
-2. `buracle worktree sync <slug> --json`, then act on the exit code:
-   - **0**: merged. Re-run the full test suite in the main checkout, then `buracle worktree cleanup <slug>` (after this sync it needs no `--force`). Never verify over a red base: fix it there, or hand back as blocked.
-   - **2**: merged, but local changes stashed before the merge (never the run file) could not be restored. Do not pop or drop the stash. Tell the user their earlier local changes are in `git stash list` and need a manual `git stash pop`. Run the post-merge suite and clean up as for 0.
-   - **1**: nothing merged. Read the error. If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), resolve conflicts in files this run changed, re-run the checks and retry once. Still failing: hand back as blocked with the error. Never clean up in this state.
+2. Squash-merge with git in the main checkout, on the base branch (the CLI does not merge): `git merge --squash <branch>`, then `git commit` with a message of your own. Then:
+   - **Merged**: re-run the full test suite in the main checkout, then `buracle worktree cleanup <slug>` (after the merge it needs no `--force`). Never verify over a red base: fix it there, or hand back as blocked.
+   - **A conflict or an error**: undo the attempt with `git reset --merge`; never stash or discard the user's own changes. If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), resolve conflicts in files this run changed, re-run the checks and retry once. Still failing: hand back as blocked with the error. Never clean up in this state.
 
 **Done with verification off** (every criterion passed in the last judge round):
 

@@ -35,7 +35,7 @@ Pick another workflow when the idea is still vague (the `requirements` skill), w
 
 An active build keeps going until hand-back.
 
-**Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it.
+The stop guard, the escape hatch and the pause before a question are in the `buracle` skill, *Plans and the stop guard*.
 
 - The user asks you to stop, wait or pause (in any language): Buracle records the pause. Run `buracle plan pause --kind discussion --reason "user asked to stop"` as well (harmless if already paused), give a status of at most five lines (round, criteria passing, work in progress), and end the turn.
 - You must stop (a hand-back or a blocker): `buracle plan pause --kind decision --reason "build hand-back: <why>"`, report, end the turn. The prefix lets the user's "continue" end this pause.
@@ -95,7 +95,7 @@ Re-read the run file and the reference of the phase you land in. Do the same aft
 - `buracle plan complete` when a round's tasks are done; `buracle plan verify` only for the done outcome.
 - `buracle plan pause --kind discussion|decision --reason "<r>"`, `buracle plan resume`
 - `buracle plan notes [<path>] [--kind plan|code] [--slug <slug>] --json` lists the user's open notes from the review page; `--done <id>[,<id>]` marks the ones you applied.
-- `buracle review-scope --json`; `buracle worktree create <slug> --prefix goal-build --json` (branch `goal-build/<slug>`); `buracle worktree branch <slug> --prefix goal-build --json` (a new branch in this checkout that records its base); `buracle worktree diff|sync|cleanup <slug>`
+- `buracle review-scope --json`; `buracle worktree create <slug> --prefix goal-build --json` (branch `goal-build/<slug>`); `buracle worktree branch <slug> --prefix goal-build --json` (a new branch in this checkout that records its base); `buracle worktree diff|cleanup <slug>` (the merge itself is plain git)
 
 ## Talking to the user
 
@@ -139,7 +139,7 @@ A build round is made for parallel work per the *Parallel agents* rule: you are 
 | Phase | Lanes | Mode | Each lane returns | Then you |
 |---|---|---|---|---|
 | contract (2) | 2 to 4 explorers, as in plan-build's plan phase: the code map, the tests and commands, memory and docs, outside facts | read-only | `path:line` facts and the exact commands | write the tasks and criteria |
-| build (4) | one lane per group of open tasks whose files do not overlap and that wait for no open task | editing; with 2 or more lanes, each in `buracle worktree create <slug>-<n> --lane --prefix goal-build` | the commits on its branch, the test output, the `Verify:` result, the paths it touched | `buracle worktree sync`, the checks after every merge, the ticks and `## Files Touched` |
+| build (4) | one lane per group of open tasks whose files do not overlap and that wait for no open task | editing; with 2 or more lanes, each in `buracle worktree create <slug>-<n> --prefix goal-build` | the commits on its branch, the test output, the `Verify:` result, the paths it touched | `git merge --squash` of each lane branch, the checks after every merge, the ticks and `## Files Touched` |
 | judge (5) | one lane per non-UI criterion, after you started the artifact and proved it is this round's code; briefed with the judge rules (artifact only, two verdicts, no proxy) | read-only | pass or fail with the command and its key output | judge the UI criteria one at a time yourself, then the oracle last |
 | verify (6) | the changes review in the background | read-only | the JSON report | run the checks meanwhile, then triage |
 

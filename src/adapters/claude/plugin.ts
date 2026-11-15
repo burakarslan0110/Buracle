@@ -56,7 +56,8 @@ function compareStr(a: string, b: string): number {
 export function pluginSkills(c: Pick<CanonicalBundle, 'mcp' | 'skills'>): GenFile[] {
   const description = c.skills.find(s => typeof s.frontmatter['description'] !== 'string' || s.frontmatter['description'].trim() === '')
   if (description !== undefined) throw new RenderError(`${description.dir}/SKILL.md: description is required`)
-  return buildAgentsSkills({ canonical: c }).map(f => ({ ...f, path: `skills/${f.path}` }))
+  // Codex's `agents/openai.yaml` is for Codex's own skill list; Claude Code has no use for it.
+  return buildAgentsSkills({ canonical: c }).filter(f => !f.path.endsWith('/agents/openai.yaml')).map(f => ({ ...f, path: `skills/${f.path}` }))
 }
 
 export function pluginMcpPattern(server: string): string {

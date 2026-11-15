@@ -64,7 +64,6 @@ protecting this run, and suggest `buracle doctor`.
 | You need a real decision from the user | `buracle plan pause --kind decision --reason "<question>"`, then ask |
 | The user answered, or said "continue" after a stop | `buracle plan resume` (a bare "continue" answers no open decision or manual step: ask again; it does answer the runaway question, a goal-build hand-back and the model-switch pause) |
 | A reviewer runs in the background, or its report was triaged | `buracle plan review start --role plan\|changes\|goal --handle <id>`, then `buracle plan review done --role <r> --verdict <v>` |
-| A whole workflow runs as a plan lane | the lead: `buracle worktree create <slug> --lane`, and the plan file in the lead's checkout; the lane: every `buracle plan` command with `--lane <slug>` |
 | Planned work against the actual diff (end of implement, start of verify) | `buracle plan audit [<path>] --json` (exit 2 on warnings: planned work missing, unplanned changes, open Inventory rows) |
 | The user pinned notes in the review page (before an approval, before finishing a change) | `buracle plan notes [<path>] [--kind plan\|code] --json`, then `buracle plan notes [<path>] --done <id>[,<id>]` for the ones you applied (no notes is never an approval) |
 | All tasks implemented | `buracle plan complete` |
@@ -86,8 +85,8 @@ protecting this run, and suggest `buracle doctor`.
 | Something in Buracle misbehaves | `buracle doctor` or `buracle doctor <harness>` (read-only) |
 
 The workflow skill in charge (the `plan-build` skill, the `goal-build` skill, the `bugfix` skill) decides when each
-transition happens. Arguments, outputs and exit codes for every command:
-[references/commands.md](references/commands.md). Ready-made sequences:
+transition happens. The commands and their flags: [references/commands.md](references/commands.md);
+the details of one command: `buracle <command> --help`. Ready-made sequences:
 [references/recipes.md](references/recipes.md).
 The detail behind the always-loaded rules: lanes in [references/lanes.md](references/lanes.md), evidence, testing, git and docs in [references/working-rules.md](references/working-rules.md), documents and language in [references/plain-language.md](references/plain-language.md).
 
@@ -133,13 +132,14 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
 - `buracle worktree create <slug> [--prefix plan-build|goal-build|bugfix] --json` → `{path, branch}` with branch
   `<prefix>/<slug>` (default prefix `plan-build`); it also sets `worktree: true` on the registered plan.
   Work inside `path`. Run `buracle worktree detect --json` first to reuse an existing one.
-- `buracle worktree sync <slug> --json` squash-merges into the base. **0** merged · **2** merged
-  but the user's stashed local changes were not restored (tell them to check `git stash list`;
-  never pop or drop it yourself; plan files are never stashed, so the plan keeps its state) ·
-  **1** nothing merged (read the error; never clean up in this state).
-- `buracle worktree cleanup <slug>` after a sync that exited 0 or 2 needs no flag. `--force` is
-  only for a branch squash-merged outside the CLI that cleanup cannot recognize as merged.
-  `--discard` deletes unmerged work: only after the user's explicit yes.
+- The CLI does not merge. With everything committed in the worktree (`git -C <path> status --porcelain`
+  prints nothing), merge with git in the main checkout, on the base branch: `git merge --squash
+  <branch>`, then `git commit` (`git commit -C <branch>` reuses the branch tip's message). On a
+  conflict or an error, undo with `git reset --merge`, merge the base into the worktree branch
+  (never rebase), re-run the checks and retry once; otherwise ask. Never touch the user's
+  uncommitted changes, and never clean up in this state.
+- `buracle worktree cleanup <slug>` after the merge needs no flag. `--force` is only for a branch
+  whose commits landed another way. `--discard` deletes unmerged work: only after the user's explicit yes.
 - Never run raw `git worktree add` or `git worktree remove` for plan worktrees; the CLI keeps the
   session binding and the repository lock.
 - `buracle review-scope [--slug <s>] [--base <ref>] --json` → `{mode, base_ref, diff_range,

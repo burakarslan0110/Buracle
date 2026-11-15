@@ -420,7 +420,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     await f.trigger('session.context', ev)
     const texts = ev.system.map(p => p.text)
     expect(texts[0]).toBe('host prompt')
-    expect(texts.at(-2)).toBe(capabilityCard({ policy: baked.routing, mcp: baked.mcp, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
+    expect(texts.at(-2)).toBe(capabilityCard({ policy: baked.routing, mcp: baked.mcp, plugins: baked.plugins, harness: 'opencode' }))
     expect(texts.at(-3)).toBe(memoryText)
     expect(mem.contexts).toEqual([{ cwd: root, maxBytes: expect.any(Number) }])
     expect(mem.contexts[0]?.maxBytes).toBeLessThan(CONTEXT_BUDGET_BYTES)
@@ -685,7 +685,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     await f.trigger('session.context', ev)
     const healthy = baked.mcp.filter(m => m.id !== 'semble')
     expect(healthy.some(m => m.id === 'grep')).toBe(true)
-    expect(ev.system.at(-1)?.text).toBe(capabilityCard({ policy: baked.routing, mcp: healthy, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
+    expect(ev.system.at(-1)?.text).toBe(capabilityCard({ policy: baked.routing, mcp: healthy, plugins: baked.plugins, harness: 'opencode' }))
   }))
 
   test('BURACLE_NO_CAPTURE: a session that starts with capture off gets no spool, stub note or finalizer', () => withSandbox(async ({ root }) => {

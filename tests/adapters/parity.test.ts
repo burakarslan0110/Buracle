@@ -20,6 +20,7 @@ import type { CanonicalBundle, HookBinding, HookSpec, HookUnsupported } from '..
 import { catalogSkills, hookFallbacks } from '../../src/core/catalog'
 import type { Harness } from '../../src/core/events'
 import { HARNESSES } from '../../src/core/events'
+import { harnessProfile } from '../../src/core/harness/index'
 import { loadCanonicalSync } from '../../src/engine/canonical'
 import { jsoncParse } from '../../src/engine/merge'
 import { lspServers } from '../../src/engine/toolchain/lsp'
@@ -666,13 +667,14 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const each = (t: (code: string) => boolean): Record<Harness, boolean> => ({ claude: t(src.claude), codex: t(src.codex), opencode: t(src.opencode), omp: t(src.omp) })
     expect(each(c => /\.\.\.boundSubject\(sid\)|reviewSubjects\(H, sid\)\)|reviewSubjects\(HARNESS, s\.sid\)|state\.subjects\?\.\(spoolSid\(ctx\)\)/.test(c))).toEqual(FEATURES.reviewSubject)
     expect(each(c => /restoreContext\((?:loadState\(|host\.deps\.state\.load\()/.test(c) && /handoffNote\(/.test(c))).toEqual(FEATURES.reviewRestore)
-    const { files, agentsSkills } = await built()
+    const { agentsSkills } = await built()
+    // One text for every harness: the step names each harness's own command.
     const neutral = file(agentsSkills, 'plan-build/references/plan.md')
     expect({
-      claude: file(files.claude, 'skills/plan-build/references/plan.md').includes('run `/model`, pick the model for the implementation'),
-      codex: neutral.includes('**Codex:** run `/model`'),
-      opencode: neutral.includes('**OpenCode:** open the model list with `/models`'),
-      omp: neutral.includes('**Oh My Pi:** run `/model` (or `/switch`)'),
+      claude: neutral.includes('open the harness\'s model picker (`/model`;'),
+      codex: neutral.includes('(in Codex also its reasoning effort)'),
+      opencode: neutral.includes('`/models` or ctrl+x m in OpenCode'),
+      omp: neutral.includes('`/model` or `/switch` in Oh My Pi'),
     }).toEqual(FEATURES.modelSwitchCommand)
   })
 
@@ -694,16 +696,12 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   })
 
   test('native plan mode (w4): every H12 path fills a prepared plan-build plan, each harness has its way into plan mode, and leaving plan mode approves the plan everywhere but OpenCode', async () => {
-    const { files, agentsSkills } = await built()
+    const { agentsSkills } = await built()
     const calls = (dir: string, harness: string): string[] => [...sources(dir).matchAll(/captureSessionPlan\(\{([^}]*)\}\)/g)].map(m => m[1] ?? '').filter(args => args.includes(harness) && /\bsid\b/.test(args))
     const dirs: Record<Harness, [string, string]> = { claude: ['src/adapters/claude', 'harness: H'], codex: ['src/adapters/codex', "harness: 'codex'"], opencode: ['src/adapters/opencode/runtime', 'harness: HARNESS'], omp: ['src/adapters/omp/runtime', "harness: 'omp'"] }
+    // One text for every harness: it sends the model to the `enter` line of `buracle plan prepare-native`, which each profile fills.
     const neutral = file(agentsSkills, 'plan-build/references/native-plan.md')
-    const enters: Record<Harness, boolean> = {
-      claude: file(files.claude, 'skills/plan-build/references/native-plan.md').includes('call EnterPlanMode'),
-      codex: neutral.includes('**Codex:** ask the user to switch to Plan mode with `/plan`'),
-      opencode: neutral.includes('**OpenCode:** ask the user to switch to the plan agent (Tab)'),
-      omp: neutral.includes('**Oh My Pi:** ask the user to turn on plan mode with `/plan`'),
-    }
+    const enters = Object.fromEntries(HARNESSES.map(h => [h, neutral.includes('the way the `Next:` line of that command says') && harnessProfile(h).plan.enter.length > 0])) as Record<Harness, boolean>
     const each = (t: (h: Harness) => boolean): Record<Harness, boolean> => Object.fromEntries(HARNESSES.map(h => [h, t(h)])) as Record<Harness, boolean>
     expect(each(h => calls(...dirs[h]).length > 0 && enters[h])).toEqual(FEATURES.nativePlanMode)
     expect(each(h => calls(...dirs[h]).length > 0 && calls(...dirs[h]).every(args => !args.includes('approved: false')))).toEqual(FEATURES.nativePlanApproval)
@@ -848,13 +846,13 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   })
 
   test('goal-build\'s portable brief opens with the native /goal command on Claude Code, Codex and omp; OpenCode has none', async () => {
-    const { files, agentsSkills } = await built()
-    const claude = file(files.claude, 'skills/goal-build/references/verify-and-handback.md')
-    const neutral = file(agentsSkills, 'goal-build/references/verify-and-handback.md').split('\n')
-    const labeled = (label: string) => neutral.find(l => l.startsWith(`**${label}:**`)) ?? ''
-    const goal = (text: string) => /`\/goal [^`]+`/.test(text)
-    expect(labeled('OpenCode')).toContain('no goal command')
-    expect({ claude: goal(claude), codex: goal(labeled('Codex')), opencode: goal(labeled('OpenCode')), omp: goal(labeled('Oh My Pi')) }).toEqual(FEATURES.goalCommand)
+    const { agentsSkills } = await built()
+    // One text for every harness: the line names the harnesses that have a goal command.
+    const line = file(agentsSkills, 'goal-build/references/verify-and-handback.md').split('\n').find(l => l.includes('has a goal command (')) ?? ''
+    expect(line).toMatch(/`\/goal [^`]+`/)
+    const names: Record<Harness, string> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
+    const listed = (/has a goal command \(([^)]*)\)/.exec(line)?.[1] ?? '')
+    expect(Object.fromEntries(HARNESSES.map(h => [h, listed.includes(names[h])]))).toEqual(FEATURES.goalCommand)
   })
   test('H28 lists unindexed .claude/rules for Codex, OpenCode and omp (Claude Code loads them natively) and Claude-only skills for Codex alone (the others read .claude/skills)', () => withSandbox(async ({ root }) => {
     const { assetsContext } = await import('../../src/adapters/shared/project-assets')
@@ -1024,16 +1022,6 @@ function harnessBlockRuns(file: string, text: string): HarnessBlockRun[] {
   return runs
 }
 
-function withoutHarnessBlocks(text: string): string {
-  const out: string[] = []
-  let open = false
-  for (const line of text.split('\n')) {
-    if (HB_START.test(line)) { open = true; continue }
-    if (open) { if (HB_END.test(line)) open = false; continue }
-    out.push(line.replace(HB_INLINE, ''))
-  }
-  return out.join('\n')
-}
 
 interface PlaceholderIds { skills: string[], protocols: string[], agents: string[] }
 
@@ -1116,27 +1104,6 @@ function skillMarkdown(skill: CanonicalBundle['skills'][number]): Array<{ path: 
   return [{ path: 'SKILL.md', source: skill.body }, ...refs]
 }
 
-/**
- * Every harness-block run of canonical/skills/** that does not cover all four harnesses, keyed by skill id and the
- * block's first line. The reason is `feature:<FEATURES key>` (the row that explains the difference), `limit:<HOST_LIMITS
- * id>` (a recorded host limit) or `equivalent:<the mechanism the other harnesses use instead>`.
- */
-const RECORDED_HARNESS_BLOCKS: ReadonlyArray<{ skill: string, firstLine: string, reason: string }> = [
-  // Claude Code defers MCP tools behind ToolSearch; the other three list every MCP tool from the first turn (Codex keeps the
-  // critical servers out of tool_search and code mode with omit_tools_from, OpenCode turns Code Mode off for them with
-  // codemode: false, omp loads its .mcp.json servers whole), so they need no loading step.
-  { skill: 'research', firstLine: 'MCP tools may be deferred. Load them with ToolSearch (query the server id, for example `context7` or', reason: 'equivalent: Codex (omit_tools_from), OpenCode (codemode: false) and omp (.mcp.json) expose every MCP tool from the first turn, so nothing has to be loaded first' },
-  { skill: 'inspect', firstLine: 'MCP tools may be deferred. Load codegraph, semble and buracle-memory tools with ToolSearch before', reason: 'equivalent: Codex (omit_tools_from), OpenCode (codemode: false) and omp (.mcp.json) expose every MCP tool from the first turn, so nothing has to be loaded first' },
-  { skill: 'project-rules', firstLine: 'MCP tools may be deferred. Load the semble, codegraph, context7 and buracle-memory tools with', reason: 'equivalent: Codex (omit_tools_from), OpenCode (codemode: false) and omp (.mcp.json) expose every MCP tool from the first turn, so nothing has to be loaded first' },
-  { skill: 'memory', firstLine: 'If the memory tools are not visible, load them with ToolSearch before concluding they are', reason: 'equivalent: the memory tools are top-level from the first turn on Codex, OpenCode and omp, and Codex\'s own memories feature stays off (the Codex AGENTS block says so), so no other harness has a second store to warn about' },
-  // Find-references through a language server: Claude Code has the LSP tool; Codex and OpenCode reach the same through the lsp MCP bridge, omp through its built-in LSP (the tooling rule routes them there).
-  { skill: 'dead-code', firstLine: 'If a language-server tool is available, a find-references result on the symbol also counts as G.', reason: 'equivalent: Codex and OpenCode get find-references from the lsp MCP bridge and omp from its built-in LSP, as the tooling rule says; the G check names codegraph for all four' },
-  // omp drives its built-in browser, the other three the chrome-devtools MCP server (the browserControl row).
-  { skill: 'bugfix', firstLine: 'omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp\'s built-in browser tool.', reason: 'feature:browserControl' },
-  { skill: 'goal-build', firstLine: 'omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp\'s built-in browser tool.', reason: 'feature:browserControl' },
-  { skill: 'plan-build', firstLine: 'omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp\'s built-in browser tool.', reason: 'feature:browserControl' },
-]
-
 describe('parity: the same instructions on every harness (PRD R13)', () => {
   test('rules: every always rule and path rule carries the canonical body on all four harnesses', async () => {
     const { canonical, files } = await built()
@@ -1183,23 +1150,15 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
     expect(problems).toEqual([])
   })
 
-  test('skills: the Claude render and the neutral render are the same instructions once the harness literals are mapped back to their placeholders and the harness blocks are removed', async () => {
+  test('skills: one text for every harness: the installed copy and the Claude plugin bundle carry the canonical text as it is', async () => {
     const { canonical, files, agentsSkills } = await built()
-    const ids: PlaceholderIds = { skills: canonical.skills.map(s => s.id), protocols: protocolSkills(canonical), agents: canonical.agents.map(a => a.id) }
-    const opts = { skills: ids.skills, agents: ids.agents, protocols: ids.protocols }
     let compared = 0
     for (const skill of canonical.skills) {
       for (const { path, source } of skillMarkdown(skill)) {
         const where = `skills/${skill.id}/${path}`
         const strip = path === 'SKILL.md' ? stripFrontmatter : (s: string) => s
-        // The built files are the renders of the canonical source.
-        expect({ where, built: firstDifference(normBody(strip(file(files.claude, `skills/${skill.id}/${path}`))), normBody(renderClaudeMarkdown(source, where, ids.protocols))) }).toEqual({ where, built: undefined })
-        expect({ where, built: firstDifference(normBody(strip(file(agentsSkills, `${skill.id}/${path}`))), normBody(renderMarkdown(source, 'neutral', { ...opts, file: where }))) }).toEqual({ where, built: undefined })
-        // Without the harness blocks, both renders say the same thing.
-        const plain = withoutHarnessBlocks(source)
-        const claude = normBody(placeholderTokens(renderClaudeMarkdown(plain, where, ids.protocols), ids))
-        const neutral = normBody(placeholderTokens(renderMarkdown(plain, 'neutral', { ...opts, file: where }), ids))
-        expect({ where, diff: firstDifference(claude, neutral) }).toEqual({ where, diff: undefined })
+        expect({ where, built: firstDifference(normBody(strip(file(agentsSkills, `${skill.id}/${path}`))), normBody(source)) }).toEqual({ where, built: undefined })
+        expect({ where, built: firstDifference(normBody(strip(file(files.claude, `skills/${skill.id}/${path}`))), normBody(source)) }).toEqual({ where, built: undefined })
         compared++
       }
     }
@@ -1215,23 +1174,12 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
     expect(claude).toBe('Ask with {{ask_user}}. {{ask_user}} first. Track with {{todo}} and a {{spawn_agent}}; run {{skill:plan-build}} ({{skill:plan-build}}), then {{skill:memory}} and {{agent:changes-review}} in `{{skill:plan-build}} src` and {{ask_user}}.')
   })
 
-  test('harness blocks: every block run that does not cover all four harnesses is recorded with its reason (a feature row, a host limit or the equivalent mechanism)', async () => {
+  test('no skill text has a harness block or a render placeholder: what differs between harnesses is worded neutrally in the one copy', async () => {
     const { canonical } = await built()
-    const runs = canonical.skills.flatMap(s => skillMarkdown(s).flatMap(({ path, source }) => harnessBlockRuns(`skills/${s.id}/${path}`, source).map(r => ({ ...r, skill: s.id }))))
-    const partial = runs.filter(r => new Set(r.harnesses).size < HARNESSES.length)
-    const key = (skill: string, firstLine: string) => `${skill}: ${firstLine}`
-    const recorded = new Set(RECORDED_HARNESS_BLOCKS.map(r => key(r.skill, r.firstLine)))
-    const unrecorded = partial.filter(r => !recorded.has(key(r.skill, r.firstLine))).map(r => `${r.file}:${r.line} (${r.harnesses.join(', ')}): ${r.firstLine}`)
-    expect(unrecorded).toEqual([])
-    const present = new Set(partial.map(r => key(r.skill, r.firstLine)))
-    expect(RECORDED_HARNESS_BLOCKS.filter(r => !present.has(key(r.skill, r.firstLine))).map(r => key(r.skill, r.firstLine))).toEqual([])
-    for (const r of RECORDED_HARNESS_BLOCKS) {
-      const m = /^(feature|limit|equivalent):(.+)$/.exec(r.reason)
-      const reasonOk = m !== null && (m[1] === 'feature' ? Object.hasOwn(FEATURES, m[2] ?? '') : m[1] === 'limit' ? HOST_LIMITS.some(l => l.id === m[2]) : (m[2] ?? '').trim().length >= 20)
-      expect({ row: key(r.skill, r.firstLine), reasonOk }).toEqual({ row: key(r.skill, r.firstLine), reasonOk: true })
-    }
-    expect(runs.length).toBeGreaterThan(partial.length)
-    expect(new Set(RECORDED_HARNESS_BLOCKS.map(r => key(r.skill, r.firstLine))).size).toBe(RECORDED_HARNESS_BLOCKS.length)
+    const runs = canonical.skills.flatMap(s => skillMarkdown(s).flatMap(({ path, source }) => harnessBlockRuns(`skills/${s.id}/${path}`, source)))
+    expect(runs.map(r => `${r.file}:${r.line}`)).toEqual([])
+    const placeholders = canonical.skills.flatMap(s => skillMarkdown(s).filter(({ source }) => /(?<!\\)\{\{(?:ask_user|todo|spawn_agent|(?:skill|agent):[A-Za-z0-9._-]+)\}\}/.test(source)).map(({ path }) => `skills/${s.id}/${path}`))
+    expect(placeholders).toEqual([])
   })
 })
 

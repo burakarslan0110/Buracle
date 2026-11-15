@@ -195,10 +195,11 @@ function isLink(path: string): boolean {
 /**
  * Buracle's skills, installed once: every file of `harness/agents-skills/<id>` as a real file under
  * `~/.agents/skills/<id>`, and one link per skill to that copy for each harness whose profile names a
- * link folder. A skill folder that is somebody else's link is left alone (`ownedLinks` holds the links an
- * earlier Buracle made, which the same transaction removes first): writing into it would write through it.
+ * link folder. A skill folder that is a link (somebody else's, or one an earlier Buracle made and this run
+ * removes) is skipped: writing into it would write through it, and a link cannot become a folder inside one
+ * transaction. The run after the removal writes the copy.
  */
-export function agentsSkillsPlan(repoRoot: string, harnesses: readonly Harness[], ownedLinks: ReadonlySet<string> = new Set()): Plan {
+export function agentsSkillsPlan(repoRoot: string, harnesses: readonly Harness[]): Plan {
   const src = join(repoRoot, 'harness', 'agents-skills')
   const dest = installedSkillsDir()
   const ops: Op[] = []
@@ -206,7 +207,7 @@ export function agentsSkillsPlan(repoRoot: string, harnesses: readonly Harness[]
     const linkDirs = harnesses.map(h => harnessSkillLinksDir(h)).filter((d): d is string => d !== undefined)
     for (const id of agentsSkillIds(repoRoot)) {
       const folder = join(dest, id)
-      if (isLink(folder) && !ownedLinks.has(resolve(folder))) continue
+      if (isLink(folder)) continue
       for (const f of skillFiles(join(src, id))) {
         ops.push({ kind: 'file', path: join(folder, f.rel), content: f.content, ...(f.exec ? { mode: 0o755 } : {}), owner: AGENTS_SKILLS_OWNER })
       }

@@ -42,14 +42,12 @@ The same holds when they say it in their own language.
    work inside the returned `path`; the registered plan gets `worktree: true`.
 3. Commit inside the worktree as tasks finish; `git -C <path> status --porcelain` must be empty
    before a merge.
-4. With the user's go-ahead to merge: `buracle worktree sync <slug> --json`.
-   - 0: merged. Run the test suite in the main checkout, then `buracle worktree cleanup <slug>`
-     (no flag needed after this sync).
-   - 2: merged, but the user's earlier local changes are still in `git stash list`. Tell them;
-     do not pop or drop the stash. Plan files are never stashed, so the plan keeps its state.
-     Then test and clean up as for 0.
-   - 1: nothing merged. Read the error (conflict, dirty base, lock), fix the cause, retry once,
-     otherwise pause and ask. Never clean up in this state.
+4. With the user's go-ahead to merge, in the main checkout on the base branch: `git merge --squash
+   <branch>` (the branch is in the `create` output), then `git commit`.
+   - Merged: run the test suite in the main checkout, then `buracle worktree cleanup <slug>`
+     (no flag needed after the merge).
+   - A conflict or an error: `git reset --merge`, merge the base into the worktree branch (never
+     rebase), re-run the checks and retry once, otherwise pause and ask. Never clean up in this state.
 5. Discarding work needs the user's explicit yes: `buracle worktree cleanup <slug> --discard`.
 
 ## Review a change
@@ -88,10 +86,11 @@ The same holds when they say it in their own language.
 1. `buracle usage --json`.
 2. At 75% or more of the 5-hour window, or 85% or more of the 7-day window: tell the user, and
    prefer fewer subagents, fewer runs or a smaller scope.
-3. Editing lanes that run at the same time get one worktree each: `buracle worktree create <slug>-<n> --lane --json`
-   (run it inside the plan worktree when the run has one) and pass the returned `path` in the lane's
-   brief. When the lane reports: `buracle worktree diff <slug>-<n>`, read the diff, then
-   `buracle worktree sync <slug>-<n>`, run the checks, and `buracle worktree cleanup <slug>-<n>`.
+3. Editing lanes that run at the same time get one worktree each: `buracle worktree create <slug>-<n> --json`
+   and pass the returned `path` in the lane's brief. It also sets `worktree: true` on the plan: when the
+   run itself is not in a worktree, undo that with `buracle plan set worktree false`. When the lane
+   reports: `buracle worktree diff <slug>-<n>`, read the diff, merge it as in *Worktree lifecycle*
+   step 4, run the checks, and `buracle worktree cleanup <slug>-<n>`.
 
 ## Diagnose Buracle itself
 

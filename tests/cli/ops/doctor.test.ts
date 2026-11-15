@@ -16,7 +16,7 @@ import { run as runProcess } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { styledReport } from '../../../src/cli/commands/doctor'
 import { makeStyle, stripAnsi } from '../../../src/cli/ui/style'
-import { symlinkSync, unlinkSync } from 'node:fs'
+import { symlinkSync } from 'node:fs'
 import { shimContent } from '../../../src/engine/update/install-core'
 import { mcpHealthMap, probeHttp, probeServers, probeStdio, readHealth, writeHealth } from '../../../src/engine/update/mcp'
 import { installAdvice } from '../../../src/engine/toolchain/system'
@@ -503,7 +503,7 @@ describe('buracle doctor', () => {
     })
   }))
 
-  test('skills: in the Claude plugin and linked into each harness\'s own skills folder', () => withSandbox(async ({ root }) => {
+  test('skills: in the Claude plugin and as one installed copy under ~/.agents/skills', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
     for (const id of ['plan-build', 'bugfix']) {
       mkdirSync(join(repo, 'harness', 'claude', 'skills', id), { recursive: true })
@@ -511,22 +511,22 @@ describe('buracle doctor', () => {
       mkdirSync(join(repo, 'harness', 'agents-skills', id), { recursive: true })
       writeFileSync(join(repo, 'harness', 'agents-skills', id, 'SKILL.md'), '---\nname: x\n---\n')
     }
-    const codexDir = join(paths.codexHome(), 'skills')
-    const ompDir = join(paths.ompAgentDir(), 'skills')
+    const copy = join(paths.agentsDir(), 'skills')
     const before = skillChecks(['plan-build', 'bugfix'], repo, { claude: true, linked: ['codex', 'omp'] })
-    expect(before.map(c => [c.check, c.level])).toEqual([['claude plugin', 'ok'], ['codex (~/.codex/skills)', 'error'], ['omp (~/.omp/agent/skills)', 'error']])
-    for (const dir of [codexDir, ompDir]) {
-      mkdirSync(dir, { recursive: true })
-      for (const id of ['plan-build', 'bugfix']) symlinkSync(join(repo, 'harness', 'agents-skills', id), join(dir, id))
+    expect(before.map(c => [c.check, c.level])).toEqual([['claude plugin', 'ok'], ['installed copy (~/.agents/skills)', 'error']])
+    for (const id of ['plan-build', 'bugfix']) {
+      mkdirSync(join(copy, id), { recursive: true })
+      writeFileSync(join(copy, id, 'SKILL.md'), '---\nname: x\n---\n')
     }
-    mkdirSync(join(paths.agentsDir(), 'skills'), { recursive: true })
     expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: true, linked: ['codex', 'omp'] }).every(c => c.level === 'ok')).toBe(true)
-    unlinkSync(join(ompDir, 'bugfix'))
-    expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: false, linked: ['codex', 'omp'] }).map(c => [c.check, c.level])).toEqual([['codex (~/.codex/skills)', 'ok'], ['omp (~/.omp/agent/skills)', 'error']])
+    writeFileSync(join(copy, 'bugfix', 'SKILL.md'), 'edited by the user\n')
+    expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: false, linked: ['codex'] }).map(c => [c.check, c.level])).toEqual([['installed copy (~/.agents/skills)', 'ok'], ['installed copy differs', 'warn']])
+    rmSync(join(copy, 'plan-build'), { recursive: true })
+    expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: false, linked: ['omp'] })[0]).toMatchObject({ level: 'error', detail: expect.stringContaining('plan-build') })
     expect(skillChecks(['plan-build', 'gone'], repo, { claude: true, linked: [] })[0]).toMatchObject({ level: 'error', detail: expect.stringContaining('gone') })
   }))
 
-  test('a harness\'s skill links are checked only when it is installed, as install links them only then', () => withSandbox(async ({ root }) => {
+  test('the installed skill copy is checked only when a harness that reads it is installed', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root, { 'canonical/skills/demo/SKILL.md': '---\nname: demo\ndescription: A demo skill.\n---\nBody.\n' })
     const rows = async (installed: boolean): Promise<Array<{ check: string, level: string }>> => {
       const adapters = [fakeAdapter('claude'), fakeAdapter('codex', { installed }), fakeAdapter('opencode', { installed: false }), fakeAdapter('omp', { installed: false })]
@@ -538,7 +538,7 @@ describe('buracle doctor', () => {
       })
     }
     expect(await rows(false)).toEqual([])
-    expect(await rows(true)).toEqual([{ check: 'codex (~/.codex/skills)', level: 'error' }])
+    expect(await rows(true)).toEqual([{ check: 'installed copy (~/.agents/skills)', level: 'error' }])
   }), 60_000)
 
   test('the terminal report: one line per section with its counts, then only the warning and error rows', () => {

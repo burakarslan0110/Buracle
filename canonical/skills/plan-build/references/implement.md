@@ -14,7 +14,7 @@ Outcome: every task ticked with its DoD proven, full checks green, status COMPLE
 
 ## I1. Task loop
 
-Repeat for each unticked task, in order. When 2 or more unticked tasks have no file in common and wait for no unfinished task, run them as lanes instead (SKILL.md, *Lanes and documents*): each lane runs steps 2 to 8 in its own `--lane` worktree and commits there; you sync each lane, run the full checks after every merge, then do step 9 for its tasks. A lane whose worktree cannot be created does not start: run its tasks yourself, in order. Never run an editing lane in the shared checkout. The tasks that remain follow the loop below.
+Repeat for each unticked task, in order. When 2 or more unticked tasks have no file in common and wait for no unfinished task, run them as lanes instead (SKILL.md, *Lanes and documents*): each lane runs steps 2 to 8 in its own worktree and commits there; you squash-merge each lane branch with git, run the full checks after every merge, then do step 9 for its tasks. A lane whose worktree cannot be created does not start: run its tasks yourself, in order. Never run an editing lane in the shared checkout. The tasks that remain follow the loop below.
 
 1. Mark the task in progress in your todo tool and re-read its card.
 2. Prepare with the routed tools: codegraph for callers of anything shared you will change (they must keep working), context7 for every library call you will write, semble `find_related` for the local pattern to follow.
