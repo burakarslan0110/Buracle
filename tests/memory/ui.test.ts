@@ -452,6 +452,19 @@ describe('scopes', () => {
     })
   })
 
+  test('the graph draws concept hubs from the memory\'s own about field: an update that drops an entry drops its edge', async () => {
+    await withSandbox(async () => {
+      await seed()
+      const alphaRef = projectRef('alpha')
+      const c = ctx()
+      const aboutEdges = async () => ((await getJson(c, '/api/graph?scope=project:alpha')).body['edges'] as Array<{ source: string, target: string, kind: string }>).filter(e => e.kind === 'about').map(e => `${e.source}>${e.target}`)
+      await saveItem(alphaRef, item({ id: 'gotcha-about', kind: 'gotcha', title: 'About gotcha', about: ['SQLite', 'Bun'] }))
+      expect(await aboutEdges()).toEqual(['gotcha-about>concept:bun', 'gotcha-about>concept:sqlite'])
+      await saveItem(alphaRef, item({ id: 'gotcha-about', kind: 'gotcha', title: 'About gotcha', about: ['Bun'] }))
+      expect(await aboutEdges()).toEqual(['gotcha-about>concept:bun'])
+    })
+  })
+
   test('a region graph holds only its own scope\'s memories, links neighbors and hubs, and refuses an unknown region', async () => {
     await withSandbox(async () => {
       await seed()

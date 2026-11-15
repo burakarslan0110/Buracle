@@ -3,7 +3,7 @@ import type { MemItem } from '../../src/core/memory/brain'
 import { closeAllCortex, CortexError, cortexFor } from '../../src/memory/cortex'
 import { brainLockFile } from '../../src/memory/layout'
 import { tryLock } from '../../src/memory/lock'
-import { brainEntities, bucketExists, deleteItem, getStored, listAll, personRef, projectRef, refKey, saveItem, searchLayer, withBrainLock } from '../../src/memory/store'
+import { bucketExists, deleteItem, getStored, listAll, personRef, projectRef, refKey, saveItem, searchLayer, withBrainLock } from '../../src/memory/store'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
 afterEach(async () => { await closeAllCortex() })
@@ -81,30 +81,6 @@ describe('store', () => {
       const old = await getStored(ref, 'decision-orders-on-postgres')
       expect(old?.item.status).toBe('superseded')
       expect(old?.item.supersededBy).toBe('decision-orders-on-cockroach')
-    })
-  })
-
-  test('the engine\'s graph is read whole and split by bucket: one entity per name, with the plain ids of the memories that mention it', async () => {
-    await withSandbox(async () => {
-      const alpha = projectRef('alpha')
-      const beta = projectRef('beta')
-      await saveItem(alpha, item({ id: 'decision-a', title: 'A', about: ['SQLite'], sources: ['src/a.ts:3'] }))
-      await saveItem(alpha, item({ id: 'gotcha-b', kind: 'gotcha', title: 'B', about: ['sqlite', 'Bun'] }))
-      await saveItem(beta, item({ id: 'decision-a', title: 'Other project', about: ['sqlite'] }))
-      await saveItem(personRef(), item({ id: 'preference-c', kind: 'preference', layer: 'person', title: 'C', about: ['Commits'] }))
-      await saveItem(alpha, item({ id: 'knowledge-plain', kind: 'knowledge', title: 'No topics' }))
-      const sorted = (r: Awaited<ReturnType<typeof brainEntities>>) => r.map(e => ({ label: e.label.toLowerCase(), type: e.type, members: [...e.members].sort() })).sort((x, y) => (x.label < y.label ? -1 : 1))
-      expect(sorted(await brainEntities(alpha))).toEqual([
-        { label: 'bun', type: 'topic', members: ['gotcha-b'] },
-        { label: 'sqlite', type: 'topic', members: ['decision-a', 'gotcha-b'] },
-        { label: 'src/a.ts', type: 'file', members: ['decision-a'] },
-      ])
-      expect(sorted(await brainEntities(beta))).toEqual([{ label: 'sqlite', type: 'topic', members: ['decision-a'] }])
-      expect(sorted(await brainEntities(personRef()))).toEqual([{ label: 'commits', type: 'topic', members: ['preference-c'] }])
-      expect(await brainEntities(projectRef('gamma'))).toEqual([])
-      // A deleted memory leaves the graph with its row.
-      await deleteItem(beta, 'decision-a')
-      expect(await brainEntities(beta)).toEqual([])
     })
   })
 

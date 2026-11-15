@@ -529,7 +529,7 @@
     },
     "harness/claude/hooks/core/memory/graph.ts": {
       "by": "claude",
-      "sha256": "101ff6bfc34f0016f15d9da6b2a310b7958d7eb58c8963b66429068a3b3aeb0f",
+      "sha256": "554673dff036db3edbf60a2167639d72477a6ac04863294bff8ddff28a9b0ce4",
       "exec": false
     },
     "harness/claude/hooks/core/memory/index.ts": {

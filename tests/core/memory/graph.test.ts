@@ -228,20 +228,13 @@ describe('neighbors from other regions', () => {
 })
 
 describe('entity hubs', () => {
-  test('tags and the entities the engine lists become hubs; generated profile tags do not, and nothing is rebuilt from about or sources', () => {
+  test('tags, about entries and repository files become hubs; generated profile tags, URLs and commits do not', () => {
     const items = [
       item({ id: 'decision-a', title: 'A', tags: ['memory', 'rank-1', 'hypothesis', 'stated'], about: ['CortexDB ', 'bun'], sources: ['src/memory/store.ts:12-20', 'https://example.com/x', 'abc1234', '/abs/path.ts', 'session:x', 'memory:decision-b'] }),
       item({ id: 'decision-b', title: 'B', tags: ['memory'], about: ['cortexdb'], sources: ['./src/memory/store.ts'] }),
       item({ id: 'profile-x', kind: 'profile', layer: 'person', title: 'Wants the result first', author: 'buracle', tags: ['communication', 'stated', 'rank-1'] }),
     ]
-    // What the engine's graph listing holds for these memories: one entity per name whatever its case, with its mentions.
-    const entities = [
-      { label: 'CortexDB', type: 'topic', members: ['decision-a', 'decision-b'] },
-      { label: 'bun', type: 'topic', members: ['decision-a'] },
-      { label: 'src/memory/store.ts', type: 'file', members: ['decision-a', 'decision-b'] },
-    ]
-    expect(entityNodes(memGraph(items, { nowMs: NOW })).map(e => e.id)).toEqual(['tag:memory', 'tag:communication'])
-    const g = memGraph(items, { nowMs: NOW, entities })
+    const g = memGraph(items, { nowMs: NOW })
     const ents = entityNodes(g)
     expect(ents.map(e => e.id)).toEqual(['concept:cortexdb', 'tag:memory', 'file:src/memory/store.ts', 'concept:bun', 'tag:communication'])
     expect(ents.find(e => e.id === 'concept:cortexdb')).toEqual({ id: 'concept:cortexdb', type: 'concept', label: 'CortexDB', weight: 2, degree: 2 })
@@ -251,6 +244,14 @@ describe('entity hubs', () => {
     expect(edgesOf(g, 'about')).toContainEqual({ source: 'decision-b', target: 'concept:cortexdb' })
     expect(edgesOf(g, 'cites')).toContainEqual({ source: 'decision-a', target: 'file:src/memory/store.ts' })
     assertConsistent(g)
+  })
+
+  test('an update that drops an about entry or a source drops its edge: the hubs follow the memory\'s own fields', () => {
+    const before = [item({ id: 'decision-a', title: 'A', about: ['bun', 'sqlite'], sources: ['src/a.ts'] })]
+    const after = [item({ id: 'decision-a', title: 'A', about: ['bun'], sources: [] })]
+    const hubs = (items: ReturnType<typeof item>[]) => memGraph(items, { nowMs: NOW }).edges.filter(e => e.kind === 'about' || e.kind === 'cites').map(e => e.target).sort()
+    expect(hubs(before)).toEqual(['concept:bun', 'concept:sqlite', 'file:src/a.ts'])
+    expect(hubs(after)).toEqual(['concept:bun'])
   })
 
   test('the entity cap keeps the most linked hubs (label breaks ties)', () => {
