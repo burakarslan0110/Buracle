@@ -8414,7 +8414,7 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync24, writeFileSync as writeFileSync2 } from "fs";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync25, writeFileSync as writeFileSync2 } from "fs";
 import { basename as basename8, dirname as dirname15, join as join37, relative as relative4, resolve as resolve20, sep as sep5 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
@@ -8507,7 +8507,7 @@ function checkoutFingerprint(checkout, deps) {
   for (const rel of runtimeFiles(checkout)) {
     const abs = join37(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync23(abs), statSync24(abs).mode));
+      parts.push(fileEntry(rel, readFileSync23(abs), statSync25(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -8903,7 +8903,6 @@ __export(exports_core, {
   PLAN_TITLE_MAX: () => PLAN_TITLE_MAX,
   PLAN_TYPES: () => PLAN_TYPES,
   PROFILE_CATEGORIES: () => PROFILE_CATEGORIES,
-  PROFILE_QUOTE_MAX: () => PROFILE_QUOTE_MAX,
   PROMPT_CONTEXT_MAX_CHARS: () => PROMPT_CONTEXT_MAX_CHARS,
   QUESTION_PAUSE_NOTE: () => QUESTION_PAUSE_NOTE,
   READ_ONLY_KINDS: () => READ_ONLY_KINDS,
@@ -9318,7 +9317,6 @@ __export(exports_core, {
   ruleGlobs: () => ruleGlobs,
   ruleText: () => ruleText,
   runtimeSnapshotConfig: () => runtimeSnapshotConfig,
-  sanitizePromptSignal: () => sanitizePromptSignal,
   scanCode: () => scanCode,
   searchTerms: () => searchTerms,
   selfProtectedArea: () => selfProtectedArea,
@@ -9327,7 +9325,6 @@ __export(exports_core, {
   shellFailed: () => shellFailed,
   shellTools: () => shellTools,
   shortDuration: () => shortDuration,
-  signalGroup: () => signalGroup,
   similarMemories: () => similarMemories,
   skillOf: () => skillOf,
   skippedNote: () => skippedNote,
@@ -9550,10 +9547,9 @@ var HOOK_IDS = [
   "H23",
   "H24",
   "H25",
-  "H26",
   "H28"
 ];
-var RETIRED_HOOK_IDS = ["H27"];
+var RETIRED_HOOK_IDS = ["H26", "H27"];
 function mcpServerToken(harness, server) {
   return mcpToken(harnessProfile(harness).mcp, server);
 }
@@ -27721,61 +27717,8 @@ function maskNotice(count) {
   return `Buracle: ${count === 1 ? "1 secret value" : `${count} secret values`} hidden from the model`;
 }
 
-// src/core/memory/signals.ts
-var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
-var PROFILE_QUOTE_MAX = 160;
-var KEY_RE = /^[a-z][a-z0-9_.:=+#/-]{0,119}$/;
-var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
-function uw(re) {
-  return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
-}
-function clipText(s, scrub) {
-  const one = memOneLine(s);
-  return scrub ? scrub(one, PROFILE_QUOTE_MAX) : redactClip(one, PROFILE_QUOTE_MAX).text;
-}
-function sanitizePromptSignal(x, scrub) {
-  if (x === null || typeof x !== "object" || Array.isArray(x))
-    return;
-  const o = x;
-  const key = o["key"];
-  if (o["kind"] !== "statement")
-    return;
-  if (typeof key !== "string" || !KEY_RE.test(key))
-    return;
-  const s = { kind: "statement", key };
-  if (o["polarity"] === -1)
-    s.polarity = -1;
-  const c = o["category"];
-  if (typeof c === "string" && PROFILE_CATEGORIES.includes(c))
-    s.category = c;
-  if (typeof o["text"] === "string" && o["text"].trim() !== "")
-    s.text = clipText(o["text"], scrub);
-  if (typeof o["quote"] === "string" && o["quote"].trim() !== "")
-    s.quote = clipText(o["quote"], scrub);
-  return s;
-}
-var EXCLUSIVE_GROUPS = ["communication.reply_language", "autonomy.ask"];
-function signalGroup(key) {
-  return EXCLUSIVE_GROUPS.find((g) => key.startsWith(`${g}=`));
-}
-var CATEGORY_WORDS = [
-  ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
-  ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
-  ["quality", uw(/\b(?:tests?|tdd|verify|verification|lint|typecheck|type-check|review|coverage|quality|regression|evidence)\b|\b(?:do[\u011Fg]rula|kalite|kan[\u0131i]t)/i)],
-  ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
-  ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
-];
-function profileCategory(text, polarity = 1) {
-  if (polarity === -1)
-    return "avoid";
-  for (const [cat, re] of CATEGORY_WORDS)
-    if (re.test(text))
-      return cat;
-  return "other";
-}
-
 // src/core/memory/spool.ts
-var SPOOL_EVENTS = ["prompt", "turn", "compact", "stop", "note", "prompt-signal"];
+var SPOOL_EVENTS = ["prompt", "turn", "compact", "stop", "note"];
 var EXCERPT_EVENTS = ["prompt", "turn", "stop", "compact", "note"];
 var NO_CAPTURE_ENV = "BURACLE_NO_CAPTURE";
 function memCaptureOff(env) {
@@ -27828,12 +27771,6 @@ function spoolSanitize(input) {
     const max = ev === "compact" ? SPOOL_LIMITS.compactExcerpt : ev === "prompt" ? SPOOL_LIMITS.promptExcerpt : SPOOL_LIMITS.excerpt;
     entry.excerpt = scrub(x["excerpt"], max);
   }
-  if (ev === "prompt-signal") {
-    const signal = sanitizePromptSignal(x["signal"], scrub);
-    if (!signal)
-      return { redactions: { count, kinds: [...kinds].sort() } };
-    entry.signal = signal;
-  }
   if (typeof x["model"] === "string" && x["model"] !== "")
     entry.model = clip4(x["model"], SPOOL_LIMITS.model);
   const tokens = finite(x["tokens"]);
@@ -27885,7 +27822,7 @@ function spoolIsEmptySession(d) {
 }
 function spoolDigest(entries) {
   const sorted = [...entries].sort((a, b) => a.ts - b.ts);
-  const d = { compactions: [], tokens: 0, turns: 0, prompts: 0, notes: [], userPrompts: [], signals: [] };
+  const d = { compactions: [], tokens: 0, turns: 0, prompts: 0, notes: [], userPrompts: [] };
   let lastMsgTs = -Infinity;
   for (const e of sorted) {
     if (d.startedMs === undefined || e.ts < d.startedMs)
@@ -27925,10 +27862,6 @@ function spoolDigest(entries) {
         for (const p of e.paths ?? [])
           if (!d.notes.includes(p))
             d.notes.push(p);
-        break;
-      case "prompt-signal":
-        if (e.signal !== undefined && d.signals.length < 500)
-          d.signals.push({ ts: e.ts, signal: e.signal });
         break;
     }
   }
@@ -33136,6 +33069,27 @@ function memSessionBody(input, d, extra = {}) {
   return lines.join(`
 `).trim();
 }
+// src/core/memory/signals.ts
+var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
+var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
+function uw(re) {
+  return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
+}
+var CATEGORY_WORDS = [
+  ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
+  ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
+  ["quality", uw(/\b(?:tests?|tdd|verify|verification|lint|typecheck|type-check|review|coverage|quality|regression|evidence)\b|\b(?:do[\u011Fg]rula|kalite|kan[\u0131i]t)/i)],
+  ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
+  ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
+];
+function profileCategory(text, polarity = 1) {
+  if (polarity === -1)
+    return "avoid";
+  for (const [cat, re] of CATEGORY_WORDS)
+    if (re.test(text))
+      return cat;
+  return "other";
+}
 // src/core/receipt.ts
 function emptyReceipt() {
   return { edits: {}, commands: [], lastEditSeq: -1, lastCheckSeq: -1, seq: 0, failStreak: undefined, removedTexts: {}, flipFlops: {} };
@@ -34177,7 +34131,7 @@ function heldConsentNeed(sid, command) {
 }
 
 // src/adapters/omp/runtime/deps.ts
-import { readdirSync as readdirSync11, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync23 } from "fs";
+import { readdirSync as readdirSync11, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync24 } from "fs";
 import { join as join35, resolve as resolve18 } from "path";
 init_paths();
 // src/usage/bar.ts
@@ -35052,7 +35006,7 @@ function mcpHealth2(nowMs = Date.now()) {
 
 // src/adapters/omp/runtime/memory.ts
 init_paths();
-import { readFileSync as readFileSync20, statSync as statSync21 } from "fs";
+import { readFileSync as readFileSync20, statSync as statSync22 } from "fs";
 import { join as join32 } from "path";
 init_shim();
 
@@ -35151,7 +35105,7 @@ function appendSpool(h, sid, entries, opts = {}) {
 }
 
 // src/memory/session-record.ts
-import { mkdirSync as mkdirSync11, utimesSync as utimesSync4 } from "fs";
+import { mkdirSync as mkdirSync11, statSync as statSync20, utimesSync as utimesSync4 } from "fs";
 import { join as join29, resolve as resolve15 } from "path";
 init_paths();
 
@@ -35547,6 +35501,33 @@ function spawnCli(args, env = {}) {
 }
 
 // src/memory/session-record.ts
+var BASELINE_MAX = 200;
+function fileFingerprint(root, rel) {
+  try {
+    const st = statSync20(join29(root, rel));
+    return `${st.size}:${Math.floor(st.mtimeMs)}`;
+  } catch {
+    return "gone";
+  }
+}
+async function gitBaseline(cwd, root) {
+  const r = await run(["git", "-c", "core.quotepath=off", "status", "--porcelain=v1", "-z", "--untracked-files=all"], { cwd, timeoutMs: 5000, env: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" } });
+  if (r.code !== 0)
+    return;
+  const parts = r.stdout.split("\x00");
+  const out = {};
+  for (let n = 0;n < parts.length; n++) {
+    const entry = parts[n] ?? "";
+    if (entry.length < 4)
+      continue;
+    if (entry[0] === "R" || entry[0] === "C" || entry[1] === "R" || entry[1] === "C")
+      n++;
+    out[entry.slice(3)] = fileFingerprint(root, entry.slice(3));
+    if (Object.keys(out).length > BASELINE_MAX)
+      return;
+  }
+  return out;
+}
 async function sessionStart2(h, sid, cwd, opts = {}) {
   if (captureOff2())
     return { skipped: "capture-off" };
@@ -35569,12 +35550,17 @@ async function sessionStart2(h, sid, cwd, opts = {}) {
       writeSessionRecord(rec);
       return { skipped: "not-a-project" };
     }
-    const [branch, commit] = await Promise.all([revParse(cwd, "--abbrev-ref", "HEAD"), revParse(cwd, "--short", "HEAD")]);
+    const [branch, commitAndRoot] = await Promise.all([revParse(cwd, "--abbrev-ref", "HEAD"), revParse(cwd, "--show-toplevel", "--short", "HEAD")]);
+    const [root, commit] = (commitAndRoot ?? "").split(`
+`);
     rec.slug = project.slug;
     if (branch !== undefined && branch !== "" && branch !== "HEAD")
       rec.branch = branch;
     if (commit !== undefined && /^[0-9a-f]{4,40}$/.test(commit))
       rec.commitStart = commit;
+    const baseline = root !== undefined && root !== "" ? await gitBaseline(cwd, root) : undefined;
+    if (baseline !== undefined && Object.keys(baseline).length > 0)
+      rec.baseline = baseline;
     writeSessionRecord(rec);
     return { slug: project.slug, resumed: false };
   } catch (e) {
@@ -35635,7 +35621,7 @@ function uiBuildId(repoRoot = repoRoot2()) {
 }
 
 // src/memory/ui-presence.ts
-import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync9, rmSync as rmSync3, statSync as statSync20, utimesSync as utimesSync5 } from "fs";
+import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync9, rmSync as rmSync3, statSync as statSync21, utimesSync as utimesSync5 } from "fs";
 import { join as join31 } from "path";
 init_paths();
 
@@ -35696,7 +35682,7 @@ function sessionSeen(h, sid, nowMs = Date.now(), env = process.env) {
     return "fresh";
   let mtime;
   try {
-    mtime = statSync20(file).mtimeMs;
+    mtime = statSync21(file).mtimeMs;
   } catch {
     mtime = undefined;
   }
@@ -35744,7 +35730,7 @@ function startUiSoon(opts = {}) {
     } catch {
       let stale = false;
       try {
-        stale = now - statSync20(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
+        stale = now - statSync21(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
       } catch {
         stale = true;
       }
@@ -35792,7 +35778,7 @@ var ompUiBridge = {
 };
 function isFile4(p) {
   try {
-    return statSync21(p).isFile();
+    return statSync22(p).isFile();
   } catch {
     return false;
   }
@@ -36059,7 +36045,7 @@ function planSavedNote(saved, cwd) {
 }
 
 // src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync10, readFileSync as readFileSync21, statSync as statSync22 } from "fs";
+import { readdirSync as readdirSync10, readFileSync as readFileSync21, statSync as statSync23 } from "fs";
 import { join as join34, resolve as resolve17 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
@@ -36070,7 +36056,7 @@ var READ_MAX_BYTES = 1024 * 1024;
 var cache3 = new Map;
 function stamp2(path) {
   try {
-    const st = statSync22(path);
+    const st = statSync23(path);
     return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
   } catch {
     return;
@@ -36078,7 +36064,7 @@ function stamp2(path) {
 }
 function readSmall(path) {
   try {
-    if (statSync22(path).size > READ_MAX_BYTES)
+    if (statSync23(path).size > READ_MAX_BYTES)
       return;
     return readFileSync21(path, "utf8");
   } catch {
@@ -36271,7 +36257,7 @@ function planFiles(dir) {
   for (const name of names) {
     const path = join35(dir, name);
     try {
-      const st = statSync23(path);
+      const st = statSync24(path);
       if (st.isFile())
         out.push({ path, mtimeMs: st.mtimeMs });
     } catch {}
@@ -36400,7 +36386,7 @@ function defaultDeps() {
     },
     isFile: (path) => {
       try {
-        return statSync23(path).isFile();
+        return statSync24(path).isFile();
       } catch {
         return false;
       }
@@ -37699,7 +37685,7 @@ import { isAbsolute as isAbsolute12, join as join39, resolve as resolve21 } from
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync25 } from "fs";
+import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync26 } from "fs";
 import { join as join38 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
@@ -37795,7 +37781,7 @@ function runtimeDriftCacheFile() {
 }
 function shimStamp() {
   try {
-    const s = statSync25(join38(binDir(), "buracle"));
+    const s = statSync26(join38(binDir(), "buracle"));
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "";

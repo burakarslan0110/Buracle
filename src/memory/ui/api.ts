@@ -11,7 +11,7 @@ import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
 import { CortexError } from '../cortex'
 import { brainDir } from '../layout'
 import { readProjectsCache, slugExclusion } from '../project'
-import { brainEntities, bucketCounts, bucketExists, brainExists, brainSig, getStored, listAll, personRef, projectRef, refKey, type BrainRef } from '../store'
+import { bucketCounts, bucketExists, brainExists, brainSig, getStored, listAll, personRef, projectRef, refKey, type BrainRef } from '../store'
 
 export const CORTEXDB_FIX = 'buracle install'
 
@@ -345,7 +345,5 @@ export async function graphOf(cache: BrainCache, scope: UiScope, region: string 
   const r = region === null || region === '' ? undefined : (scope.kind === 'person' ? (isPersonRegion(region) ? region : undefined) : REGIONS.find(x => x.id === region)?.id)
   if (r === undefined && region !== null && region !== '') throw new UiApiError(400, 'bad_region', `region must be one of ${ids.join(', ')}, or empty for the whole brain`)
   const items = await cache.items(scope.ref, nowMs)
-  // The concept and file hubs are the engine's own graph, as it lists it.
-  const entities = await brainEntities(scope.ref)
-  return { scope: scope.key, ...memGraph(items, { nowMs, regionOf: regionFor(scope), includeRetired: true, entities, ...(r !== undefined ? { region: r } : {}) }) }
+  return { scope: scope.key, ...memGraph(items, { nowMs, regionOf: regionFor(scope), includeRetired: true, ...(r !== undefined ? { region: r } : {}) }) }
 }

@@ -3,5 +3,5 @@
 
 export const META: { buracleVersion: string, contentHash: string } = {
   "buracleVersion": "0.8.6",
-  "contentHash": "64c5e79bf2cb9f62ef3c9c4544a412bca2b850697953b037f79a052b994c3996"
+  "contentHash": "af96cab9d7cc28aa0170e11e54ee9d2b0da6d262ee00587dbd26983f7c4057df"
 }

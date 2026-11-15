@@ -13,6 +13,11 @@ export interface MemSessionRecord {
   startedMs: number
   branch?: string
   commitStart?: string
+  /**
+   * The changes that were already in the working tree when the session started: path (relative to the repository root)
+   * to a size:mtime fingerprint. The session's file list leaves out a path whose fingerprint is still the same.
+   */
+  baseline?: Record<string, string>
   /** The files that differed from the session's first commit when it ended, as git listed them. */
   files?: string[]
   status: 'active' | 'ended'

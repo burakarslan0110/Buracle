@@ -1,8 +1,9 @@
-import { mkdirSync, utimesSync } from 'node:fs'
+import { mkdirSync, statSync, utimesSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Harness } from '../core/events'
 import { isHarness } from '../core/events'
 import { revParse } from '../engine/git'
+import { run } from '../engine/proc'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
 import { locksDir, sessionRecordFile, spoolDir } from './layout'
@@ -13,6 +14,35 @@ import { spawnCli } from './spawn'
 import { captureOff } from './spool'
 
 export { latestSessionRecord, openSessions, readSessionRecord, STALE_ACTIVE_MS, writeSessionRecord, type SessionRecord } from './session-open'
+
+const BASELINE_MAX = 200
+
+/** A cheap identity of a file as it is now: size and modification time, or `gone` when it does not exist. */
+export function fileFingerprint(root: string, rel: string): string {
+  try {
+    const st = statSync(join(root, rel))
+    return `${st.size}:${Math.floor(st.mtimeMs)}`
+  } catch { return 'gone' }
+}
+
+/**
+ * The paths git lists as modified or untracked in a working tree, from one `git status` call, with a fingerprint each.
+ * No git, no repository or too many paths: undefined, and the session's file list stays what git reports at its end.
+ */
+async function gitBaseline(cwd: string, root: string): Promise<Record<string, string> | undefined> {
+  const r = await run(['git', '-c', 'core.quotepath=off', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd, timeoutMs: 5000, env: { GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' } })
+  if (r.code !== 0) return undefined
+  const parts = r.stdout.split('\0')
+  const out: Record<string, string> = {}
+  for (let n = 0; n < parts.length; n++) {
+    const entry = parts[n] ?? ''
+    if (entry.length < 4) continue
+    if (entry[0] === 'R' || entry[0] === 'C' || entry[1] === 'R' || entry[1] === 'C') n++
+    out[entry.slice(3)] = fileFingerprint(root, entry.slice(3))
+    if (Object.keys(out).length > BASELINE_MAX) return undefined
+  }
+  return out
+}
 
 export interface SessionStartResult {
   skipped?: 'invalid-session' | 'not-a-project' | 'error' | 'capture-off'
@@ -37,10 +67,13 @@ export async function sessionStart(h: Harness, sid: string, cwd: string, opts: {
       writeSessionRecord(rec)
       return { skipped: 'not-a-project' }
     }
-    const [branch, commit] = await Promise.all([revParse(cwd, '--abbrev-ref', 'HEAD'), revParse(cwd, '--short', 'HEAD')])
+    const [branch, commitAndRoot] = await Promise.all([revParse(cwd, '--abbrev-ref', 'HEAD'), revParse(cwd, '--show-toplevel', '--short', 'HEAD')])
+    const [root, commit] = (commitAndRoot ?? '').split('\n')  // git prints the root first
     rec.slug = project.slug
     if (branch !== undefined && branch !== '' && branch !== 'HEAD') rec.branch = branch
     if (commit !== undefined && /^[0-9a-f]{4,40}$/.test(commit)) rec.commitStart = commit
+    const baseline = root !== undefined && root !== '' ? await gitBaseline(cwd, root) : undefined
+    if (baseline !== undefined && Object.keys(baseline).length > 0) rec.baseline = baseline
     writeSessionRecord(rec)
     return { slug: project.slug, resumed: false }
   } catch (e) {

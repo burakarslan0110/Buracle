@@ -1,4 +1,4 @@
-import { isLive, KIND_INFO, memPreparedMemSimilarity, memSimilarityPrep, parseContradictionNote, regionOf, type MemConflict, type MemItem, type MemKind, type MemRegion, type MemStatusValue } from './brain'
+import { isLive, KIND_INFO, memPreparedMemSimilarity, memSimilarityPrep, parseContradictionNote, regionOf, sourcePath, type MemConflict, type MemItem, type MemKind, type MemRegion, type MemStatusValue } from './brain'
 import type { PersonRegion } from './person-brain'
 
 export type MemGraphRegion = MemRegion | PersonRegion
@@ -49,15 +49,7 @@ export interface MemGraphOptions {
   limits?: { memories?: number, entities?: number, edges?: number }
   /** Also draw the retired memories that a memory in focus replaced, linked to it by a `supersedes` edge. */
   includeRetired?: boolean
-  /**
-   * The entities of the engine's own graph with the memories that mention them: the concept and file hubs are drawn
-   * from this list as it is, never rebuilt from the memories' `about` and `sources`.
-   */
-  entities?: readonly MemGraphEntityInput[]
 }
-
-/** An entity as the engine lists it: type `file` is a repository file, every other type a concept. */
-export interface MemGraphEntityInput { label: string, type: string, members: readonly string[] }
 
 export const MEM_GRAPH_LIMITS = { memories: 220, entities: 140, edges: 900 } as const
 export const MEM_GRAPH_MAX_NEIGHBORS = 60
@@ -227,13 +219,6 @@ export function memGraph(items: readonly MemItem[], opts: MemGraphOptions): MemG
 
   interface Hub { id: string, type: MemGraphEntityType, label: string, kind: 'tag' | 'about' | 'cites', members: string[] }
   const hubs = new Map<string, Hub>()
-  const entityHubs = new Map<string, Array<Omit<Hub, 'members'>>>()
-  for (const e of opts.entities ?? []) {
-    const label = e.label.trim()
-    if (label === '') continue
-    const hub: Omit<Hub, 'members'> = e.type === 'file' ? { id: `file:${label}`, type: 'file', label, kind: 'cites' } : { id: `concept:${label.toLowerCase()}`, type: 'concept', label, kind: 'about' }
-    for (const m of e.members) entityHubs.set(m, [...(entityHubs.get(m) ?? []), hub])
-  }
   const hubsOf = (i: MemItem): Array<Omit<Hub, 'members'>> => {
     const out: Array<Omit<Hub, 'members'>> = []
     for (const t of i.tags) {
@@ -241,7 +226,19 @@ export function memGraph(items: readonly MemItem[], opts: MemGraphOptions): MemG
       if (tag === '' || tag.startsWith('rank-') || HIDDEN_TAGS.has(tag)) continue
       out.push({ id: `tag:${tag}`, type: 'tag', label: tag, kind: 'tag' })
     }
-    for (const h of entityHubs.get(i.id) ?? []) out.push(h)
+    // Concept and file hubs come from the memory's own fields, never from the engine's graph: the engine keeps an old
+    // edge when a memory is updated, so a hub drawn from it would show links the memory no longer has.
+    for (const a of i.about) {
+      const label = a.trim()
+      if (label === '') continue
+      out.push({ id: `concept:${label.toLowerCase()}`, type: 'concept', label, kind: 'about' })
+    }
+    for (const s of i.sources) {
+      const src = s.trim()
+      if (src.startsWith('session:') || src.startsWith('memory:')) continue
+      const path = sourcePath(src)
+      if (path !== undefined) out.push({ id: `file:${path}`, type: 'file', label: path, kind: 'cites' })
+    }
     return out
   }
   for (const i of focus) {

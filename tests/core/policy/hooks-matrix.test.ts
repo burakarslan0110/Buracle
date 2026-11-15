@@ -25,16 +25,16 @@ describe('canonical/hooks.yaml', () => {
     expect(loadCanonicalSync(paths.canonicalDir()).hooks).toEqual(RAW)
   })
 
-  test('has H01…H28 exactly once, in order, with names from DESIGN §5; the retired H27 keeps its gap', () => {
+  test('has H01…H28 exactly once, in order, with names from DESIGN §5; the retired H26 and H27 keep their gaps', () => {
     expect(RAW.hooks.map(h => h.id)).toEqual([...HOOK_IDS])
-    expect(HOOK_IDS.length).toBe(27)
-    expect(RETIRED_HOOK_IDS).toEqual(['H27'])
+    expect(HOOK_IDS.length).toBe(26)
+    expect(RETIRED_HOOK_IDS).toEqual(['H26', 'H27'])
     for (const id of RETIRED_HOOK_IDS) expect(RAW.hooks.map(h => h.id as string)).not.toContain(id)
     expect(RAW.hooks.map(h => h.name)).toEqual([
       'guard.bash', 'guard.write', 'route.tools', 'check.file', 'context.watch', 'compact.save', 'compact.restore', 'plan.stop', 'plan.question',
       'plan.interaction', 'plan.validate', 'plan.capture', 'memory.inject', 'memory.capture', 'capability.catalog', 'session.maint',
       'profile.guard', 'status.feed', 'review.gate', 'consent.gate', 'workspace.prepare',
-      'route.prompt', 'route.audit', 'usage.ledger', 'flow.track', 'profile.signals', 'project.assets',
+      'route.prompt', 'route.audit', 'usage.ledger', 'flow.track', 'project.assets',
     ])
   })
 
@@ -46,13 +46,13 @@ describe('canonical/hooks.yaml', () => {
     expect(RAW.hooks.find(h => h.id === 'H23')).toMatchObject({ blocking: 'stop', failure: 'open' })
   })
 
-  test('H22–H26 are bound on all four harnesses', () => {
+  test('H22–H25 are bound on all four harnesses', () => {
     const by = Object.fromEntries(RAW.hooks.map(h => [h.id, h])) as Record<string, HookSpec>
     const events = (id: string, harness: keyof HookSpec['bindings']) => {
       const b = binding(by[id] as HookSpec, harness)
       return b ? [b.event, ...(b.also ?? []).map(a => a.event)] : []
     }
-    for (const id of ['H22', 'H23', 'H24', 'H25', 'H26']) for (const h of HARNESSES) expect({ id, h, bound: events(id, h).length > 0 }).toEqual({ id, h, bound: true })
+    for (const id of ['H22', 'H23', 'H24', 'H25']) for (const h of HARNESSES) expect({ id, h, bound: events(id, h).length > 0 }).toEqual({ id, h, bound: true })
     expect([events('H22', 'claude'), events('H22', 'codex'), events('H22', 'opencode'), events('H22', 'omp')]).toEqual([['classic.UserPromptSubmit'], ['UserPromptSubmit'], ['session.prompt', 'session.context'], ['input', 'before_agent_start']])
     expect([events('H23', 'claude'), events('H23', 'codex'), events('H23', 'opencode'), events('H23', 'omp')]).toEqual([['classic.Stop'], ['Stop'], ['session.execution.succeeded'], ['session_stop']])
     expect(binding(by['H24'] as HookSpec, 'claude')?.matcher).toBe('Skill|Grep|Glob|mcp__plugin_buracle_.*')
@@ -62,9 +62,9 @@ describe('canonical/hooks.yaml', () => {
     expect(binding(by['H25'] as HookSpec, 'claude')?.also?.find(a => a.event === 'classic.UserPromptExpansion')).toEqual({ event: 'classic.UserPromptExpansion', matcher: '^buracle:', timeoutMs: 5000 })
     expect(binding(by['H25'] as HookSpec, 'codex')).toEqual({ event: 'UserPromptSubmit', timeoutMs: 5000, also: [{ event: 'SessionStart', matcher: 'resume' }, { event: 'PreToolUse', matcher: 'Bash', timeoutMs: 5000 }] })
     expect(binding(by['H25'] as HookSpec, 'opencode')).toEqual({ event: 'session.prompt', also: [{ event: 'tool.execute.before', matcher: 'skill' }, { event: 'session.skill.activated' }] })
-    for (const id of ['H10', 'H25', 'H26']) expect({ id, events: events(id, 'omp') }).toEqual({ id, events: expect.arrayContaining(['input', 'before_agent_start']) })
+    for (const id of ['H10', 'H25']) expect({ id, events: events(id, 'omp') }).toEqual({ id, events: expect.arrayContaining(['input', 'before_agent_start']) })
     const ompRegistered = ['input', 'before_agent_start', 'session_stop', 'tool_call', 'tool_result', 'turn_end', 'session.compacting', 'session_compact', 'session_shutdown', 'session_start', 'session_switch']
-    for (const id of ['H22', 'H23', 'H24', 'H25', 'H26']) for (const e of events(id, 'omp')) expect({ id, e, registered: ompRegistered.includes(e) }).toEqual({ id, e, registered: true })
+    for (const id of ['H22', 'H23', 'H24', 'H25']) for (const e of events(id, 'omp')) expect({ id, e, registered: ompRegistered.includes(e) }).toEqual({ id, e, registered: true })
   })
 
   test('descriptions are English and the omp TTSR claim is gone', () => {
@@ -210,7 +210,7 @@ describe('canonical/hooks.yaml', () => {
   const STILL_TO_WRITE: string[] = []
   test('contract tests of the other hooks exist', () => {
     const foreign = RAW.hooks.filter(h => !['tests/core/policy/', 'tests/core/plan/', 'tests/core/compact/', 'tests/core/checkers/'].some(p => h.contract_test.startsWith(p)))
-    expect(foreign.map(h => h.id)).toEqual(['H05', 'H12', 'H13', 'H14', 'H16', 'H17', 'H18', 'H21', 'H25', 'H26', 'H28'])
+    expect(foreign.map(h => h.id)).toEqual(['H05', 'H12', 'H13', 'H14', 'H16', 'H17', 'H18', 'H21', 'H25', 'H28'])
     for (const h of foreign.filter(x => !STILL_TO_WRITE.includes(x.id))) expect({ hook: h.id, file: h.contract_test, exists: existsSync(join(REPO, h.contract_test)) }).toEqual({ hook: h.id, file: h.contract_test, exists: true })
   })
   for (const h of RAW.hooks.filter(x => STILL_TO_WRITE.includes(x.id))) {

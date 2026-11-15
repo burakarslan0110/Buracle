@@ -148,6 +148,33 @@ describe('finalize', () => {
     })
   })
 
+  test('files already modified or untracked when the session started are not its files, unless it changed them again; no baseline means every change counts', async () => {
+    await withBrain(async ({ repo }) => {
+      writeFileSync(join(repo, 'old.ts'), 'export const o = 1\n')
+      writeFileSync(join(repo, 'again.ts'), 'export const g = 1\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '-q', '-m', 'tracked files')
+      // Before the session: one tracked file edited, one tracked file edited, one new file.
+      writeFileSync(join(repo, 'old.ts'), 'export const o = 2\n')
+      writeFileSync(join(repo, 'again.ts'), 'export const g = 2\n')
+      writeFileSync(join(repo, 'pre-untracked.ts'), 'export const u = 1\n')
+      await sessionStart('codex', SID, repo)
+      expect(Object.keys(readSessionRecord('codex', SID)?.baseline ?? {}).sort()).toEqual(['again.ts', 'old.ts', 'pre-untracked.ts'])
+      writeFileSync(join(repo, 'again.ts'), 'export const g = 3 // changed during the session\n')
+      writeFileSync(join(repo, 'during.ts'), 'export const d = 1\n')
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Edited.' }])
+      await finalize('codex', SID, { pending: false })
+      expect(readSessionRecord('codex', SID)?.files).toEqual(['again.ts', 'during.ts'])
+      // A record without a baseline (older record, no git at start) reports every change, as before.
+      await sessionStart('codex', OTHER, repo)
+      const rec = readSessionRecord('codex', OTHER)
+      writeSessionRecord({ ...(rec as NonNullable<typeof rec>), baseline: undefined as never })
+      appendSpool('codex', OTHER, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Edited.' }])
+      await finalize('codex', OTHER, { pending: false })
+      expect(readSessionRecord('codex', OTHER)?.files).toEqual(['again.ts', 'old.ts', 'during.ts', 'pre-untracked.ts'])
+    })
+  })
+
   test('a session that started without a commit to count from records no commit count and no diffstat, only the other counts', async () => {
     await withBrain(async ({ repo }) => {
       await sessionStart('codex', SID, repo)
@@ -258,7 +285,7 @@ describe('finalize', () => {
     await withBrain(async ({ repo }) => {
       await spooled(repo, SID, [])
       const r = await finalize('codex', SID, { pending: false })
-      expect(r.capture?.preferences.written).toEqual([])
+      expect(r.capture).not.toHaveProperty('preferences')
       expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
     })
   })
@@ -337,14 +364,14 @@ describe('finalize', () => {
   test('a session whose harness died before its end hook ran is finalized by a later session end', async () => {
     await withBrain(async ({ repo }) => {
       const t0 = Date.now()
-      // A spool written before PRD follow-up 2026-11-06 still holds the H26 statement; finalize files it.
-      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:amend-commits-published', polarity: -1, category: 'avoid', text: 'Never amend published commits', quote: 'Never amend published commits.' } }])
+      // A spool written before PRD follow-up 2026-11-06 still holds the H26 statement; nothing reads it any more.
+      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:amend-commits-published', polarity: -1, category: 'avoid', text: 'Never amend published commits', quote: 'Never amend published commits.' } } as never])
       expect(readSessionRecord('codex', SID)?.status).toBe('active')
       await spooled(repo, OTHER)
       const r = await finalize('codex', OTHER, { nowMs: t0 + 4 * HOUR })
       expect(r.pending?.map(p => [p.sid, p.why, p.result.skipped])).toEqual([[SID, 'stale', undefined]])
       expect(readSessionRecord('codex', SID)?.status).toBe('ended')
-      expect((await listAll(personRef())).filter(i => i.kind === 'preference').map(i => i.origin)).toEqual(['explicit'])
+      expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
       expect((await listAll(projectRef('demo'))).filter(i => i.kind === 'session')).toHaveLength(2)
     })
   })

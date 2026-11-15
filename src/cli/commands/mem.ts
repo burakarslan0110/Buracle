@@ -373,8 +373,6 @@ function finalizeText(r: import('../../memory/finalize').FinalizeResult): string
   const lines = [r.memoryId !== undefined ? `session memory: ${r.memoryId}` : r.empty === true ? 'no model turn ran: no session memory' : 'not a project: no session memory']
   const c = r.capture
   if (c !== undefined) {
-    const prefs = c.preferences
-    lines.push(`preferences: ${prefs.written.length > 0 ? `filed ${prefs.written.join(', ')}` : 'none new'}${prefs.superseded.length > 0 ? `; replaced ${prefs.superseded.join(', ')}` : ''}`)
     const d = c.distill
     lines.push(d === undefined ? 'distillation: did not run'
       : d.ran ? `distillation: ${d.candidates.length} memor${d.candidates.length === 1 ? 'y' : 'ies'} written${d.candidates.length > 0 ? ` (${d.candidates.join(', ')})` : ''}`

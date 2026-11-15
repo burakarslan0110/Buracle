@@ -304,7 +304,7 @@ describe('H26 prompt signals and H14 capture', () => {
   test('a user prompt spools no statement (no word list reads it); a workflow command adds no usage signal', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root, { skills: ['plan-build'] })
     await f.trigger('session.prompt', prompt('from now on always run the tests before you commit'))
-    const signals = () => mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt-signal').map(e => e.signal)
+    const signals = () => mem.appended.flatMap(a => a.entries).filter(e => (e.ev as string) === 'prompt-signal')
     expect(signals()).toEqual([])
     const spec = f.commands.get('plan-build') as CommandDefinition
     await spec.execute({ sessionID: SID, prompt: { text: 'add rate limiting' }, delivery: 'steer' })

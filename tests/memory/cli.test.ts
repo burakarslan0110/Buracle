@@ -81,7 +81,7 @@ describe('buracle mem', () => {
       expect(cap.code).toBe(0)
       // The session spooled no material, so the capture completes as nothing-to-distill at once
       // instead of burning retries on the disabled distill (PRD R2).
-      expect(JSON.parse(cap.out).capture).toMatchObject({ state: 'done', preferences: { written: [] } })
+      expect(JSON.parse(cap.out).capture).toMatchObject({ state: 'done' })
       const latest = await cli(['mem', 'capture', '--cwd', repo, '--json'])
       expect(latest.code).toBe(0)
       expect((await cli(['mem', 'capture', '--cwd', repo, '--harness', 'codex', '--session', 'not valid!'])).code).toBe(2)

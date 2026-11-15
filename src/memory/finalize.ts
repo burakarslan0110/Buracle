@@ -15,13 +15,13 @@ import * as paths from '../engine/paths'
 import { run } from '../engine/proc'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
 import { loadState } from '../workflow/session-store'
-import { capturePreferences, logPending, pendingSessions, type PendingSession, type PreferenceResult } from './capture'
+import { logPending, pendingSessions, type PendingSession } from './capture'
 import { distillSession, type DistillResult, type DistillRunner } from './distill'
 import { removeDeadLocks } from './housekeeping'
 import { locksDir, sessionRecordsDir, spoolDoneDir } from './layout'
 import { acquireLock, lockHeld } from './lock'
 import { projectExclusion, readProjectsCache, resolveProject, tzOffset, type ProjectRecord } from './project'
-import { readSessionRecord, writeSessionRecord, type SessionRecord } from './session-record'
+import { fileFingerprint, readSessionRecord, writeSessionRecord, type SessionRecord } from './session-record'
 import { captureOff, deleteSpool, pruneRedactions, readSpool, recordRedactions, spoolFiles } from './spool'
 import { refreshStatus } from './status'
 import { getStored, projectRef, recordEvent, saveItem, sweepExpired, withBrainLock } from './store'
@@ -32,7 +32,6 @@ export { promptSeen, readSessionRecord, sessionStart, spawnFinalizer, spawnFinal
 
 export interface CaptureSummary {
   state: MemCaptureState['state']
-  preferences: PreferenceResult
   distill?: Pick<DistillResult, 'ran' | 'skipped' | 'detail' | 'candidates' | 'summary' | 'ranBy' | 'model'>
 }
 
@@ -55,7 +54,7 @@ const SESSION_FILES_MAX = 200
  * What git knows about a session when it ends. `files` is the list of files the session touched: what differs from the
  * commit the session started on (committed or not), and the new files git does not ignore. No hook records it.
  */
-async function gitFacts(cwd: string, commitStart?: string): Promise<GitFacts> {
+async function gitFacts(cwd: string, commitStart?: string, baseline?: Record<string, string>): Promise<GitFacts> {
   const out: GitFacts = { commits: [], files: [] }
   if (!existsSync(cwd)) return out
   const head = await run(['git', 'rev-parse', '--short', 'HEAD'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
@@ -64,7 +63,14 @@ async function gitFacts(cwd: string, commitStart?: string): Promise<GitFacts> {
   const lines = (r: { code: number, stdout: string }): string[] => (r.code === 0 ? r.stdout.split('\n').map(l => l.trim()).filter(Boolean) : [])
   const changed = await run(['git', '-c', 'core.quotepath=off', 'diff', '--name-only', commitStart ?? 'HEAD'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
   const added = await run(['git', '-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '--full-name', '--', ':/'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
-  out.files = [...new Set([...lines(changed), ...lines(added)])].slice(0, SESSION_FILES_MAX)
+  let files = [...new Set([...lines(changed), ...lines(added)])]
+  // A change that was already in the working tree when the session started, and has not been touched since, is not the session's.
+  if (baseline !== undefined) {
+    const top = await run(['git', 'rev-parse', '--show-toplevel'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
+    const root = top.code === 0 ? top.stdout.trim() : ''
+    if (root !== '') files = files.filter(f => baseline[f] === undefined || baseline[f] !== fileFingerprint(root, f))
+  }
+  out.files = files.slice(0, SESSION_FILES_MAX)
   if (commitStart === undefined || commitStart === out.commitEnd) return out
   const range = `${commitStart}..HEAD`
   const logR = await run(['git', 'log', '--no-merges', '-n', '20', '--format=%h %s', range], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
@@ -246,7 +252,7 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
   if (project) {
     result.slug = project.slug
     const ref = projectRef(project.slug)
-    const git = await gitFacts(rec.cwd, rec.commitStart)
+    const git = await gitFacts(rec.cwd, rec.commitStart, rec.baseline)
     facts = git
     const files = git.files
     const id = rec.memoryId ?? memSessionMemoryId(harness, sid)
@@ -297,13 +303,12 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
 }
 
 /**
- * Steps two and three of a session end, after the session memory: the user's explicit statements become
- * preference memories (no model), then one bounded model call distills the durable decisions, gotchas and
+ * Step two of a session end, after the session memory: one bounded model call distills the durable decisions, gotchas and
  * procedures. A model call that fails, is held back by a rate limit, or answers with an invalid reply writes
  * nothing; the session record remembers that another try is owed.
  */
 async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: FinalizeOptions): Promise<CaptureSummary | undefined> {
-  const { project, digest } = pass
+  const { project } = pass
   const now = opts.nowMs ?? Date.now()
   const rec = readSessionRecord(h, sid) ?? pass.rec
   const prior = rec.capture
@@ -317,10 +322,6 @@ async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: Fi
   // The capture is owed from here on: a death during the model call leaves a retry the pending scan takes up (PRD R1).
   // The sha of a completed distill survives, so a retry of the same material still lands on already-distilled.
   writeSessionRecord({ ...rec, capture: { state: 'retry', tries, lastTryMs: now, ...(prior?.sha !== undefined ? { sha: prior.sha } : {}), detail: 'the model call is running' } })
-  let preferences: PreferenceResult = { written: [], superseded: [], skipped: 0 }
-  try {
-    preferences = await capturePreferences(digest.signals, { harness: h, sid, cwd: rec.cwd, nowMs: now })
-  } catch (e) { log('warn', 'memory: the preferences of a session were not filed', { h, sid, error: e }) }
   let distill: DistillResult | undefined
   try {
     distill = await distillSession(h, sid, { nowMs: now, ...(opts.runner !== undefined ? { runner: opts.runner } : {}), ...(opts.model !== undefined ? { model: opts.model } : {}), force: opts.redistill === true })
@@ -337,7 +338,7 @@ async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: Fi
     next = { state: 'retry', tries, lastTryMs: now, ...(distill.detail !== undefined ? { detail: memClip(distill.detail, 300) } : {}) }
   } else next = { state: 'done', tries, lastTryMs: now, ...(distill?.sha !== undefined ? { sha: distill.sha } : prior?.sha !== undefined ? { sha: prior.sha } : {}) }
   writeSessionRecord({ ...rec, capture: next })
-  const out: CaptureSummary = { state: next.state, preferences }
+  const out: CaptureSummary = { state: next.state }
   if (distill !== undefined) {
     const { ran, skipped: sk, detail, candidates, summary, ranBy, model } = distill
     out.distill = { ran, ...(sk !== undefined ? { skipped: sk } : {}), ...(detail !== undefined ? { detail } : {}), candidates, ...(summary !== undefined ? { summary } : {}), ...(ranBy !== undefined ? { ranBy } : {}), ...(model !== undefined ? { model } : {}) }
@@ -348,11 +349,11 @@ async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: Fi
 async function finalizeTail(h: Harness, pass: FinalizePass, now: number, capture: CaptureSummary | undefined): Promise<void> {
   const { result, project } = pass
   const harness = memNoteHarness(h)
-  const saved = (capture?.preferences.written.length ?? 0) + (capture?.distill?.candidates.length ?? 0)
+  const saved = capture?.distill?.candidates.length ?? 0
   await refreshStatus({
     ...(project ? { slug: project.slug } : {}), nowMs: now,
     ...(result.changed === true ? { lastWrite: { by: harness, type: 'session' } } : {}),
-    ...(capture?.distill?.ran === true || (capture?.preferences.written.length ?? 0) > 0 ? { lastCapture: { by: harness, saved } } : {}),
+    ...(capture?.distill?.ran === true ? { lastCapture: { by: harness, saved } } : {}),
   })
   // A time to live only hides a row; the sweep deletes the session and handoff memories whose time is up.
   try {

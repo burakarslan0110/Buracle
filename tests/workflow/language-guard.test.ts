@@ -156,19 +156,17 @@ describe('language guard (R1): what Buracle ships is English', () => {
     }
   })
 
-  test('the memories Buracle itself writes are English: the session memory, a handoff and a preference filed from an English statement of an older spool', () => withBrain(async ({ repo }) => {
+  test('the memories Buracle itself writes are English: the session memory, and a handoff', () => withBrain(async ({ repo }) => {
     const sid = '0199a213-81c0-7800-8aa1-bbab2a035a99'
     await sessionStart('claude', sid, repo)
     appendSpool('claude', sid, [
       { ts: Date.now(), ev: 'prompt' },
-      // A statement from a spool written before PRD follow-up 2026-11-06 (H26 reads none now); finalize still files it.
-      { ts: Date.now() + 1, ev: 'prompt-signal' as const, signal: { kind: 'statement' as const, key: 'said:commit-run-tests', category: 'quality' as const, text: 'Run the tests before you commit', quote: 'Always run the tests before you commit.' } },
       { ts: Date.now() + 2, ev: 'stop', excerpt: 'Done.' },
     ])
     await finalize('claude', sid, { pending: false })
     const slug = (await projectInit(repo)).slug
     const items = [...await listAll(projectRef(slug)), ...await listAll(personRef())]
-    expect(items.map(i => i.kind).sort()).toEqual(['preference', 'session'])
+    expect(items.map(i => i.kind).sort()).toEqual(['session'])
     expect(items.flatMap(i => findings(`brain/${slug}/${i.id}`, [i.title, i.summary, i.body, ...i.tags].join('\n')))).toEqual([])
   }))
 
