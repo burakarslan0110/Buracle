@@ -21,7 +21,7 @@ import { removeDeadLocks } from './housekeeping'
 import { locksDir, sessionRecordsDir, spoolDoneDir } from './layout'
 import { acquireLock, lockHeld } from './lock'
 import { projectExclusion, readProjectsCache, resolveProject, tzOffset, type ProjectRecord } from './project'
-import { readSessionRecord, writeSessionRecord, type SessionRecord } from './session-record'
+import { fileFingerprint, readSessionRecord, writeSessionRecord, type SessionRecord } from './session-record'
 import { captureOff, deleteSpool, pruneRedactions, readSpool, recordRedactions, spoolFiles } from './spool'
 import { refreshStatus } from './status'
 import { getStored, projectRef, recordEvent, saveItem, sweepExpired, withBrainLock } from './store'
@@ -54,7 +54,7 @@ const SESSION_FILES_MAX = 200
  * What git knows about a session when it ends. `files` is the list of files the session touched: what differs from the
  * commit the session started on (committed or not), and the new files git does not ignore. No hook records it.
  */
-async function gitFacts(cwd: string, commitStart?: string): Promise<GitFacts> {
+async function gitFacts(cwd: string, commitStart?: string, baseline?: Record<string, string>): Promise<GitFacts> {
   const out: GitFacts = { commits: [], files: [] }
   if (!existsSync(cwd)) return out
   const head = await run(['git', 'rev-parse', '--short', 'HEAD'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
@@ -63,7 +63,14 @@ async function gitFacts(cwd: string, commitStart?: string): Promise<GitFacts> {
   const lines = (r: { code: number, stdout: string }): string[] => (r.code === 0 ? r.stdout.split('\n').map(l => l.trim()).filter(Boolean) : [])
   const changed = await run(['git', '-c', 'core.quotepath=off', 'diff', '--name-only', commitStart ?? 'HEAD'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
   const added = await run(['git', '-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '--full-name', '--', ':/'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
-  out.files = [...new Set([...lines(changed), ...lines(added)])].slice(0, SESSION_FILES_MAX)
+  let files = [...new Set([...lines(changed), ...lines(added)])]
+  // A change that was already in the working tree when the session started, and has not been touched since, is not the session's.
+  if (baseline !== undefined) {
+    const top = await run(['git', 'rev-parse', '--show-toplevel'], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
+    const root = top.code === 0 ? top.stdout.trim() : ''
+    if (root !== '') files = files.filter(f => baseline[f] === undefined || baseline[f] !== fileFingerprint(root, f))
+  }
+  out.files = files.slice(0, SESSION_FILES_MAX)
   if (commitStart === undefined || commitStart === out.commitEnd) return out
   const range = `${commitStart}..HEAD`
   const logR = await run(['git', 'log', '--no-merges', '-n', '20', '--format=%h %s', range], { cwd, timeoutMs: 5000, env: { LC_ALL: 'C' } })
@@ -245,7 +252,7 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
   if (project) {
     result.slug = project.slug
     const ref = projectRef(project.slug)
-    const git = await gitFacts(rec.cwd, rec.commitStart)
+    const git = await gitFacts(rec.cwd, rec.commitStart, rec.baseline)
     facts = git
     const files = git.files
     const id = rec.memoryId ?? memSessionMemoryId(harness, sid)
