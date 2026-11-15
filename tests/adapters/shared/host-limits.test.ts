@@ -132,7 +132,7 @@ describe('host limits (PARITY-10)', () => {
       const r = l.recheck ?? ''
       expect({ id: l.id, dated: /\b20\d\d-\d\d-\d\d\b/.test(r), sourced: /https?:\/\/\S+|\b[\w/-]+\.(?:rs|ts|md|mdx)\b/.test(r) }).toEqual({ id: l.id, dated: true, sourced: true })
     }
-    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(22)
+    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(24)
   })
 
   test('every limit and partial record names the test that proves its fallback, and that file holds the test', () => {
