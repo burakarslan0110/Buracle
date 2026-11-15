@@ -27,6 +27,7 @@ import type { ToolchainItem } from '../../engine/toolchain/index'
 import { lspRecommendationPlan } from '../../adapters/claude/install'
 import { codexTrustPlan } from '../../adapters/codex/trust'
 import { cliVersion } from '../router'
+import { hasBuiltHarness } from '../../engine/update/build'
 import { runBuildFlow } from './build'
 import { NO_STEPS, progressSteps, type Steps } from '../ui/steps'
 import { commandHeader, sectionHeading } from '../ui/frame'
@@ -53,8 +54,8 @@ Buracle Console (memory.ui.autostart), runs the checks of \`buracle doctor\` and
 detail to the install log (--log). --started is when the script began (the Result line
 shows the time taken).
 
-It first regenerates harness/ from canonical/ and src/ (\`buracle build\`); a failed build
-installs nothing. --dry-run only checks the generated files and prints the diff of every
+It first regenerates harness/ from canonical/ and src/ (\`buracle build\`; a checkout without a
+built harness/, such as a dev checkout, is built without asking); a failed build installs nothing. --dry-run only checks the generated files and prints the diff of every
 plan; nothing is written.
 
 Hooks and the CLI run a frozen copy of the checkout, not the checkout itself: install
@@ -805,7 +806,9 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     // The generated files are rebuilt only when they differ and the install may write; the install
     // itself writes runtime-config.json, so a declined or dry run leaves the home folder alone.
     let built = await runBuildFlow({ check: true, ...scope })
-    if (built.report.errors.length === 0 && built.report.drift.length > 0 && !opts.dryRun && (opts.yes || io.stdin.isTTY)) {
+    // A dev checkout has no built harness/ at all: it is built without asking, since nothing can be installed without it.
+    const unbuilt = !hasBuiltHarness(opsDeps.repoRoot())
+    if (built.report.errors.length === 0 && built.report.drift.length > 0 && !opts.dryRun && (unbuilt || opts.yes || io.stdin.isTTY)) {
       steps.start('build', 'Rebuilding the generated files')
       built = await runBuildFlow({ check: false, runtimeConfig: false, ...scope })
     }

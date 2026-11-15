@@ -35,6 +35,7 @@ import { collectOpencode } from '../../src/usage/opencode'
 import { withSandbox } from '../helpers/sandbox'
 import { rateLimitHeaders } from './opencode/fake-provider'
 import { FIXTURES as USAGE_FIXTURES, NOW as USAGE_NOW, installFixture as installUsageFixture } from '../usage/helpers'
+import { BUILT } from '../helpers/built-harness'
 
 const REPO = paths.repoRoot()
 
@@ -759,7 +760,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   test('path rules reach the agent on all four: Claude natively, omp as TTSR conditions, Codex and OpenCode through the R5 gate (OpenCode also on the first read)', async () => {
     const { canonical, files } = await built()
     const rules = canonical.rules.filter(r => r.scope === 'paths')
-    const hookData = JSON.parse(readFileSync(join(REPO, 'harness', 'hook-data.json'), 'utf8')) as { rules: Array<{ id: string, scope: string, frontmatter: Record<string, unknown> }> }
+    const hookData = JSON.parse(readFileSync(join(BUILT.harness, 'hook-data.json'), 'utf8')) as { rules: Array<{ id: string, scope: string, frontmatter: Record<string, unknown> }> }
     const plugin = file(files.opencode, 'plugins/buracle/index.js')
     const has: Record<Harness, boolean> = {
       claude: rules.every(r => Array.isArray(frontmatter(renderClaudeRule(r))['paths'])),
@@ -854,7 +855,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const { canonical, files } = await built()
     const ids = (canonical.notices ?? []).map(n => n.id)
     expect(ids.length).toBeGreaterThan(0)
-    const hookData = JSON.parse(readFileSync(join(REPO, 'harness', 'hook-data.json'), 'utf8')) as { notices?: Array<{ id: string }> }
+    const hookData = JSON.parse(readFileSync(join(BUILT.harness, 'hook-data.json'), 'utf8')) as { notices?: Array<{ id: string }> }
     const calls = (rel: string) => /startupNotices\((?:d\.)?ctx\.canonical\.notices/.test(withPipeline(readFileSync(join(REPO, rel), 'utf8'), 'sessionStart'))
     const inBundle = (text: string) => ids.every(id => text.includes(id)) && text.includes('Buracle notice, shown once on this machine.')
     const has: Record<Harness, boolean> = {

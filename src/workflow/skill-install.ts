@@ -237,7 +237,8 @@ function linkState(link: string, target: string): 'absent' | 'ours' | 'foreign' 
 function destinationState(id: string, installed: InstalledSkill[]): 'free' | 'installed' | 'buracle' | 'foreign' {
   // Buracle's own skills are installed into this folder under their ids, so a third-party skill
   // cannot take one of them.
-  if (existsSync(join(paths.repoRoot(), 'harness', 'agents-skills', id, 'SKILL.md'))) return 'buracle'
+  // (canonical/skills is the source of harness/agents-skills, which a dev checkout does not carry)
+  if (existsSync(join(paths.repoRoot(), 'canonical', 'skills', id, 'SKILL.md'))) return 'buracle'
   const dir = installedSkillDir(id)
   let st
   try { st = lstatSync(dir) } catch { return 'free' }

@@ -12,6 +12,7 @@ import * as paths from '../../../src/engine/paths'
 import { readLedger, applyPlans } from '../../../src/engine/txn'
 import { fakeExe, narrowPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { BUILT } from '../../helpers/built-harness'
 
 const REPO = paths.repoRoot()
 const ctx = (): AdapterContext => devContext(REPO)
@@ -62,7 +63,7 @@ describe('the Pi build', () => {
 
   test('the profile no longer waits for an adapter, and the generated tree is what `build` writes', async () => {
     expect(harnessProfile('pi').adapterPending).toBeUndefined()
-    for (const f of await buildPi(ctx())) expect(readFileSync(join(REPO, 'harness', 'pi', f.path), 'utf8')).toBe(f.content)
+    for (const f of await buildPi(ctx())) expect(readFileSync(join(BUILT.harness, 'pi', f.path), 'utf8')).toBe(f.content)
   })
 })
 
@@ -81,7 +82,7 @@ describe('the Pi install', () => {
     writeFileSync(mcpFile, JSON.stringify({ mcpServers: { mine: { command: 'mine' } }, other: 1 }, null, 2))
     const c = ctx()
     await applyPlans([await adapter.installPlan(c)])
-    expect(readFileSync(piExtensionFile(dir()), 'utf8')).toBe(readFileSync(join(REPO, 'harness', 'pi', EXTENSION_PATH), 'utf8'))
+    expect(readFileSync(piExtensionFile(dir()), 'utf8')).toBe(readFileSync(join(BUILT.harness, 'pi', EXTENSION_PATH), 'utf8'))
     const doc = JSON.parse(readFileSync(mcpFile, 'utf8')) as { mcpServers: Record<string, unknown>, other: number }
     expect(doc.other).toBe(1)
     expect(doc.mcpServers['mine']).toEqual({ command: 'mine' })

@@ -7,6 +7,7 @@ import type { CanonicalBundle, SkillDoc } from '../../../src/core/catalog'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { parseFrontmatter } from '../../../src/engine/canonical'
 import { buildAgentsSkills, neutralDescription, openaiYaml, renderNeutralSkills } from '../../../src/adapters/shared/skills'
+import { BUILT } from '../../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
@@ -28,7 +29,7 @@ describe('neutral skill render (harness/agents-skills)', () => {
 
   test('the committed harness/agents-skills tree is up to date (byte for byte)', () => {
     for (const f of rendered.files) {
-      const committed = readFileSync(join(REPO, 'harness', 'agents-skills', f.path), 'utf8')
+      const committed = readFileSync(join(BUILT.harness, 'agents-skills', f.path), 'utf8')
       expect({ path: f.path, content: committed }).toEqual({ path: f.path, content: f.content })
     }
   })
@@ -142,7 +143,7 @@ describe('neutral skill render (harness/agents-skills)', () => {
 
   test('committed files have the generated modes', () => {
     for (const f of rendered.files) {
-      const p = join(REPO, 'harness', 'agents-skills', f.path)
+      const p = join(BUILT.harness, 'agents-skills', f.path)
       const mode = statSync(p).mode & 0o777
       expect({ path: f.path, mode }).toEqual({ path: f.path, mode: f.mode ?? 0o644 })
     }

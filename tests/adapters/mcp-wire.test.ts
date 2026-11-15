@@ -4,8 +4,9 @@ import { join } from 'node:path'
 import { parse as parseJsonc } from 'jsonc-parser'
 import * as paths from '../../src/engine/paths'
 import { probeStdio, type McpProbe } from '../../src/engine/update/mcp'
-import { CLAUDE_PLUGIN, installShim, REPO, withBunOnPath } from '../helpers/wire'
+import { CLAUDE_PLUGIN, installShim, withBunOnPath } from '../helpers/wire'
 import { withSandbox } from '../helpers/sandbox'
+import { BUILT } from '../helpers/built-harness'
 
 // "Wire" tests for MCP: the buracle-memory entry each harness config gets from its generator is started as written
 // (command and args, the way the harness starts it), the MCP handshake (initialize, tools/list) is run over stdio, and the
@@ -47,7 +48,7 @@ describe('mcp wire: the generated buracle-memory entry starts, answers tools/lis
 
   test('Codex: command and args of harness/codex/config.fragment.toml with {buracle} set to the shim', () => withSandbox(async ({ home }) => {
     installShim()
-    const fragment = Bun.TOML.parse(readFileSync(join(REPO, 'harness', 'codex', 'config.fragment.toml'), 'utf8')) as { mcp_servers: Record<string, { command: string, args: string[] }> }
+    const fragment = Bun.TOML.parse(readFileSync(join(BUILT.harness, 'codex', 'config.fragment.toml'), 'utf8')) as { mcp_servers: Record<string, { command: string, args: string[] }> }
     const entry = fragment.mcp_servers['buracle-memory']
     if (entry === undefined) throw new Error('no buracle-memory in harness/codex/config.fragment.toml')
     expect(entry.command).toBe('{buracle}')
@@ -56,7 +57,7 @@ describe('mcp wire: the generated buracle-memory entry starts, answers tools/lis
 
   test('OpenCode: the command array of opencode.fragment.jsonc, {env:HOME} expanded', () => withSandbox(async ({ home }) => {
     installShim()
-    const fragment = parseJsonc(readFileSync(join(REPO, 'harness', 'opencode', 'config', 'opencode.fragment.jsonc'), 'utf8')) as { mcp: { servers: Record<string, { command: string[] }> } }
+    const fragment = parseJsonc(readFileSync(join(BUILT.harness, 'opencode', 'config', 'opencode.fragment.jsonc'), 'utf8')) as { mcp: { servers: Record<string, { command: string[] }> } }
     const entry = fragment.mcp.servers['buracle-memory']
     if (entry === undefined) throw new Error('no buracle-memory in opencode.fragment.jsonc')
     await expectMemoryTools(entry.command.map(a => a.replaceAll('{env:HOME}', home)), home)
@@ -64,7 +65,7 @@ describe('mcp wire: the generated buracle-memory entry starts, answers tools/lis
 
   test('Oh My Pi on macOS and Linux: the /bin/sh entry of harness/omp/.mcp.json', () => withSandbox(async ({ home }) => {
     installShim()
-    const file = JSON.parse(readFileSync(join(REPO, 'harness', 'omp', '.mcp.json'), 'utf8')) as { mcpServers: Record<string, { command: string, args: string[] }> }
+    const file = JSON.parse(readFileSync(join(BUILT.harness, 'omp', '.mcp.json'), 'utf8')) as { mcpServers: Record<string, { command: string, args: string[] }> }
     const entry = file.mcpServers['buracle-memory']
     if (entry === undefined) throw new Error('no buracle-memory in harness/omp/.mcp.json')
     await expectMemoryTools([entry.command, ...entry.args], home)

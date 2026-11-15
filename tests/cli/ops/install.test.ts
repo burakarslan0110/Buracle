@@ -88,6 +88,24 @@ function finishedSteps(err: string): string[] {
   return plain.split('\n').map(l => l.trim()).filter(l => /^[✔▲✖ℹ-] /.test(l) || l.startsWith('── '))
 }
 
+describe('install in a checkout without a built harness/ (a dev checkout)', () => {
+  test('builds harness/ first without asking, even without a terminal or --yes; a dry run builds nothing', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const codex = fakeAdapter('codex', { build: () => [{ path: 'hooks.json', content: '{}\n' }], plan: () => codexPlan(home, { '.codex/hooks.json': '{}\n' }) })
+    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli, confirm: async () => false }, async () => {
+      expect(await installRun(['--dry-run'], memoryIO())).toBe(0)
+      expect(existsSync(join(repo, 'harness'))).toBe(false)
+
+      const io = memoryIO()
+      // without a terminal or --yes the install itself may stop at its own question; the build comes before it
+      await installRun([], io)
+      expect(existsSync(join(repo, 'harness', 'codex', 'hooks.json'))).toBe(true)
+      expect(existsSync(join(repo, 'harness', 'hook-data.json'))).toBe(true)
+      expect(io.out()).toContain('Rebuilt the generated files')
+    })
+  }))
+})
+
 describe('install progress on a terminal', () => {
   test('each step shows as it finishes, in order, with what it did; the second run says what is already up to date', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)

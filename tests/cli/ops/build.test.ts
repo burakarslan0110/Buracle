@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { run as buildRun } from '../../../src/cli/commands/build'
-import { MANIFEST_REL, normalizeOutputPath, runBuild, type BuildOptions } from '../../../src/engine/update/build'
+import { MANIFEST_REL, normalizeOutputPath, runBuild, runDeterminismCheck, type BuildOptions } from '../../../src/engine/update/build'
 import { loadCommandInfos, skillCommandReference } from '../../../src/engine/update/reference'
 
 import { withSandbox } from '../../helpers/sandbox'
@@ -272,8 +272,10 @@ describe('buracle build (command)', () => {
     const adapters = [fakeAdapter('claude', { build: () => [{ path: 'x.md', content: 'x\n' }] })]
     await withDeps({ repoRoot: () => repo, adapters: async () => adapters }, async () => {
       const io = memoryIO()
-      expect(await buildRun(['--check'], io)).toBe(1)
-      expect(io.out()).toContain('missing   harness/claude/x.md')
+      // harness/ is not committed on dev: a checkout without one has nothing to compare, and the two builds agree
+      expect(await buildRun(['--check'], io)).toBe(0)
+      expect(io.out()).toContain('two builds are identical')
+      expect(existsSync(join(repo, 'harness'))).toBe(false)
       expect(existsSync(join(buracleHome, 'state/runtime-config.json'))).toBe(false)
 
       const w = memoryIO()
@@ -287,10 +289,39 @@ describe('buracle build (command)', () => {
       expect(await buildRun(['--check', '--json'], j)).toBe(0)
       expect(JSON.parse(j.out())).toMatchObject({ ok: true, check: true, drift: [], code: 0 })
 
+      // a local harness/ that differs from the generator output is drift
+      writeFileSync(join(repo, 'harness/claude/x.md'), 'edited\n')
+      const d = memoryIO()
+      expect(await buildRun(['--check'], d)).toBe(1)
+      expect(d.out()).toMatch(/changed +harness\/claude\/x\.md/)
+
       const bad = memoryIO()
       expect(await buildRun(['--harness', 'nope'], bad)).toBe(1)
       expect(bad.err()).toContain('unknown harness nope')
     })
+  }))
+})
+
+describe('buracle build --check: determinism', () => {
+  test('an adapter whose output changes between two builds is reported, and nothing is written into the checkout', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    let n = 0
+    const adapters = [fakeAdapter('claude', { build: () => [{ path: 'x.md', content: `run ${n++}\n` }, { path: 'y.md', content: 'stable\n' }] })]
+    await withDeps({ repoRoot: () => repo, adapters: async () => adapters }, async () => {
+      const io = memoryIO()
+      expect(await buildRun(['--check'], io)).toBe(1)
+      expect(io.out()).toMatch(/nondeterministic +harness\/claude\/x\.md/)
+      expect(io.out()).not.toContain('harness/claude/y.md')
+      expect(existsSync(join(repo, 'harness'))).toBe(false)
+    })
+  }))
+
+  test('a stable adapter passes, and the manifest of a throwaway build lists exactly the files it wrote', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    const r = await runDeterminismCheck({ repoRoot: repo, adapters: [fakeAdapter('claude', { build: () => [{ path: 'a/b.md', content: 'b\n' }] })], commands: REGISTRY, sharedSkills: false })
+    expect(r).toMatchObject({ ok: true, drift: [], errors: [] })
+    expect(r.generated).toBeGreaterThan(0)
+    expect(existsSync(join(repo, 'harness'))).toBe(false)
   }))
 })
 

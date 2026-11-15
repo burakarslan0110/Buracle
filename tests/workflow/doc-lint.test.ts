@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
+import { BUILT } from '../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..')
 // docs/ is gitignored: a checkout may hold only plans and generated reference files, so the design
@@ -229,7 +230,8 @@ describe('doc lint: language and links', () => {
       for (const { line, path } of namedPaths(read(file))) {
         named.add(path)
         if (!HAS_DOCS && path.startsWith('docs/')) continue
-        if (!NAMED_ELSEWHERE.has(path) && !existsSync(join(REPO, path))) missing.push(`${relative(REPO, file)}:${line}: ${path}`)
+        // harness/ is not committed: a path under it must exist in the output this run built.
+        if (!NAMED_ELSEWHERE.has(path) && !existsSync(join(path.startsWith('harness/') ? BUILT.root : REPO, path))) missing.push(`${relative(REPO, file)}:${line}: ${path}`)
       }
     }
     expect(missing).toEqual([])

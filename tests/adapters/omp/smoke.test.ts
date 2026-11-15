@@ -15,10 +15,11 @@ import { applyPlans, rollbackTxn } from '../../../src/engine/txn'
 import { pathOf } from '../../helpers/fake-exe'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
 import { fixtureCanonical } from './fixture'
+import { BUILT } from '../../helpers/built-harness'
 
 const OMP = which('omp')
 const REPO = paths.repoRoot()
-const HARNESS = join(REPO, 'harness', 'omp')
+const HARNESS = join(BUILT.harness, 'omp')
 const READY = OMP !== undefined && existsSync(join(HARNESS, 'package.json'))
 const smoke = READY ? describe : describe.skip
 

@@ -9,6 +9,7 @@ import { which } from '../../../src/engine/proc'
 import { applyPlans } from '../../../src/engine/txn'
 import { saveState } from '../../../src/workflow/session-store'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
+import { BUILT } from '../../helpers/built-harness'
 
 // Against the real `pi` program, with its home and agent folder in the sandbox. Pi needs a model to call a tool, and no
 // login is used here: a local server answers as an OpenAI-compatible endpoint, first with a tool call and then with text.
@@ -16,7 +17,7 @@ import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
 
 const PI = which('pi')
 const REPO = paths.repoRoot()
-const READY = PI !== undefined && existsSync(join(REPO, 'harness', 'pi', EXTENSION_PATH))
+const READY = PI !== undefined && existsSync(join(BUILT.harness, 'pi', EXTENSION_PATH))
 const smoke = READY ? describe : describe.skip
 
 function piEnv(sb: Sandbox, agent: string): Record<string, string> {

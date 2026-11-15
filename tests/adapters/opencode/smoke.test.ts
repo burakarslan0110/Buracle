@@ -17,6 +17,7 @@ import { narrowPath } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { endsWithToolResult, lastUserText, offeredTools, startFakeProvider, systemTexts, type FakeProvider, type ToolRule } from './fake-provider'
 import { adapterContext, canonical, REPO, until } from './helpers'
+import { BUILT } from '../../helpers/built-harness'
 
 const OPENCODE = Bun.which('opencode', { PATH: process.env['PATH'] ?? '' })
 const PASSWORD = 'buracle-smoke'
@@ -122,7 +123,7 @@ async function launch(root: string, home: string, buracleHome: string, rules: To
   const project = join(root, 'project')
   mkdirSync(project, { recursive: true })
   mkdirSync(join(paths.opencodeConfigDir(), 'skills'), { recursive: true })
-  for (const id of ['plan-build', 'research']) symlinkSync(join(REPO, 'harness', 'agents-skills', id), join(paths.opencodeConfigDir(), 'skills', id))
+  for (const id of ['plan-build', 'research']) symlinkSync(join(BUILT.harness, 'agents-skills', id), join(paths.opencodeConfigDir(), 'skills', id))
   expect(existsSync(join(paths.agentsDir(), 'skills'))).toBe(false)
 
   const res = await applyPlans([await installPlan(adapterContext(), { opencode: null })])

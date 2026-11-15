@@ -1,6 +1,0 @@
-{
-  "statusLine": {
-    "type": "command",
-    "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" statusline agy --style full"
-  }
-}
