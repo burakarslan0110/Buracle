@@ -30,320 +30,184 @@ curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/i
 
 ## Neden Buracle
 
-Buracle kullandığın her kodlama ajanını tek bir kaynaktan kurar: Claude Code, Codex CLI, OpenCode ve Oh My Pi'de aynı skill'ler, kurallar, MCP sunucuları, hook'lar ve korumalar. Ajanların tek bir hafızayı paylaşır, böylece birinde alınan karar ötekinde de vardır. Workflow'ları planlar, test eder ve inceler. Sonuç doğrulanmadan durmaz.
+Buracle kullandığın kodlama ajanlarını tek bir kaynaktan kurar. Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi ve AGY CLI aynı skill'leri, MCP sunucularını, hook'ları ve korumaları alır, tek bir hafızayı paylaşır; birinde alınan karar ötekinde de bulunur. Workflow'lar planlar, test eder, inceler ve sonuç doğrulanmadan durmaz.
 
-Buracle olmadan her harness'ın kendi yapılandırma biçimi, kendi hook'ları, kendi hafızası ve skill için kendi anlayışı vardır. Her birini elle kurarsın ve hiçbiri ötekinde neye karar verdiğini bilmez. Buracle onları aynı çizgide tutar.
-
-- Tek kurulum. Skill'ler, kurallar, inceleme ajanları, hook'lar ve MCP ayarları `canonical/` klasöründe durur. `buracle install` her harness'ın kendi biçimini yedekleyerek ve günlüğe yazarak kurar, başarısız bir çalıştırmayı geri alır.
-- Bütün ajanlar tek bir hafızayı paylaşır. Her projenin bir beyni var, senin de projeden projeye seninle gelen bir beynin var. Claude Code'da kaydedilen bir karar, ertesi sabah Codex'i açtığında orada olur.
-- Workflow'lar bir sözleşmeyle çalışır. `/plan-build`, `/goal-build`, `/bugfix` ve `/requirements` kalıcı dosyalar yazar, gereken yerde onayını bekler, önce başarısız olan testi yazar, bağımsız incelemeler çalıştırır ve sonuç doğrulanana kadar devam eder.
-- Korumalar onay sorusuz çalışmayı güvenli kılar. Hook'lar yıkıcı komutları engeller, geri alınması zor komutlardan önce harness'ın kendi penceresinde sorar, gizli bilgileri korur ve araç çıktısında maskeler.
-- Her soru doğru araca gider. Dokuz MCP sunucusu ve altı dil sunucusu kurulup harness'lara bağlanır. Yönlendirme hook'ları her soruyu onun için yapılmış sunucuya gönderir.
-- Buracle Console. Yerel bir web sayfası hafızayı, planlar ve diff'ler için bir inceleme sayfasını ve iş akışı ayarlarını gösterir.
+- `canonical/` içinde tek kurulum: `buracle install` her harness'ın kendi biçimini yedek, günlük ve geri alma ile yazar.
+- Tek hafıza: her proje için bir beyin, bir de senin için.
+- Kalıcı dosyaları, onay kapıları, önce testle çalışması ve bağımsız incelemeleri olan workflow'lar (`/plan-build`, `/goal-build`, `/bugfix`, `/requirements`).
+- Onay sorusuz çalışma için korumalar: hook'lar yıkıcı komutları engeller, geri alması zor olanlardan önce sorar, gizli bilgileri maskeler.
+- Dokuz MCP sunucusu ve altı dil sunucusu; yönlendirme hook'ları her soruyu doğru olana gönderir.
+- Buracle Console: hafıza, plan incelemesi ve workflow ayarları için yerel bir web sayfası.
 
 ## Kurulum
 
-### Başlamadan önce
-
-Buracle macOS ve Linux'ta çalışır; Windows ve WSL desteklenmez. En az bir harness kur: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) ya da [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle bulduğu her harness'ı kurar, olmayanları atlar. Betik eksikse Bun'ı kurar. Git ve curl'ü (Linux'ta unzip'i ve Node.js yoksa, kurulumun indirdiği Node.js için libatomic1'i de) sen kurarsın: betik sudo'yu ya da paket yöneticisini asla çalıştırmaz, Linux'ta eksik olanı dağıtımında hangi komutla kuracağını yazar. Node.js, uv, ripgrep ve jq Homebrew varsa onunla gelir; yoksa kurulum Buracle'ın sabitlediği sürümü indirir, birlikte sabitlenen sha256 ile doğrular ve `~/.buracle/toolchain/system` altında tutar.
-
-### Kurulum komutları
-
-macOS ve Linux:
+Buracle macOS ve Linux'ta çalışır (Windows ve WSL yok). En az bir harness gerekir: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai), [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent), [Qwen Code](https://github.com/QwenLM/qwen-code), [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) ya da [AGY CLI](https://antigravity.google). Buracle bulduğu her harness'ı kurar.
 
 ```sh
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
 ```
 
-Betik GitHub'daki en son release'den gelir. Betik Buracle'ın `main` dalını `~/buracle` klasörüne klonlar, bağımlılıklarını kurar, ardından `buracle install` çalıştırır. Bu komut nadir sorularını doğrudan terminalde sorar (`curl … | bash` altında da), `~/.local/bin` klasörünü PATH'e ekler (kabuğunun başlangıç dosyasına ve zsh ile bash'ten diğerinin dosyasına işaretli birer blok, çünkü diğer kabukta açılan terminal ilkinin dosyasını okumaz), kabuklarının adıyla bulamadığı bir harness programını (`bun add -g` ile kurulan omp `~/.bun/bin` içinde durur) `~/.local/bin` altına bağlar ve Buracle Console'u başlatır. Sonunda kısa bir özet gösterir: Prerequisites, Buracle, Harnesses, Tools, Memory ve Result için birer satır, geçmeyen her şey için de bir satır. Sağlık denetimi dahil her ayrıntı `~/.buracle/logs/install-<tarih>.log` dosyasına gider; Result satırı bu dosyayı gösterir. `main` dalı yayımlanan dosyaları tutar. CI bu dala yalnızca bir release yayımlarken ve test paketi olmadan yazar. `buracle update` de bu dalı izler. Betiği yeniden çalıştırırsan depo güncellenir ve kurulum onarılır. Betik çalıştırmadan önce okunacak kadar kısa ([`install.sh`](scripts/install.sh)).
+Betik gerekirse Bun'ı kurar, `main` dalını `~/buracle` içine klonlar ve `buracle install` çalıştırır. Git ve curl sende olmalı (Linux'ta ayrıca unzip, Node.js yoksa libatomic1). Betik sudo ya da paket yöneticisi çalıştırmaz; Linux'ta dağıtımına uygun komutu yazdırır. Node.js, uv, ripgrep ve jq Homebrew ile gelir, yoksa `~/.buracle/toolchain/system` altına sabitlenmiş, sağlaması yapılan indirmeler olarak kurulur. İstersen önce betiği oku: [`install.sh`](scripts/install.sh).
 
-Kurulumdan sonra:
+`buracle install` her MCP ve dil sunucusunu kurar, her harness'ın yapılandırmasını bir transaction olarak yazar (yedek, günlük, sahiplik defteri, yalnızca o harness'ın geri alınması), beyni oluşturur, `~/.local/bin` klasörünü PATH'e ekler ve Buracle Console'u başlatır. Ayrıntılar `~/.buracle/logs/install-<tarih>.log` dosyasına gider. Elle değiştirdiğin değerler korunur. Betiği yeniden çalıştırmak günceller ve onarır.
 
-1. Açık olan Claude Code oturumlarında `/reload-plugins` çalıştır. Diğer harness'larda bir kez oturum aç (`codex login`, `opencode auth login`, `omp login`).
-2. Her projede `buracle project sync` çalıştır (oturum başlangıcı da bağlama adımını çalıştırır). Bu komut `AGENTS.md` var mı diye bakar, projenin `.agents/skills` klasörünü Claude Code için `.claude/skills` içine bağlar ve projenin beynini kurar.
-3. Buracle'ın, skill'lerin ve araçların en yeni sürümünü istediğinde `buracle update` çalıştır.
+Sonra:
 
-<details>
-<summary><b><code>buracle install</code> ne yapar</b></summary>
+1. Açık her Claude Code oturumunda `/reload-plugins` çalıştır. Öbür harness'larda bir kez oturum aç (`codex login`, `opencode auth login`, `omp login`; Qwen Code, Pi ve AGY CLI için kendi oturum açma adımları).
+2. Her projede `buracle project sync` çalıştır. Bir `AGENTS.md` olup olmadığına bakar, `.agents/skills` klasörünü `.claude/skills` içine bağlar ve projenin beynini hazırlar.
+3. En yeni Buracle, skill ve araçlar için `buracle update` çalıştır. `--check` yalnızca kontrol eder, `buracle update mcp codegraph` kapsamı daraltır.
 
-1. Ön kontrol ve derleme. Önceki bir çalıştırmanın yarım bıraktığı işlem önce bitirilir (ya da kurulum nedenini söyleyip durur). Sonra harness dosyalarını `canonical/` ve `src/` klasörlerinden üretir; derleme başarısız olursa hiçbir şey kurulmaz.
-2. Depoyu `~/.buracle/runtime/<id>` altına kopyalar ve kopyayı sınar. `--version` çalışmalı, Claude Code ve Codex hook'ları da `rm -rf ~` komutunu reddedip `ls` komutuna izin vermelidir. `buracle` komutu ancak bundan sonra yeni kopyaya geçer. Önceki kopya saklanır.
-3. Eksik sistem araçlarını Homebrew (macOS'ta, Homebrew kuruluysa Linux'ta da) ile kurar. Homebrew kuramıyorsa Node.js, uv, ripgrep ve jq sabitlenmiş sürümüyle indirilir, sabitlenen sha256 ile doğrulanır, bir kez çalıştırılır ve `~/.local/bin` altına bağlanır. Linux'ta Homebrew yoksa eksik diğer araçları yalnızca dağıtımın komutuyla birlikte bildirir. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. CortexDB dahil her şey en yeni sürümüyle gelir (CortexDB 2.137.0 ya da daha yeni olmalıdır). Yeni bir CortexDB sürümü yalnızca hafızanın denetiminden geçtikten sonra ve beyinler yedeklendikten sonra kullanılır. `update.minReleaseAgeDays` (varsayılan 0) bir sürümden sonra birkaç gün beklemeyi sağlar.
-4. `~/.buracle/bin/buracle` komutunu, onun `~/.local/bin/buracle` bağlantısını, `~/.buracle/config.yaml` dosyasını ve her skill'in `~/.agents/skills` içindeki tek kopyasını yazar. Codex, OpenCode ve Oh My Pi bu klasörü kendileri okur (Claude Code aynı metni Buracle eklentisinden okur).
-5. Her harness'ı kendi işlemiyle (transaction) kurar. İşlem yedek, atomik yazma, günlük, komutlar, doğrulama, sahiplik kaydı ve onay adımlarından geçer. Bir harness başarısız olursa yalnızca o harness geri alınır.
-6. Son olarak `~/.buracle/brain` hafıza klasörünü oluşturur.
-
-Elle değiştirdiğin değerler korunur ve raporlanır. Terminalde değişiklikleri hemen uygular ve her adımı gösterir. Betikler ve ajanlar `--yes` ekler.
-
-</details>
-
-<details>
-<summary><b>Güncelleme, kaldırma</b></summary>
-
-- `buracle update` Buracle'ı (`self`), skill'leri, MCP sunucularını ve araçları denetler ve her parçayı kendi kaynağından, onu kuran yükleyiciyle günceller. `--check` yalnızca denetler. Tür ya da isim verirsen kapsam daralır (`buracle update mcp codegraph`). Kurulum gibi, güncelleme de önce önceki yarım işlemi bitirir. Güncellemeden sonra sürümü değişen her MCP sunucusu yeniden başlayıp cevap vermelidir. Denetimi başarısız olan parça güncel diye değil, denetlenemedi diye bildirilir.
-- `buracle uninstall` yalnızca sahiplik kaydının Buracle'ın yazdığını kanıtladığı şeyleri, kurulumun kabuk başlangıç dosyana eklediği PATH bloğunu ve indirdiği sistem araçlarını kaldırır. Senin değiştirdiğin değerler kalır ve `~/.buracle/brain` altındaki hafızaya hiç dokunulmaz.
-
-</details>
-
-## İlk adımlar
-
-Bir projede harness'ını aç ve her zamanki gibi çalış. Buracle kurallarını, hafızasını ve araçlarını oturumun çevresine yükler. Üç çalışma biçimi yan yana durur ve üçü de aynı korumalarla, aynı hafızayla çalışır.
-
-| Çalışma biçimi | Ne kazanırsın |
-|---|---|
-| Doğrudan istek | Ajan Buracle'ın kurallarına ve hafızasına uyarak işi anlar, değiştirir, doğrular ve raporlar |
-| Harness'ın kendi plan modu | Onayladığın plan `docs/plan-build/` altına kaydedilir ve oturum bitince kaybolmaz (OpenCode taslak olarak kaydeder) |
-| Bir Buracle workflow'u | Kalıcı bir plan, sözleşme ya da PRD, onay kapıları, önce test, bağımsız incelemeler ve doğrulama |
-
-Her depoda bir kez `/project-rules` çalıştır. Bu komut kodu okur, belgelediği komutları çalıştırır ve her harness'ın uyduğu bir `AGENTS.md` yazar. Codex'te bu sayfada `/` yazan yerlere `$` yaz.
+`buracle uninstall` yalnızca sahiplik defterinin Buracle'ın yazdığını gösterdiği şeyleri kaldırır. Elle değiştirdiğin değerler kalır, `~/.buracle/brain` içindeki hafızaya hiç dokunulmaz.
 
 ## Workflow'lar
 
-| Workflow | Ne zaman | Ne kazanırsın |
+Harness'ını bir projede aç ve her zamanki gibi çalış: doğrudan bir istek, harness'ın kendi plan modu (onaylanan plan `docs/plan-build/` içine kaydedilir; OpenCode taslak kaydeder) ya da bir Buracle workflow'u. Üçü de aynı korumalar ve aynı hafızayla çalışır. Her depoda bir kez `/project-rules` çalıştır; her harness'ın izlediği bir `AGENTS.md` yazar. Codex'te bu sayfada `/` yazan yere `$` yaz; Pi'de `/skill:` (örneğin `/skill:plan-build`).
+
+| Workflow | Ne zaman | Ne elde edersin |
 |---|---|---|
-| `/plan-build` | Koddan önce incelenmiş bir planı onaylamak istediğinde | `docs/plan-build/` altında bir plan, plan incelemesi, her değişiklikten önce başarısız olan bir test, değişiklik incelemesi, değişen her yüzeyde gerçek programın çalıştırılması, uçtan uca senaryolar ve sonuç için senin onayın |
-| `/goal-build` | Varılacak nokta belli ama yol geliştirirken bulunacaksa | `docs/goal-build/` altında geçti/kaldı ölçütleri kilitlenmiş bir sözleşme, eksik kanıtın kaldı sayıldığı geliştirme ve değerlendirme turları, sonda da bir doğrulama aşaması |
-| `/bugfix` | Bir davranış bozuksa ve düzeldiğinin kanıtını istiyorsan | Önce hatanın yeniden üretilmesi, kök nedenin `file:line` olarak gösterilmesi, düzeltmeden önce başarısız olan bir test, hatanın başladığı yerde düzeltme, değişiklik incelemesi ve uçtan uca kontrol |
-| `/requirements` | Sorun, hedef kitle ya da kapsam henüz belirsizse | Birkaç tur soru, araştırma ve `docs/requirements/` altında, doğru geliştirme workflow'una devreden onaylı bir PRD |
+| `/plan-build` | Kod yazılmadan önce incelenmiş, onaylı bir plan istiyorsan | `docs/plan-build/` içinde plan, her değişiklikten önce başarısız bir test, incelemeler, gerçek program çalıştırması ve onayın |
+| `/goal-build` | Son durum belli, yol yaparken bulunacaksa | `docs/goal-build/` içinde geçti/kaldı ölçütleriyle kilitli bir sözleşme, hakemli yapım turları, son doğrulama |
+| `/bugfix` | Tek bir davranış bozuk ve düzeldiğinin kanıtını istiyorsan | Yeniden üretilen hata, `file:line` olarak kök neden, başarısız test, düzeltme, uçtan uca kontrol |
+| `/requirements` | Problem ya da kapsam belirsizse | Birkaç tur soru ve `docs/requirements/` içinde onaylı bir PRD |
 
-```mermaid
-flowchart LR
-  R["İstek ya da hedef"] --> P["Plan ya da sözleşme<br/>incelenir ve onaylanır"]
-  P --> T["Önce başarısız test, sonra kod"]
-  T --> V["Kontroller, değişiklik incelemesi,<br/>gerçek programın çalıştırılması"]
-  V -- "eksik bulundu" --> T
-  V --> A["Senin onayın: VERIFIED"]
-```
+- Bir stop guard, plan doğrulanana kadar turu açık tutar. Duraklatmak için stop, wait ya da hold on de.
+- İsteğin ardından `--worktree`, `--new-branch` ya da `--current-branch` işin nerede yapılacağını belirler; worktree'de çalışan iş squash merge ile geri birleştirilir.
+- `buracle plan audit` hiçbir görevin planlamadığı değişiklikleri işaretler.
 
-Bu workflow'ları bir arada tutan parçalar şunlar:
+Ayrıca: `/research` (kaynak gösteren araştırma), `/inspect` (bir soruyu çalışan kodda izler, hiçbir şeyi değiştirmez), `/dead-code` (aşamalı kaldırma planı, hiçbir şeyi değiştirmez), `/project-rules`, `/new-skill`, `/find-skill`, `/ab-test` (bir skill ya da kural değişikliğinin ajanın davranışını değiştirip değiştirmediğini ölçer), `/brain` (Buracle Console'u açar), `/remember <metin>`, `/aside <soru>` ve `/buracle-status`.
 
-- Durdurma koruması (stop guard), plan doğrulanana kadar turun bitmesine izin vermez. Turu yalnızca bir duraklatma bitirir. İstediğin an "dur" ya da "bekle" diyerek duraklatabilir, "devam et" diyerek sürdürebilirsin. Mesajın tamamı Türkçe ya da İngilizce böyle bir sözcükse planı Buracle kendisi duraklatır, diğer her durumda ajan duraklatır.
-- İstekten sonra `--worktree`, `--new-branch` ya da `--current-branch` yazarak işin nerede yapılacağını belirlersin. Worktree'de yapılan iş bitince düz git ile (squash merge) çıktığı dala birleştirilir.
-- Ajan her onaydan önce inceleme sayfasına iliştirdiğin notları okur ve her birini uygulandı olarak işaretler.
-- `buracle plan audit` diff'i her görevin adını verdiği dosyalarla karşılaştırır ve hiçbir görevin planlamadığı değişiklikleri işaretler.
-- `plan.reviews.companion` açıksa aynı inceleme kurulu başka bir harness'ta da salt okunur bir ikinci görüş olarak çalışır.
-- Bölünebilen iş paralel kollarda (lane) çalışır: kollar lead'in başlattığı alt ajanlardır, dosya düzenleyen her kol kendi worktree'sindedir ve lead onları birleştirir.
-
-Bu workflow'ların nasıl çalışacağını Buracle Console'un [ayarlarından](#ayarlar) ya da `buracle config set plan.<key> <value>` komutuyla belirlersin.
-
-### Diğer workflow'lar
-
-| Komut | Ne yapar |
-|---|---|
-| `/research <soru>` | Web, kütüphane belgeleri, açık kod ve hafıza üzerinden kaynak gösteren bir araştırma yapar. Her kaynağı göstermeden önce okur |
-| `/inspect <soru>` | Bir soruyu gerçekten çalışan kod boyunca izler, her adımı `path:line` olarak gösterir, kendi yanıtını çürütmeye çalışır ve ne kadar emin olduğunu söyler. Hiçbir şeyi değiştirmez |
-| `/dead-code` | Kullanılmayan kodu raporlar. Bir adayın iki bağımsız kanıtı olmalıdır ve sonuç aşamalı bir kaldırma planıdır. Hiçbir şeyi değiştirmez |
-| `/project-rules` | Çalıştırdığı komutlara dayanarak `AGENTS.md`, iç içe `AGENTS.md` dosyaları ve yol kuralları yazar ve denetler |
-| `/new-skill` | Tekrar eden bir işi eval'leriyle birlikte bir skill hâline getirir ve lint'ten geçirir |
-| `/find-skill` | Kendi skill'lerini ve skills.sh kayıt defterini lisans, güncellik ve risk puanlarıyla tarar, seçileni denetler ve her harness için kurar |
-| `/ab-test` | Bir skill ya da kural değişikliğinin ajanın davranışını değiştirip değiştirmediğini, geçici yapılandırma klasörlerinde eşleştirilmiş önce/sonra denemeleriyle ölçer |
-
-| Yardımcı komut | Ne yapar |
-|---|---|
-| `/brain` | Buracle Console'u açar. `/brain review` inceleme sayfasını açar |
-| `/remember <metin>` | Hafızaya bir not kaydeder |
-| `/aside <soru>` | Asıl işi bölmeden yan bir soruyu yanıtlar |
-| `/buracle-status` | Planı, workflow'u ve hafızayı tek bakışta gösterir |
-
-### Kurallar
-
-Her oturumda dört kısa kural yüklenir, toplamları 8 KB'ın altındadır (`buracle rules lint` bunu denetler). Bunlar core (otonomi, "bitti" demeden önce kanıt), tooling (hangi sorunun hangi araçla yanıtlanacağı), memory ve plain language (sade dil) kurallarıdır. Kurallar yalnızca özü taşır; ayrıntı (test, değişiklik disiplini, hata ayıklama, memory ve dil kurallarının tam metni) `buracle` ve `memory` skill'lerinin referanslarındadır ve ajan gerektiğinde onları okur. Sade dil kuralı oturum boyunca tek dil kullanır: planlar, PRD'ler, raporlar ve inceleme bulguları senin dilinde yazılır, yalnızca Buracle'ın okuduğu işaretler İngilizce kalır. Yol kuralları ise ajan eşleşen dosyalara ilk kez dokunduğunda yüklenir. TypeScript, Python, Go, .NET, Blazor, frontend ve backend için yol kuralı var.
+Dört kısa kural her oturumda yüklenir ve birlikte 8 KB'ın altındadır (`buracle rules lint` denetler). Ayrıntılar, ajanın gerektiğinde okuduğu skill referanslarında durur. Planlar, PRD'ler ve raporlar senin dilini izler; yalnızca Buracle'ın okuduğu işaretler İngilizce kalır.
 
 ## Hafıza
 
-![Buracle Console'un beyin görünümü: projenin hafızası, bölgeleri hafıza türleri olan bir beyin olarak çizilmiş](assets/brain-overview.png)
+![Buracle Console'un Beyin görünümü: projenin hafızası, bölgeleri hafıza türleri olan bir beyin olarak çizilmiş](assets/brain-overview.png)
 
-Buracle'ın hafızası tek bir [CortexDB](https://github.com/liliang-cn/cortexdb) dosyasında, `~/.buracle/brain/brain.db` içinde durur. Her proje için bir bölme (bucket), senin için de ayrı bir bölme vardır. Her harness ona `buracle-memory` MCP sunucusu üzerinden ulaşır. Sunucunun altı aracının (search, get, write, update, status, context) her birinin `buracle mem` altında bir CLI karşılığı var. Beyin hafıza kayıtlarını yedi bölgeye ayırır.
+Hafıza tek bir [CortexDB](https://github.com/liliang-cn/cortexdb) dosyasında, `~/.buracle/brain/brain.db` içinde durur; her proje için ve senin için birer kovası vardır. Her harness ona `buracle-memory` MCP sunucusuyla ulaşır; sunucunun altı aracının her birinin `buracle mem` altında bir CLI karşılığı vardır. Tasarım için [ARCHITECTURE.md](ARCHITECTURE.md), nelerin doğrulandığı için [COMPATIBILITY.md](COMPATIBILITY.md) dosyalarına bak.
 
-| Bölge | Ne tutar |
-|---|---|
-| Plans & decisions | Gerekçeleri ve reddedilen seçenekleriyle birlikte kararlar |
-| Knowledge & ideas | Proje bilgisi ve fikirler |
-| Discoveries & references | Saklamaya değer bağlantılar ve kaynaklar |
-| You & preferences | Tercihlerin ve projenin kendi kuralları |
-| Skills & procedures | Çözülmesi emek isteyen prosedürler |
-| Warnings & gotchas | Kolay görülmeyen hatalar ve kök nedenleri |
-| Memories & events | Oturumlar, devir notları (handoff) ve dosyalanmayı bekleyen kayıtlar |
+- Oturum başlangıcında ajan tercihlerini, projenin kilit hafızalarını ve iş yarıda kaldıysa bir devir notunu alır. Belirttiğin bir tercih ("her zaman", "asla", "bundan sonra") hemen kaydedilir. Sıkıştırmadan önce plan ve todo durumu bir devir hafızasına yazılır.
+- Oturum bitince tek bir `buracle mem finalize` çalıştırması oturum hafızasını yazar ve kullandığın harness'ın modelinden saklamaya değer kararları, tuzakları ve prosedürleri ister. Güvenilir bulgular çıkarım olarak kaydedilir, gerisi yakalama olarak bekler. Bir bulgu senin hafızalarından hiçbirini değiştirmez: yanına, çelişen diye işaretlenerek konur. `buracle mem capture` aynısını istek üzerine yapar, `buracle mem doctor` neyin borç kaldığını listeler.
+- Arka planda başka bir şey çalışmaz. Oturumlar 45, devirler 14 gün sonra süresi dolar. `buracle mem backup` ve `buracle mem restore` beyin dosyasını kopyalar; bir oturum sonu da en yeni kopya bir günden eskiyse yenisini alır (en yeni 10 tutulur).
 
-Hafızanın neden böyle olduğu ve ölçümler: [ARCHITECTURE.md](ARCHITECTURE.md). Her harness ve işletim sisteminin neyi desteklediği ve neyin doğrulandığı: [COMPATIBILITY.md](COMPATIBILITY.md).
-
-### Ne yapar, ne zaman
-
-- Bir oturum başladığında ajan tercihlerini, projenin önemli hafıza kayıtlarını ve iş yarım kaldıysa nerede durduğunu anlatan bir devir notunu alır. O anda yalnızca okuma yapılır.
-- Sen çalışırken söylediğin bir tercihi ("her zaman", "asla", "bundan sonra"), hangi dilde olursa olsun, ajan hemen açık (explicit) bir hafıza kaydı olarak saklar.
-- Bağlam sıkıştırılmadan önce plan, görev ve yapılacaklar durumu bir devir notuna yazılır ve sıkıştırmadan hemen sonra geri gelir.
-- Oturum sürerken harness adaptörleri her istemi, biten her turu ve her sıkıştırmayı yalnızca bir spool dosyasına not eder. Oturum bitince oturum kaydı dokunduğu dosyaları listeler; bu liste git'ten alınır.
-- Oturum bitince tek bir `buracle mem finalize` çalışması oturumun hafıza kaydını yazar ve kullandığın harness'ın modeline saklamaya değer kararları, tuzakları, prosedürleri ve tercihleri sorar. Modelin senin kendi sözlerinle alıntıladığı ve istemlerinde geçen bir tercih açık (explicit) kayıt olarak dosyalanır. Modelin cevabı, bir şey yazılmadan önce bütün olarak denetlenir. Emin olunan bulgular modelin güven puanıyla birlikte çıkarım (inferred) olarak işaretlenmiş hafıza kaydı olur, gerisi dosyalanmayı bekler. Senin bir kaydına (açık, sabitlenmiş ya da doğrulanmış) benzeyen bir bulgu o kaydı asla değiştirmez: yanına, çelişiyor diye işaretlenerek yazılır. Aynı çalışma, yakalaması hâlâ bekleyen en fazla üç eski oturumu da alır.
-- `buracle mem capture` aynı işi istediğin an yapar, `buracle mem doctor` hâlâ bekleyenleri listeler.
-
-Bellek arka planda başka hiçbir şey çalıştırmaz: zamanlayıcı, açılış işi, onarım turu yok. Oturumların ve devir notlarının süresi 45 ve 14 gün sonra dolar, ardından gelen oturum sonu süresi dolanları kalıcı olarak siler. `buracle mem backup` istediğinde beyin dosyasının tamamını kopyalar; bir oturum bittiğinde de en yeni kopya bir günden eskiyse bir kopya daha alınır (en yeni 10 kopya tutulur).
-
-Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden yapılır, bu yüzden API anahtarı gerekmez. Önce oturumun kendi harness'ı denenir. 5 saatlik kullanımı %75'i ya da haftalık kullanımı %85'i aşan harness atlanır. Arama kelimelerle yapılır ve İngilizce ile Türkçe kelime biçimlerini bilir.
-
-Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları hiç saklanmaz ve `memory.exclude` listesindeki klasörler hiç kaydedilmez. Devreden çıkarılmış bir kayıt sen silene kadar aramalardan gizli kalır, böylece geri getirebilirsin. `buracle mem restore` bir yedeği geri getirir.
+Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden gider, yani API anahtarı gerekmez; 5 saatlik kullanımı %75'in ya da haftalık kullanımı %85'in üstündeki harness atlanır. Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları hiç saklanmaz, `memory.exclude` içindeki klasörler hiç kaydedilmez.
 
 ### Buracle Console
 
-![Açılmış bir bölge: kayıtları bir bağlantı ağı olarak çizilmiş, listesi yan panelde](assets/brain-network.png)
-
-`/brain` ya da `buracle mem ui --open` arayüzü `http://localhost:41777` adresinde açar (port sabittir; `buracle mem ui --port N` tek bir çalıştırmayı başka bir portta açar). Arayüz sen çalışırken açık kalır: kurulum onu başlatır, dört harness'tan birinde bir oturum başlayınca kapalıysa açılır ve bir harness oturumu açık olduğu sürece çalışır. Son oturum kapanınca yaklaşık bir dakika içinde durur; hiç oturum açılmamışsa 30 dakika boyunca istek gelmezse kendini kapatır (`BURACLE_UI_IDLE_MS` bunu milisaniye olarak değiştirir). `buracle mem ui --stop` onu bir sonraki oturum başlangıcına kadar durdurur. `buracle config set memory.ui.autostart false` eski elle kullanımı geri getirir: arayüz yalnızca `buracle mem ui` ile açılır ve boşta kalma süresinden sonra kapanır.
-
-- Beyin görünümü bölgeleri bir beyin olarak çizer ve yazma ile arama anında burada yanar. `/` arama yapar, `1` ile `7` arasındaki tuşlar bir bölgeyi açar, `G` kayıtların, etiketlerin, dosyaların ve kavramların ağını gösterir.
-- Kayıt ayrıntısında metin, etiketler, kaynaklar, geçmiş, kaydın nereden geldiği (senin sözlerin mi, çıkarım mı, hangi güvenle) ve bağlantılı olduğu kayıtlar görünür. Kaydı buradan düzeltebilir, devreden çıkarabilir, geri getirebilir ya da silebilirsin. Düzeltme senin kendi sözün olarak saklanır.
-- İnceleme sayfası planlarını, geliştirme sözleşmelerini, PRD'lerini ve ajanın diff'ini gösterir. Mermaid blokları diyagram olarak çizilir, kaynakları altında durur. Bir metni seçerek ya da bir satır numarasına tıklayarak ajana not iliştirirsin.
-- Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel depoyu ve sürümünü, beyin dosyasını boyutu ve kovalarıyla, dosyalanmayı bekleyen kayıtları, son yakalamayı ve yedekleri gösterir. Back up düğmesi de buradadır.
-- Koyu ve açık tema (`T`) da arayüzde yer alır.
-
-![İnceleme sayfası: ortada açık bir plan, işaretlenmiş bir bölüm ve ona iliştirilen not "Your notes" altında](assets/brain-review.png)
-
-Sayfa yalnızca kendi yerel sunucusuna giden ve token ile denetlenen isteklerle yazar.
+`/brain` ya da `buracle mem ui --open` Console'u `http://localhost:41777` adresinde açar (başka port için `buracle mem ui --port N`). Kurulumla ya da bir oturum başlangıcıyla başlar, bir harness oturumu açıkken ayakta kalır ve sonuncusu bittikten yaklaşık bir dakika sonra durur (boşta durma süresini `BURACLE_UI_IDLE_MS` ayarlar). `buracle mem ui --stop` durdurur; `buracle config set memory.ui.autostart false` yalnızca `buracle mem ui` ile başlamasını sağlar. Beyni (`/` arar, `1` ile `7` arası bir bölgeyi açar, `G` ağı gösterir), her hafızayı düzenleme, emekli etme, geri getirme ve silme ile, planlar, sözleşmeler, PRD'ler ve diff'ler için ajana not iğneleyebildiğin bir inceleme sayfasını ve bir sağlık görünümünü (`H`) gösterir.
 
 #### Ayarlar
 
-![Beynin yanında açılmış ayarlar paneli, ilk workflow anahtarları ve yapılandırma adlarıyla](assets/brain-settings.png)
+`S` tuşuna bas. Workflow anahtarları plan-build, goal-build ve bugfix'in her harness'ta nasıl çalışacağını belirler. Burada ya da `buracle config set plan.<key> <value>` ile değiştirirsin. Değişiklik hemen `~/.buracle/config.yaml` içine yazılır; çalışan bir goal-build kilitlediği değerleri korur. Bir ajan onay, inceleme ve doğrulama anahtarlarını değiştiremez.
 
-Ayarları açmak için `S` tuşuna bas. Ayarlar iki gruptan oluşur.
-
-Workflow anahtarları plan-build, goal-build ve bugfix'in her harness'ta nasıl çalışacağını belirler. Bunları buradan ya da `buracle config set plan.<key> <value>` komutuyla değiştirirsin. Ajanlar bu sayfayı kullanamaz. Onay, inceleme ve doğrulama anahtarlarını da hiçbir yoldan değiştiremez. Yaptığın değişiklik hemen `~/.buracle/config.yaml` dosyasına yazılır ve bir workflow ayarları bir sonraki okuduğunda geçerli olur. Çalışmakta olan bir goal-build ise sözleşmesiyle kilitlediği değerleri korur. Her anahtar kendi adını, kısa bir açıklamasını ve "How it works" altında ayrıntısını gösterir. Değer gelen varsayılandan farklıysa arayüz bunu da not eder.
-
-| Ne yapar | Anahtar | Varsayılan |
+| Ayar | Anahtar | Varsayılan |
 |---|---|---|
-| Geliştirmeye başlamadan önce plan için onayını ister | `plan.planApproval` | açık |
-| Doğrulanmış sonuç için onayını ister | `plan.resultApproval` | açık |
-| İşi bir worktree içinde, kendine ait bir dalda yapar | `plan.branchIsolation` | açık |
-| Planlarken netleştirici sorular sorar | `plan.questions` | açık |
-| Planı bağımsız bir ajana inceletir | `plan.reviews.plan` | açık |
-| Değişiklikleri bağımsız bir ajana inceletir | `plan.reviews.changes` | açık |
-| goal-build sözleşmesini bağımsız bir ajana inceletir | `plan.reviews.goal` | açık |
-| Başka bir harness'tan ikinci görüş alır | `plan.reviews.companion` | `off` (diğer seçenekler `auto`, `claude`, `codex`, `opencode`, `omp`) |
-| Ölçütler geçtikten sonra goal-build'i doğrular | `plan.goalVerification` | açık |
-| Onaydan sonra model değiştirebilmen için durur | `plan.modelSwitch` | `off` (diğer seçenek `manual`) |
-| Planı harness'ın kendi plan modunda yazar | `plan.nativePlanMode` | `off` (diğer seçenek `on`) |
-
-Model for capture grubu, hafızanın oturum sonu damıtması için bir harness ödünç alırken uyduğu kuralı gösterir. Bir harness bu çağrıyı ancak 5 saatlik penceresi %75'in, haftalık penceresi %85'in altındayken çalıştırır. Kuralın altında bir sonraki çağrıyı hangi harness'ın çalıştıracağını, her pencereden ne kadar kullandığını ve bekletilen bir harness'ın ne zaman serbest kalacağını görürsün. Bu grupta ayarlanacak bir şey yok.
-
-Son satır Buracle Console'un dinlediği portu ve yazdığı yapılandırma dosyasını gösterir.
+| Yapmadan önce planı onayla | `plan.planApproval` | açık |
+| Doğrulanmış sonucu onayla | `plan.resultApproval` | açık |
+| Kendi dalında, bir worktree'de yap | `plan.branchIsolation` | açık |
+| Planlarken açıklayıcı sorular sor | `plan.questions` | açık |
+| Plan, değişiklik ve goal sözleşmesinin bağımsız incelemesi | `plan.reviews.plan`, `plan.reviews.changes`, `plan.reviews.goal` | açık |
+| Başka bir harness'tan salt okunur ikinci görüş | `plan.reviews.companion` | `off`; ya da `auto`, `claude`, `codex`, `opencode`, `omp` |
+| Ölçütleri geçen bir goal-build'i doğrula | `plan.goalVerification` | açık |
+| Onaydan sonra modeli değiştirmek için dur | `plan.modelSwitch` | `off`; ya da `manual` |
+| Harness'ın kendi plan modunda planla | `plan.nativePlanMode` | `off`; ya da `on` |
 
 ## Korumalar
 
-Buracle harness'ları onay soruları olmadan çalıştırır ve korumayı kendi hook'larına bırakır.
+Korumayı hook'lar yapar, bu yüzden harness'lar onay sorusu olmadan çalışır:
 
-- Yıkıcı komutlar reddedilir. `/` ya da `~` üzerinde `rm -rf`, main dalına force push, `curl | sh`, `mkfs` ve bir aygıta `dd` bunlardan bazılarıdır.
-- Gizli dosyalara (`.env` dosyaları, anahtarlar, kimlik bilgileri), `~/.ssh` ve `~/.aws` klasörlerine ve Buracle'ın kendi kurulumuna yazma reddedilir.
-- Geri alınması zor komutlar (force push, `reset --hard`, rebase, amend, dal silme, `git clean`) harness'ın kendi penceresinde bekler. Sen bir kez izin verene, oturum boyunca izin verene ya da reddedene kadar çalışmazlar. Model önceki bir yanıtı yeniden kullanamaz.
-- Araçların döndürdüğü çıktıdaki anahtarlar, token'lar ve parolalar model okumadan önce maskelenir.
-- Claude Code ve Codex'te yüklenemeyen ya da karar veremeyen bir hook komutu reddeder ve `buracle doctor` komutunu önerir.
+- Yıkıcı komutlar reddedilir (`/` ya da `~` üzerinde `rm -rf`, main'e force push, `curl | sh`, `mkfs`, bir aygıta `dd`).
+- Gizli bilgilere (`.env`, anahtarlar, kimlik bilgileri), `~/.ssh`, `~/.aws` ve Buracle'ın kendi kurulumuna yazmak reddedilir.
+- Geri alması zor komutlar (force push, `reset --hard`, rebase, amend, dal silme, `git clean`) harness'ın kendi penceresinde, bir kez izin verene, oturum için izin verene ya da reddedene kadar bekler. Konağın penceresi yoksa [harness sınırlarına](#harness-sınırları) bak.
+- Araç çıktısındaki anahtarlar, belirteçler ve parolalar maskelenir.
+- Claude Code, Codex, Qwen Code ve AGY CLI'da yüklenemeyen ya da karar veremeyen bir hook komutu reddeder ve `buracle doctor`'ı anar.
 
-`~/.buracle/config.yaml` içindeki `guards.bash.extraDeny` ve `guards.write.protect` ayarlarıyla kendi kalıplarını ekleyebilirsin.
+`~/.buracle/config.yaml` içindeki `guards.bash.extraDeny` ve `guards.write.protect` kendi kalıplarını ekler.
 
 ## Araçlar
 
 | MCP sunucusu | Ne için |
 |---|---|
 | `buracle-memory` | Beyin |
-| [`context7`](https://github.com/upstash/context7) | Kütüphane ve framework belgeleri |
-| [`codegraph`](https://github.com/colbymchenry/codegraph) | Semboller, çağıranlar ve bir değişikliğin etkisi |
-| [`semble`](https://github.com/MinishLab/semble) | Anlamsal kod arama |
-| [`web-search`](https://www.npmjs.com/package/open-websearch) | API anahtarı istemeyen web araması |
-| [`web-fetch`](https://www.npmjs.com/package/fetcher-mcp) | Web sayfalarını arayüzsüz (headless) bir tarayıcıda okur |
-| [`grep`](https://grep.app) | Açık GitHub depolarından kod örnekleri |
-| [`chrome-devtools`](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Bir Chrome tarayıcısını yönetir |
-| `lsp` | Codex ve OpenCode için dil sunucusu tanılamaları ve kod içinde gezinme |
+| `context7` | Kütüphane ve framework dokümanları |
+| `codegraph` | Semboller, çağıranlar ve bir değişikliğin etkisi |
+| `semble` | Anlamsal kod arama |
+| `web-search`, `web-fetch` | API anahtarsız web araması; sayfaları başsız tarayıcıda okuma |
+| `grep` | Açık GitHub depolarından kod örnekleri (grep.app) |
+| `chrome-devtools` | Bir Chrome tarayıcısını yönetir (Oh My Pi'de yok, onun kendi tarayıcısı var) |
+| `lsp` | Codex ve OpenCode için dil sunucusu tanılamaları ve gezinme |
 
-Her harness oturumu her sunucu için tam bir kopya değil, ince bir aracı çalıştırır:
+Her oturum her sunucu için ince bir yönlendirici çalıştırır. `context7`, `semble`, `web-search` ve `web-fetch` makine başına tek bir backend'i paylaşır; backend ilk çağrıda başlar ve son oturum bittikten 60 saniye sonra durur (`buracle config set mcp.shared false` her oturuma kendi kopyasını verir). `buracle mcp disable <id>` (tek harness için `--harness <h>`), `enable`, `list`, `status` ve `stop` onları yönetir.
 
-- `context7`, `semble`, `web-search` ve `web-fetch` makinede bir kez çalışır ve her harness'ın her oturumu onu paylaşır. Paylaşılan sunucu ilk gerçek çağrıda başlar ve son oturum bittikten 60 saniye sonra durur. 10 dakika çağrı yapmayan bir oturum onu bırakır, sonraki çağrısında yeniden bağlanır.
-- `chrome-devtools` oturumun kendisinindir ve Chrome'uyla birlikte ilk çağrıda başlar. 10 dakika boşta kalınca ve oturum bitince durur.
-- `codegraph` oturum başına tek süreç olarak çalışır, dizin süreç (daemon) proje başına paylaşılır.
-- Bir harness ölürse onun Buracle MCP süreçleri 10 saniye içinde kapanır.
+`context7`, [context7.com/dashboard](https://context7.com/dashboard) adresinden alınan bir API anahtarıyla daha çok isteği yanıtlar: `pbpaste | buracle mcp key context7` anahtarı `~/.buracle/secrets/mcp-keys.json` içine kaydeder (Linux'ta `wl-paste` ya da `xclip -o`). Bir oturumun ortamındaki `CONTEXT7_API_KEY` öncelikli olur; `buracle mcp key` her anahtarın nereden geldiğini gösterir, `--clear` kayıtlı olanı kaldırır.
 
-`buracle mcp disable <id>` bir sunucuyu her harness'ta, `--harness <h>` ile tek birinde kapatır. Sonraki oturum onun hiçbir aracını listelemez ve onun için süreç başlatmaz, yönlendirme de yerini tuttuğu yerleşik araca izin verir. `buracle mcp enable` onu yeniden açar, `buracle mcp list` her harness'taki durumu gösterir. `buracle mcp status` çalışan Buracle MCP süreçlerini listeler, `buracle mcp stop` paylaşılanları hemen durdurur. `buracle config set mcp.shared false` her oturuma her sunucunun kendi kopyasını geri getirir. Paylaşılan sunucu, API anahtarı dışında (aşağıda), onu başlatan oturumun ortamını taşır. `BURACLE_MCP_LINGER_MS`, `BURACLE_MCP_IDLE_MS` ve `BURACLE_MCP_PARENT_POLL_MS` (milisaniye) üç bekleme süresini değiştirir.
-
-`context7`, [context7.com/dashboard](https://context7.com/dashboard) adresinden alınan bir API anahtarıyla daha çok isteğe yanıt verir. `buracle mcp key context7 <anahtar>` anahtarı yalnızca senin okuyabildiğin `~/.buracle/secrets/mcp-keys.json` dosyasına kaydeder. Anahtarın kabuk geçmişine düşmemesi için onu boru ile ver: `pbpaste | buracle mcp key context7` (Linux'ta `wl-paste` ya da `xclip -o`). Komut çalışan context7 backend'ini durdurur, böylece her oturumun sonraki çağrısı anahtarı kullanır. O anda süren bir çağrı bir kez başarısız olur. Bir oturumun ortamındaki `CONTEXT7_API_KEY` kayıtlı anahtarın önüne geçer, farklı anahtarlı oturumlar da ayrı backend'ler alır. `buracle mcp key` her anahtarın nereden geldiğini gösterir, `buracle mcp key context7 --clear` kayıtlı anahtarı siler.
-
-Araç zinciri ayrıca `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck` ve `golangci-lint` araçlarını ve altı dil sunucusunu (pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls ve jdtls) getirir. Oturum başlangıcı hiçbir dizinleme çalıştırmaz: Buracle bir projenin ilk codegraph dizinini codegraph sunucusu orada başlarken kurar, sonrasında codegraph ve semble kendi dizinlerini kendileri güncel tutar. Birden çok proje barındıran bir klasörde ajan, ihtiyaç duyduğu projenin dizinini `buracle index ensure --cwd <project>` ile kurar. Her düzenlemeden sonra ilgili denetleyici çalışır ve bulguları ajana geri döner.
-
-Claude Code'da durum satırı şöyle görünür:
-
-```
-Opus 5.5 [xhigh] [1M] | ███░░░░░ 37% | 5h: 42% ↓ 1h20m | 7d: 18% ↓ 1d6h | ~/project | ⎇ main
-plan-build ● Implement 3/7 | Rate limit the public API
-Buracle 0.8.6 · CC 2.1.296 (Max) · Buracle Console: localhost:41777 · brain 142 ✓ · idx ready
-```
+Araç zinciri ayrıca `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck`, `golangci-lint` ve altı dil sunucusu getirir (pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls, jdtls). Birkaç proje barındıran bir klasörde ajan `buracle index ensure --cwd <project>` çalıştırır; her düzenlemeden sonra eşleşen denetleyici çalışır ve bulguları ajana döner.
 
 ## Her harness'a ne gelir
 
-Dört harness da aynı 26 hook'u, skill'leri, inceleme ajanlarını, kuralları, hafızayı, korumaları ve durum satırı verisini alır. Değişen şey Buracle'ın harness'a nasıl bağlandığı ve her harness'ın neyi gösterebildiğidir.
+Yedisi de aynı 26 hook'u, skill'leri, hafızayı ve korumaları alır. Kural dosyaları ve inceleme ajanları yalnızca Claude Code, Codex CLI, OpenCode ve Oh My Pi için kurulur; Qwen Code, Pi ve AGY CLI için Buracle hook'ları, MCP sunucularını, skill'leri ve konağın bir yeri varsa durum çubuğunu kurar.
 
-| | Claude Code | Codex CLI | OpenCode | Oh My Pi |
-|---|---|---|---|---|
-| Nasıl bağlanır | Mod içeren bir eklenti | `hooks.json`, `config.toml` anahtarları, bir `AGENTS.md` bloğu ve exec-policy kuralları | Bir sunucu eklentisi ve bir TUI eklentisi | Eklenti (extension) içeren bir omp plugin'i |
-| Workflow'lar | `/plan-build` | `$plan-build` | `/plan-build` | `/plan-build` |
-| Yardımcı komutlar | `/brain`, `/remember`, `/aside`, `/buracle-status` | CLI karşılıkları, `/aside` Codex'in `/side` komutuna gider | Dördü de TUI'de, `/aside` `/btw` komutuna gider | Dördü de var |
-| Onay | Claude Code içinde bir pencere | Codex'in kendi onay sorusu | Bir TUI penceresi, web ve masaüstünde question aracı | omp'nin seçim penceresi |
-| Workflow ilerlemesi | İstem alanının üstünde bir bant, hafıza ve plan panelleri | Tek satırlık workflow bildirimleri ve `buracle plan status` | Yazma alanının üstünde bir bant ve bir pencere | Editörün üstünde bir widget, altında bir panel |
-| Durum satırı | Buracle'ın kendi durum satırı | Codex'in yerleşik öğeleri | İstem alanının alt satırı | omp'nin yerleşik düzeni ve Buracle girdileri |
-| Kullanım ipuçları | Bekleme göstergesinin ipucu döngüsünde, `Buracle: …` olarak | Yok (Codex'in ipuçları sabit) | Ana ekranda bir tane | Yok (yeri yok) |
-| Plan modu | `docs/plan-build/` altına kaydedilir | Planı uygulamayı seçtiğinde kaydedilir | Taslak olarak kaydedilir | Onaylandığında kaydedilir |
-| Dil sunucuları | Claude Code'un LSP'si | Buracle'ın `lsp` MCP sunucusu | Buracle'ın `lsp` MCP sunucusu | omp'nin kendi LSP'si |
-| Tarayıcı | chrome-devtools | chrome-devtools | chrome-devtools | omp'nin yerleşik tarayıcısı |
+| | Nasıl takılır | Skill'ler | Durum ve ilerleme | İpuçları | Geri alması zor komutlar |
+|---|---|---|---|---|---|
+| Claude Code | Mod'lu bir eklenti | Eklenti kopyası | Bant, paneller, durum çubuğu | Spinner | Claude Code penceresi |
+| Codex CLI | `hooks.json`, `config.toml`, `AGENTS.md` bloğu, exec-policy kuralları | `~/.agents/skills`; `$plan-build` | Yerel öğeler, tek satırlık bildirimler | Yok | Codex'in istemi |
+| OpenCode | Sunucu ve TUI eklentileri | `~/.agents/skills` | Bant, altlık | Ana ekran | TUI penceresi, soru aracı |
+| Oh My Pi | Extension'lı bir omp eklentisi | `~/.agents/skills` | Widget, panel, yerel ön ayar | Yok | omp'nin seçim penceresi |
+| Qwen Code | `~/.qwen/settings.json` içinde hook'lar ve MCP | `~/.agents/skills` | Durum çubuğu komutu | Yükleme cümleleri | Ret, ajana ne soracağını söyler |
+| Pi | Bir extension; `mcp.json` içinde MCP | `~/.agents/skills`; `/skill:plan-build` | Widget bandı, altlık | Çalışma mesajı | Pi'nin seçim penceresi |
+| AGY CLI | `~/.gemini/config` içinde `hooks.json`, `mcp_config.json` | AGY'nin skills klasöründe bağlantılar | Durum çubuğu komutu | Yok | Ret, ajana ne soracağını söyler |
 
-Her harness kendi yerel hook'larını aynı yedi olaya (oturum başlangıcı, istem, araçtan önce, araçtan sonra, durma, sıkıştırmadan önce, oturum sonu) eşler ve her birinin ne yapacağına tek bir ortak boru hattı karar verir; bir ret dört harness'ta da `Buracle H<nn>: …` diye okunur. Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Böylece dört harness'ın paylaştığı tek hafıza beyin olur. İnceleme ajanları her zaman salt okunur çalışır. Tek seferlik sürüm bildirimleri makine başına bir kez gösterilir; OpenCode'da TUI bildirimi (toast) olarak. Bir harness'ta Buracle'ın ihtiyaç duyduğu bir mekanizma yoksa [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) bu eksiği ve yerine ne yapıldığını kaydeder. `buracle doctor <harness> --all` her kaydı listeler. Aşağıdaki tablo bu listedir.
+`/brain`, `/remember`, `/aside` ve `/buracle-status` Claude Code, OpenCode ve Oh My Pi'de vardır; öbür dördü `buracle` altındaki CLI karşılıklarını kullanır (Codex `/aside` komutunu `/side`'a eşler). Dil sunucuları: Claude Code ve Oh My Pi kendilerininkini, Codex ve OpenCode Buracle'ın `lsp` sunucusunu kullanır, gerisinde yoktur. Plan modu: Claude Code ve Qwen Code kendi modunu kullanır; Codex planı uygulamayı seçtiğinde, OpenCode taslak olarak, Oh My Pi onayda kaydeder; Pi ve AGY CLI'da yerleşik mod yoktur (ajan senden bir tane açmanı ister).
+
+Bütün harness'lar yerel hook'larını aynı yedi olaya eşler (oturum başlangıcı, istem, araçtan önce ve sonra, stop, sıkıştırmadan önce, oturum sonu) ve kararı ortak bir pipeline verir; ret `Buracle H<nn>: …` biçiminde görünür. Buracle, Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır.
 
 ### Harness sınırları
 
-<details>
-<summary><b>Kayıtlı bütün harness sınırları ve yedek yolları</b></summary>
+[`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) bir konakta Buracle'ın ihtiyaç duyduğu bir şeyin nerede eksik olduğunu ve yedek yolu kaydeder. `buracle doctor <harness> --all` her kaydı listeler.
 
-| Kayıt | Harness | Harness'ta eksik olan | Buracle'ın yerine yaptığı |
+<details>
+<summary><b>Kaydedilmiş her konak sınırı ve yedek yolu</b></summary>
+
+| Kayıt | Harness | Konakta ne yok | Yedek yol |
 |---|---|---|---|
-| `codex.consent-dialog` | Codex | Bir hook kullanıcıya soru soramaz, `codex exec`, `--yolo` ve `-a never` oturumları onay sorusu göstermez | Ret mesajı ajana neyi soracağını söyler, cevap bir sonraki istemle gelir |
-| `codex.background-wait` | Codex | Stop yükü görev verisi taşımaz, arka plandaki komut bitince turu uyandıran bir şey yok | Durma koruması turu açık tutar |
-| `codex.quiet-stop-feedback` | Codex | Bir Stop hook'u turu ancak bir engelle sürdürür, engelin gerekçesi yeni bir istem olur | Durma korumasının gerekçesi o isteme girer |
-| `codex.commands-without-turn` | Codex | Özel eğik çizgi komutu yok (bir eklentinin komutları skill olur) | `$memory`, CLI karşılıkları ve Codex'in kendi `/side` komutu |
-| `codex.live-exec-mask` | Codex | Çalışan bir komutun `write_stdin` yoklamaları hiçbir hook'a ulaşmaz | Tamamlanan her kabuk ve MCP sonucu maskelenir |
-| `codex.failed-mcp-mask` | Codex | PostToolUse yalnızca başarılı bir çağrı için çalışır | Başarılı her kabuk ve MCP sonucu maskelenir |
-| `codex.live-panes` | Codex | Hook'lar panel, widget ya da pencere alamaz | `buracle mem status`, `buracle plan status` ve tek satırlık workflow bildirimleri (`workflow.codexNotices`) |
-| `codex.custom-status-line` | Codex | Alt satır yalnızca Codex'in kendi öğelerini gösterir | Buracle yerleşik öğeleri seçer |
-| `codex.summary-keep-list` | Codex | Uzak sıkıştırma (OpenAI, Azure, Bedrock) `compact_prompt` değerini yok sayar | Devir hafızası ve geri yükleme durumu taşır |
-| `opencode.consent-dialog` | OpenCode | Pencere TUI eklentisine muhtaç, web, masaüstü, sunucu API'si ve `opencode run` onu yüklemez | Ret mesajı ajana `question` aracıyla sormasını söyler |
-| `opencode.approved-plan-capture` | OpenCode | Plan ajanının onay aracı ya da olayı yok | Oturum plan ajanından çıkınca taslak bir plan (`approved: false`) |
-| `opencode.native-plan-approval` | OpenCode | Plan ajanından çıkmak onay sayılmaz | Hazırlanan plan taslak olarak doldurulur, plan-build kullanıcıya sorar |
-| `opencode.goal-command` | OpenCode | Yerleşik bir goal komutu yok | goal-build özeti koşulu ilk cümlesinde söyler |
-| `opencode.quiet-stop-feedback` | OpenCode | Oturum durmadan önce çalışan bir eklenti hook'u yok | Oturum bitince sınırlı sayıda yeniden istem |
-| `opencode.stop-veto` | OpenCode | Durmak üzere olan bir oturumu tutabilen eklenti hook'u yok | Oturum bitince sınırlı sayıda yeniden istem |
-| `opencode.subagent-stop-hold` | OpenCode | Alt ajan durma hook'u yok | Geçersiz bir inceleme raporu, ajana o incelemeciyi bir kez daha sürdürmesini söyleyen bir not alır |
-| `opencode.rate-windows` | OpenCode | Kota API'si yok, pencereler sağlayıcı cevaplarının başlıklarından gelir | 5 saatlik ve 7 günlük bölümler bir cevap taşıyana kadar boş kalır |
-| `omp.companion-shell` | Oh My Pi | Print modu bash'i salt okunur komutlarla sınırlayamaz | İkinci görüş yalnızca read, grep ve glob ile çalışır, diff istemine konur |
-| `agy.no-compaction-event` | AGY CLI (desteği henüz yayımlanmadı) | Bir konuşma sıkıştırılmadan önce ya da sonra çalışan hook olayı yok | Hafıza bağlamı SessionStart'ta gelir, bağlam boyutu her model çağrısından önce izlenir |
-| `agy.no-session-end` | AGY CLI (desteği henüz yayımlanmadı) | Konuşmanın bittiğini bildiren olay yok, yalnız her turun sonunda Stop var | Hafıza her Stop'ta yakalanır |
+| `codex.consent-dialog` | Codex | Hook kullanıcıya soramaz; `codex exec`, `--yolo` ve `-a never` onay istemi göstermez | Ret ajana ne soracağını söyler |
+| `codex.background-wait` | Codex | Bir arka plan komutu bitince hiçbir şey turu uyandırmaz | Stop guard turu tutar |
+| `codex.quiet-stop-feedback` | Codex | Stop hook'u turu yalnızca bir engelle sürdürür | Guard'ın gerekçesi o isteme girer |
+| `codex.commands-without-turn` | Codex | Özel slash komutu yok | `$memory`, CLI karşılıkları, Codex'in `/side` komutu |
+| `codex.live-exec-mask` | Codex | Çalışan bir komutun `write_stdin` yoklamaları hiçbir hook'a ulaşmaz | Tamamlanan her shell ve MCP sonucu maskelenir |
+| `codex.failed-mcp-mask` | Codex | PostToolUse yalnızca başarılı çağrıda çalışır | Başarılı her sonuç maskelenir |
+| `codex.live-panes` | Codex | Hook'lar panel, widget ya da pencere alamaz | `buracle mem status`, `buracle plan status`, tek satırlık bildirimler (`workflow.codexNotices`) |
+| `codex.custom-status-line` | Codex | Altlık yalnızca Codex'in kendi öğelerini gösterir | Buracle yerel öğeleri seçer |
+| `codex.summary-keep-list` | Codex | Uzaktan sıkıştırma `compact_prompt`'u yok sayar | Devir hafızası durumu taşır |
+| `opencode.consent-dialog` | OpenCode | Pencere TUI eklentisini ister; web, masaüstü, API ve `opencode run` onu yüklemez | Ret ajana `question` aracını kullanmasını söyler |
+| `opencode.approved-plan-capture` | OpenCode | Plan ajanının onay aracı ya da olayı yok | Oturum plan ajanından çıkınca taslak plan |
+| `opencode.native-plan-approval` | OpenCode | Plan ajanından çıkmak onay sayılmaz | Plan taslak olarak doldurulur, plan-build sana sorar |
+| `opencode.goal-command` | OpenCode | Yerel goal komutu yok | goal-build özeti koşulu önce belirtir |
+| `opencode.quiet-stop-feedback` | OpenCode | Oturum durmadan önce çalışan eklenti hook'u yok | Oturum bittikten sonra sınırlı yeniden istem |
+| `opencode.stop-veto` | OpenCode | Durmak üzere olan oturumu tutacak hook yok | Oturum bittikten sonra sınırlı yeniden istem |
+| `opencode.subagent-stop-hold` | OpenCode | Alt ajan durma hook'u yok | Bir not ajandan inceleyiciyi bir kez sürdürmesini ister |
+| `opencode.rate-windows` | OpenCode | Kota API'si yok; pencereler yanıt başlıklarından gelir | Bir yanıt taşıyana kadar 5 saatlik ve 7 günlük bölümler boş kalır |
+| `omp.companion-shell` | Oh My Pi | Print modu bash'i salt okunur komutlarla sınırlayamaz | İkinci görüş yalnızca read, grep ve glob alır |
+| `agy.no-compaction-event` | AGY CLI | Sıkıştırmadan önce ya da sonra olay yok | Hafıza bağlamı SessionStart'ta gelir; bağlam boyutu her model çağrısından önce izlenir |
+| `agy.no-session-end` | AGY CLI | Konuşma sonu olayı yok, yalnızca tur başına Stop | Hafıza her Stop'ta yakalanır |
 
 </details>
 
-Buracle en az şu harness sürümlerini ister (`src/engine/update/min-versions.ts`). Daha yeni bir sürüm ayrıca bir kontrol istemez. Asgari sürümün altında `buracle doctor` bir hata bildirir.
+En düşük harness sürümleri (`src/engine/update/min-versions.ts`); bunların altında `buracle doctor` hata raporlar:
 
-| Harness | Asgari sürüm |
-|---|---|
-| Claude Code | 2.1.290 |
-| Codex CLI | 0.154.0 |
-| OpenCode | 2.0.20 |
-| Oh My Pi | 18.8.0 |
+| Claude Code | Codex CLI | OpenCode | Oh My Pi | Qwen Code | Pi | AGY CLI |
+|---|---|---|---|---|---|---|
+| 2.1.290 | 0.154.0 | 2.0.20 | 18.8.0 | 0.26.1 | 1.5.2 | 1.5.9 |
 
 ## buracle komutu
 
-Terminalde `buracle` yazınca bir menü açılır. Menüde logo, bekleyen güncelleme olup olmadığını ve son denetimin zamanını söyleyen bir satır ve beş seçenek bulunur. Seçenekler kurulum ya da onarım, güncelleme, sağlık kontrolü, hafıza ve çıkıştır. Ok tuşları ya da j/k ile gezinir, Enter ile seçimi çalıştırırsın. Her seçeneğin kendi kısayol tuşu da var.
+Bir menü için terminalde `buracle` çalıştır (kur ya da onar, güncelle, sağlık kontrolü, hafıza, çıkış). Doğrudan kullanacağın komutlar:
 
-Logo başlığı pencereye uyar: 55'e 20'den itibaren tam logo, daha dar bir pencerede adıyla birlikte simge, alçak ya da dar bir pencerede tek satır. Bir seçim menüyü kapatır ve komutunu doğrudan terminalde çalıştırır. Soruları ve ilerleme satırları her zamanki gibidir, komutun çıkış kodu da menünün çıkış kodu olur.
+- `buracle install [<harness>…]`: ilk kurulum ve onarım; bulduğu her harness için ya da adını verdiklerin için.
+- `buracle update [--check]`: her parçayı kendi kaynağından günceller.
+- `buracle doctor [<konu>] [--all]`: hook'ları, MCP sunucularını, hafızayı ve kod indekslerini kontrol eder, yalnızca sorunları düzeltmeleriyle gösterir.
+- `buracle config`: `get`, `set` ve `unset`.
+- `buracle uninstall`: Buracle'ın kurduklarını kaldırır, hafızaya dokunmaz.
 
-| Komut | Ne yapar |
-|---|---|
-| `buracle install [<harness>…]` | Bulduğu her harness için ya da adını verdiklerin için ilk kurulumu ve onarımı yapar |
-| `buracle update [--check]` | Her parçayı kendi kaynağından günceller |
-| `buracle doctor [<konu>] [--all]` | Hook'ları, MCP sunucularını, hafızayı ve kod dizinlerini denetler. Her bölüm için bir satır ve yalnızca sorunları, her birini düzeltme yoluyla gösterir; `--all` her satırı gösterir. `mcp` ya da `memory` gibi bir konu verirsen yalnızca o parçaya bakar |
-| `buracle config` | Yapılandırmayı `get`, `set` ve `unset` ile okur ya da değiştirir |
-| `buracle uninstall` | Buracle'ın kurduğu her şeyi kaldırır ve hafızaya dokunmaz |
-
-Ajanlar `plan`, `worktree`, `mem`, `skills` ve `project` gibi başka komutlar da kullanır. `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar.
+Ajanlar daha çok komut kullanır (`plan`, `worktree`, `mem`, `skills`, `project`). `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar.
 
 ## Geliştirme
 
@@ -354,9 +218,9 @@ T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --c
 bun test
 ```
 
-CI bu denetimleri macOS (arm64) ve Linux (x64) üzerinde çalıştırır. Geliştirme `dev` dalında yapılır, bu yüzden geliştirmek için o dalı klonla. Orada bütün denetimler geçtiğinde ve yayımlanan dosyalar değiştiğinde CI bir sonraki yama sürümünü kendisi seçer. O commit'i bu sürümle ve test paketi olmadan (`tests/` ve `bunfig.toml`) `main` dalına yazar. Ardından `v<sürüm>` release'ini bu commit'ten, kurulum betiği ekli olarak GitHub'da yayımlar. `main` dalında hiçbir denetim çalışmaz. Yeni bir sürüm serisi başlatmak için `package.json` içindeki ana ya da ara sürümü yükseltmen yeterli.
+CI bunları macOS (arm64) ve Linux (x64) üzerinde çalıştırır. İş `dev` dalına iner; bütün kontroller geçer ve yayımlanan dosyalar değişmişse CI sonraki yama sürümünü `main` dalına tek commit olarak yazar (`tests/` ve `bunfig.toml` olmadan) ve `v<sürüm>` yayımlar. Yeni bir hat için `package.json` içinde major ya da minor sürümü yükselt.
 
-Değişiklik göndermeden önce [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) ve [`SECURITY.md`](SECURITY.md) dosyalarını oku. Bir hata mı buldun ya da bir özellik mi eksik? [Bir issue aç](https://github.com/burakarslan0110/buracle/issues).
+Bir değişiklik göndermeden önce [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) ve [`SECURITY.md`](SECURITY.md) dosyalarını oku. Bir hata bulduysan ya da bir özellik eksikse [bir issue aç](https://github.com/burakarslan0110/buracle/issues).
 
 ## Lisans
 
