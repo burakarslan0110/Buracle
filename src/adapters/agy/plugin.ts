@@ -132,6 +132,29 @@ export function agyAgent(agent: AgentDoc, refs: { skills?: readonly string[], ag
   return { path: `agents/${agent.id}.md`, content: fm + body + '\n' }
 }
 
+/** The agent a second-opinion run starts with (`agy -p … --agent buracle-companion`). */
+export const AGY_COMPANION_AGENT = 'buracle-companion'
+
+/**
+ * The second-opinion agent: a main agent whose only tool is `read_file` (no shell, no edit, no write, no web) and which
+ * inherits no MCP servers, so a run that selects it can look at the repository and nothing else.
+ */
+export function agyCompanionAgent(): PluginFile {
+  const fm = [
+    '---',
+    `name: ${JSON.stringify(AGY_COMPANION_AGENT)}`,
+    `description: ${JSON.stringify("Buracle's read-only second-opinion reviewer: reads the repository and answers with one review report.")}`,
+    'subagent: false',
+    'mainAgent: true',
+    'tools: [read_file]',
+    'inheritMcp: false',
+    '---',
+    '',
+  ].join('\n')
+  const body = "You are Buracle's second-opinion reviewer. Follow the review instructions in the message. You are read-only: never edit, create or delete a file, and run no command."
+  return { path: `agents/${AGY_COMPANION_AGENT}.md`, content: fm + body + '\n' }
+}
+
 /** Every file of the plugin, relative to its folder, in a stable order. */
 export function agyPluginFiles(canonical: CanonicalBundle, version: string, warnings: string[] = []): PluginFile[] {
   const refs = { skills: canonical.skills.map(s => s.id), agents: canonical.agents.map(a => a.id) }
@@ -139,5 +162,6 @@ export function agyPluginFiles(canonical: CanonicalBundle, version: string, warn
   const files: PluginFile[] = [pluginManifest(version), agyAlwaysRules(canonical, warnings)]
   for (const r of canonical.rules.filter(x => x.scope === 'paths').sort(byId)) files.push(agyPathRule(r, refs, warnings))
   for (const a of resolveAgents(canonical).sort(byId)) files.push(agyAgent(a, refs, warnings))
+  files.push(agyCompanionAgent())
   return files
 }

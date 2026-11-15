@@ -105,7 +105,7 @@ Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden gider
 | Kendi dalında, bir worktree'de yap | `plan.branchIsolation` | açık |
 | Planlarken açıklayıcı sorular sor | `plan.questions` | açık |
 | Plan, değişiklik ve goal sözleşmesinin bağımsız incelemesi | `plan.reviews.plan`, `plan.reviews.changes`, `plan.reviews.goal` | açık |
-| Başka bir harness'tan salt okunur ikinci görüş | `plan.reviews.companion` | `off`; ya da `auto`, `claude`, `codex`, `opencode`, `omp` |
+| Başka bir harness'tan salt okunur ikinci görüş | `plan.reviews.companion` | `off`; ya da `auto`, `claude`, `codex`, `opencode`, `omp`, `agy` |
 | Ölçütleri geçen bir goal-build'i doğrula | `plan.goalVerification` | açık |
 | Onaydan sonra modeli değiştirmek için dur | `plan.modelSwitch` | `off`; ya da `manual` |
 | Harness'ın kendi plan modunda planla | `plan.nativePlanMode` | `off`; ya da `on` |

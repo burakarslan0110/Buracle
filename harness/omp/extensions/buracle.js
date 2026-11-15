@@ -465,7 +465,6 @@ var init_agy = __esm(() => {
     bin: "agy",
     proc: { base: /^agy$/ },
     runtime: "command",
-    companionPending: true,
     noStdinPrint: true,
     statusLineCommand: true,
     editBudgetMs: 28000,
@@ -37453,7 +37452,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.17",
+  buracleVersion: "0.8.18",
   commands: [
     "ab-test",
     "bugfix",

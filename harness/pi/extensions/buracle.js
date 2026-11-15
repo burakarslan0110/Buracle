@@ -8466,7 +8466,6 @@ var agyProfile = {
   bin: "agy",
   proc: { base: /^agy$/ },
   runtime: "command",
-  companionPending: true,
   noStdinPrint: true,
   statusLineCommand: true,
   editBudgetMs: 28000,
@@ -35393,7 +35392,7 @@ function createPiExtras(host) {
 
 // src/adapters/pi/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.17",
+  buracleVersion: "0.8.18",
   config: {
     agents: {
       teams: true

@@ -7677,7 +7677,6 @@ var init_agy = __esm(() => {
     bin: "agy",
     proc: { base: /^agy$/ },
     runtime: "command",
-    companionPending: true,
     noStdinPrint: true,
     statusLineCommand: true,
     editBudgetMs: 28000,
