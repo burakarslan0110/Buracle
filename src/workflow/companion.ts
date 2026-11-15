@@ -89,7 +89,7 @@ function nativeOff(setting: ReturnType<typeof loadConfigSync>['config']['plan'][
 function candidates(nowMs: number, enabled: Readonly<Record<Harness, { enabled: boolean }>>, which: (bin: string) => string | null): CompanionCandidate[] {
   let choice: ReturnType<typeof chooseHarnesses> = { picks: [], held: [] }
   try { choice = chooseHarnesses({ nowMs, checkCli: false }) } catch {  }
-  return HARNESSES.filter(h => harnessProfile(h).adapterPending !== true).map(h => {
+  return HARNESSES.filter(h => harnessProfile(h).adapterPending !== true && harnessProfile(h).companionPending !== true).map(h => {
     const pick = choice.picks.find(p => p.harness === h)
     const held = choice.held.find(x => x.harness === h && x.kind === 'window')
     const c: CompanionCandidate = { harness: h, enabled: enabled[h]?.enabled !== false, onPath: which(BIN[h]) !== null, recent: pick !== undefined || held !== undefined }

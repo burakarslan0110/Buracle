@@ -8963,13 +8963,13 @@ var qwenProfile = {
   bin: "qwen",
   proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
   runtime: "command",
-  adapterPending: true,
+  companionPending: true,
   editBudgetMs: 28000,
   configDir: { key: "qwenHome", env: "QWEN_HOME", under: ".qwen" },
   relocationEnv: ["QWEN_HOME"],
   sessionEnv: [],
   protectedDirs: [{ key: "qwenHome", under: ".qwen", entries: ["settings.json", "hookApprovals.json", "plugins/", "extensions/"] }],
-  selfText: { what: "Qwen Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Qwen Code's own commands (`qwen plugins \u2026`, `qwen mcp \u2026`, `/hooks`)" },
+  selfText: { what: "Qwen Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Qwen Code's own commands (`qwen mcp \u2026`, `/hooks`)" },
   skills: {
     readsAgentsDir: true,
     readsClaudeUserDir: false,
@@ -9032,7 +9032,7 @@ var qwenProfile = {
       Agent: "agent",
       task: "agent"
     },
-    names: { ask_user: "AskUserQuestion", todo: "TodoWrite", spawn_agent: "agent" }
+    names: { ask_user: "ask_user_question", todo: "todo_write", spawn_agent: "agent" }
   }
 };
 
@@ -11606,7 +11606,7 @@ import { readFileSync as readFileSync6, statSync as statSync5 } from "fs";
 import { join as join4 } from "path";
 
 // src/core/config.ts
-var COMPANION_SETTINGS = ["off", "auto", ...harnessesWhere((p) => p.adapterPending !== true)];
+var COMPANION_SETTINGS = ["off", "auto", ...harnessesWhere((p) => p.adapterPending !== true && p.companionPending !== true)];
 function defaultConfig() {
   return {
     version: 1,

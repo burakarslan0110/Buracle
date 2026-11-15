@@ -429,7 +429,7 @@
     },
     "harness/claude/hooks/core/config.ts": {
       "by": "claude",
-      "sha256": "1e832ce763e92a9369dca311d56453927011178cee44c25c5d2b7d11407e37ae",
+      "sha256": "6ee70bbaa1eb2a446f56022f499a2d71a52d57beff996ccc21dfb4735b12e863",
       "exec": false
     },
     "harness/claude/hooks/core/events.ts": {
@@ -514,12 +514,12 @@
     },
     "harness/claude/hooks/core/harness/profile.ts": {
       "by": "claude",
-      "sha256": "30cbcfb5c8ea4ebce4b4af28d708af9ba11721c5d280fb23f270e2bf4fcd6989",
+      "sha256": "2603dcfd04105f51dd6008e325cf19efc14522e8f231a23f1323514f7e5c479a",
       "exec": false
     },
     "harness/claude/hooks/core/harness/qwen.ts": {
       "by": "claude",
-      "sha256": "16db99eae3b7212dc7bb5dccdb6f5643f80f35993bad0eb423ca606f8ae91a31",
+      "sha256": "bfdda0b7e83bf1c6d4557192fed822d8d7847c016d2674759f10ff70eab04109",
       "exec": false
     },
     "harness/claude/hooks/core/index.ts": {
@@ -1404,7 +1404,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "e8cb27ef2db75c8fc4619832fcc6aa434c4c9a83a6e006f69714c579eb63ca17",
+      "sha256": "da0ab55b0b028a58de27e3bd2a5885fa1ff63157a63e494a3c1239bbbfb729da",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1504,17 +1504,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "593aac7bf4e91713e6c2f6f1f9bb6d06d49f6f1ad4563acf5c24e0ce4e140417",
+      "sha256": "0bcb9276f9c8215e7a1eb66fc299c97771310dad59e4c0445f2ea461dce3fa90",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "5a545a05cf985dd02d150cdc4254904f93e63da1875c683340f601972d47c45b",
+      "sha256": "c6ab5df3e8811faa7e54d6e4c09c1709f7b5a31b03985e973672526d54f16278",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "a741177a2e568089d41089c9fef392b27159af2965ce5d09b9d529c5b4e3d83d",
+      "sha256": "a87783115a5c99e4ee4a34392a4bbbb481b424239857b16e4b64af8a0e7c9f76",
       "exec": false
     },
     "harness/pi/README.md": {
@@ -1524,12 +1524,17 @@
     },
     "harness/pi/extensions/buracle.js": {
       "by": "pi",
-      "sha256": "b0544904ee3baeda6432c0289573ed0608b95df89b8b7ab7d0c410a04495f3da",
+      "sha256": "fac4b672d773d737512dacc4f9b60261f203c11f51451b13c950dfa022b6114c",
       "exec": false
     },
     "harness/pi/mcp.json": {
       "by": "pi",
       "sha256": "17b389b9174f6a5f7f0db16a51a2b3974547626b06ed0d26c135059dcc461c61",
+      "exec": false
+    },
+    "harness/qwen/settings.fragment.json": {
+      "by": "qwen",
+      "sha256": "b8adccd8e0a52253d4227db31a5493d9f76de00b79339ff2a8e0f971b0e574ef",
       "exec": false
     }
   }

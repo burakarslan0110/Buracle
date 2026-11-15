@@ -2,6 +2,7 @@ import { QWEN_EVENTS } from './native-events'
 import { collapsedWordDashToken, type HarnessProfile } from './profile'
 
 // Qwen Code speaks Claude Code's command-hook dialect (docs/users/features/hooks.md of QwenLM/qwen-code), with its own tool ids.
+// Buracle registers its hooks and MCP servers in ~/.qwen/settings.json (`hooks`, `mcpServers`), not as a Qwen plugin.
 export const qwenProfile: HarnessProfile = {
   id: 'qwen',
   label: 'Qwen Code',
@@ -11,13 +12,13 @@ export const qwenProfile: HarnessProfile = {
   // The installed program is `~/.qwen/bin/qwen/qwen-<version>`, which `qwen` on PATH links to.
   proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
   runtime: 'command',
-  adapterPending: true,
+  companionPending: true,
   editBudgetMs: 28_000,
   configDir: { key: 'qwenHome', env: 'QWEN_HOME', under: '.qwen' },
   relocationEnv: ['QWEN_HOME'],
   sessionEnv: [],
   protectedDirs: [{ key: 'qwenHome', under: '.qwen', entries: ['settings.json', 'hookApprovals.json', 'plugins/', 'extensions/'] }],
-  selfText: { what: "Qwen Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Qwen Code's own commands (`qwen plugins …`, `qwen mcp …`, `/hooks`)" },
+  selfText: { what: "Qwen Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Qwen Code's own commands (`qwen mcp …`, `/hooks`)" },
   skills: {
     readsAgentsDir: true,
     readsClaudeUserDir: false,
@@ -55,8 +56,9 @@ export const qwenProfile: HarnessProfile = {
     native: QWEN_EVENTS,
   },
   tools: {
-    // The ids of the docs on main are snake_case; the 1.0.0-preview.1 program still carries the Claude-style names for the
-    // ask, plan and todo tools (its own prompt text says "use AskUserQuestion"), so both spellings are classified.
+    // The stable line (tool-names.ts of v0.14.0 to v0.27.4, the minimum 0.26.1 among them) names every tool in snake_case;
+    // the 1.0.0-preview.1 program still carries the Claude-style names for the ask, plan and todo tools (its own prompt
+    // text says "use AskUserQuestion"), so both spellings are classified and prose uses the stable names.
     kinds: {
       run_shell_command: 'bash', monitor: 'bash',
       edit: 'edit', notebook_edit: 'edit',
@@ -71,6 +73,6 @@ export const qwenProfile: HarnessProfile = {
       TodoWrite: 'todo', todo_write: 'todo',
       agent: 'agent', Agent: 'agent', task: 'agent',
     },
-    names: { ask_user: 'AskUserQuestion', todo: 'TodoWrite', spawn_agent: 'agent' },
+    names: { ask_user: 'ask_user_question', todo: 'todo_write', spawn_agent: 'agent' },
   },
 }

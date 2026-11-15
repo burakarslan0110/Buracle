@@ -1,0 +1,213 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen SessionStart",
+            "name": "buracle-SessionStart",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen UserPromptSubmit",
+            "name": "buracle-UserPromptSubmit",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen PreToolUse",
+            "name": "buracle-PreToolUse",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen PostToolUse",
+            "name": "buracle-PostToolUse",
+            "timeout": 30000
+          }
+        ]
+      },
+      {
+        "matcher": "^(?:TodoWrite|todo_write|run_shell_command|monitor|web_search|web_fetch|mcp__.*|read_file|Skill|skill)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen PostToolUse",
+            "name": "buracle-PostToolUse-async",
+            "timeout": 5000,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "^(?:mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen PostToolUseFailure",
+            "name": "buracle-PostToolUseFailure",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen PreCompact",
+            "name": "buracle-PreCompact",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen PostCompact",
+            "name": "buracle-PostCompact",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen Stop",
+            "name": "buracle-Stop",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen SubagentStart",
+            "name": "buracle-SubagentStart",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook qwen SessionEnd",
+            "name": "buracle-SessionEnd",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "buracle-memory": {
+      "command": "{buracle}",
+      "args": [
+        "mcp",
+        "memory"
+      ]
+    },
+    "chrome-devtools": {
+      "command": "{buracle}",
+      "args": [
+        "mcp",
+        "run",
+        "chrome-devtools"
+      ]
+    },
+    "codegraph": {
+      "command": "{buracle}",
+      "args": [
+        "mcp",
+        "run",
+        "codegraph"
+      ],
+      "env": {
+        "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
+        "CODEGRAPH_NO_UPDATE_CHECK": "1",
+        "CODEGRAPH_NO_WATCHDOG": "1",
+        "CODEGRAPH_TELEMETRY": "0"
+      }
+    },
+    "context7": {
+      "command": "{buracle}",
+      "args": [
+        "mcp",
+        "run",
+        "context7"
+      ]
+    },
+    "grep": {
+      "httpUrl": "https://mcp.grep.app",
+      "url": "https://mcp.grep.app",
+      "type": "http"
+    },
+    "semble": {
+      "command": "{buracle}",
+      "args": [
+        "mcp",
+        "run",
+        "semble"
+      ],
+      "env": {
+        "HF_HUB_DISABLE_TELEMETRY": "1"
+      }
+    },
+    "web-fetch": {
+      "command": "{buracle}",
+      "args": [
+        "mcp",
+        "run",
+        "web-fetch"
+      ],
+      "timeout": 180000
+    },
+    "web-search": {
+      "command": "{buracle}",
+      "args": [
+        "mcp",
+        "run",
+        "web-search"
+      ],
+      "env": {
+        "DEFAULT_SEARCH_ENGINE": "duckduckgo",
+        "MODE": "stdio"
+      }
+    }
+  }
+}
