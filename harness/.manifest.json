@@ -234,7 +234,7 @@
     },
     "harness/agents-skills/new-skill/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "d25c56dc8241f83965ccc15e5916b691254776ea0371426e2f56f2e35f0f46b0",
+      "sha256": "724365e983be85647a01f10089763112b7b1e8c6ab31e6693d40a7f73c95ca6c",
       "exec": false
     },
     "harness/agents-skills/new-skill/agents/openai.yaml": {
@@ -254,7 +254,7 @@
     },
     "harness/agents-skills/new-skill/references/template.md": {
       "by": "agents-skills",
-      "sha256": "5cd21fa7dcfb660089e5b3698f60d98c3d4084d59da975dc19fca8691eece5ed",
+      "sha256": "a4a25abf7701b85d3d549a6232961bced68bb6ad89427e5df84c7cbd5de25f37",
       "exec": false
     },
     "harness/agents-skills/plan-build/SKILL.md": {
@@ -899,7 +899,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "e39b07ac55e47c67aa6b4a2c190dd2d73a60b9bbc4786e4b4d35983de3d51a35",
+      "sha256": "242d375bca2b209b41a610985d33cf9b248f6d11f7fc8280d8d1740a77809bc0",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1109,7 +1109,7 @@
     },
     "harness/claude/skills/new-skill/SKILL.md": {
       "by": "claude",
-      "sha256": "d25c56dc8241f83965ccc15e5916b691254776ea0371426e2f56f2e35f0f46b0",
+      "sha256": "724365e983be85647a01f10089763112b7b1e8c6ab31e6693d40a7f73c95ca6c",
       "exec": false
     },
     "harness/claude/skills/new-skill/references/checklist.md": {
@@ -1124,7 +1124,7 @@
     },
     "harness/claude/skills/new-skill/references/template.md": {
       "by": "claude",
-      "sha256": "5cd21fa7dcfb660089e5b3698f60d98c3d4084d59da975dc19fca8691eece5ed",
+      "sha256": "a4a25abf7701b85d3d549a6232961bced68bb6ad89427e5df84c7cbd5de25f37",
       "exec": false
     },
     "harness/claude/skills/plan-build/SKILL.md": {

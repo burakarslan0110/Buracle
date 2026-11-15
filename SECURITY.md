@@ -2,8 +2,8 @@
 
 Buracle runs coding agents without approval prompts and relies on its own hooks to stop
 destructive commands, writes to secret files and changes to its own setup. A way around those
-guards, a secret that reaches the model or the memory unmasked, or a weakness in the memory web UI
-(`127.0.0.1:41777`) counts as a security issue.
+guards, a secret that reaches the model or the memory unmasked, or a weakness in the Buracle Console
+(the memory's web UI on `127.0.0.1:41777`) counts as a security issue.
 
 ## Reporting
 
