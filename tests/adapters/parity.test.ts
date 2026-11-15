@@ -18,9 +18,9 @@ import { pathRuleFiles } from '../../src/adapters/shared/rules'
 import { buildAgentsSkills } from '../../src/adapters/shared/skills'
 import type { CanonicalBundle, HookBinding, HookSpec, HookUnsupported } from '../../src/core/catalog'
 import { catalogSkills, hookFallbacks } from '../../src/core/catalog'
-import type { Harness } from '../../src/core/events'
-import { HARNESSES } from '../../src/core/events'
-import { harnessProfile } from '../../src/core/harness/index'
+import type { Harness as AnyHarness } from '../../src/core/events'
+import { HARNESSES as ALL_HARNESSES } from '../../src/core/events'
+import { NEUTRAL_SKILL_HARNESSES, harnessProfile } from '../../src/core/harness/index'
 import { loadCanonicalSync } from '../../src/engine/canonical'
 import { jsoncParse } from '../../src/engine/merge'
 import { lspServers } from '../../src/engine/toolchain/lsp'
@@ -37,6 +37,11 @@ import { FIXTURES as USAGE_FIXTURES, NOW as USAGE_NOW, installFixture as install
 
 const REPO = paths.repoRoot()
 
+// A host whose adapter is still pending has no build to compare: tests/adapters/shared/new-harness-groundwork.test.ts covers those.
+type Harness = Exclude<AnyHarness, 'qwen' | 'pi' | 'agy'>
+const HARNESSES = ALL_HARNESSES.filter((h): h is Harness => harnessProfile(h).adapterPending !== true)
+const LIMITS_IN_SCOPE = HOST_LIMITS.filter(l => harnessProfile(l.harness).adapterPending !== true)
+
 type Files = ReadonlyMap<string, string>
 interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; agentsSkills: Files }
 
@@ -47,7 +52,7 @@ function built(): Promise<Built> {
     const canonical = loadCanonicalSync(join(REPO, 'canonical'))
     const ctx = buildContext(REPO, canonical)
     const files: Partial<Record<Harness, Files>> = {}
-    for (const a of allAdapters()) files[a.harness] = new Map((await inCheckout(REPO, () => a.build(ctx))).map(f => [f.path, f.content]))
+    for (const a of allAdapters().filter(x => HARNESSES.includes(x.harness as Harness))) files[a.harness as Harness] = new Map((await inCheckout(REPO, () => a.build(ctx))).map(f => [f.path, f.content]))
     const agentsSkills = new Map(buildAgentsSkills(ctx).map(f => [f.path, f.content]))
     return { canonical, files: files as Record<Harness, Files>, agentsSkills }
   })()
@@ -414,7 +419,7 @@ describe('parity: MCP servers', () => {
     }
     const sets = HARNESSES.map(h => mcpServers(h, files[h]))
     const common = all.filter(id => sets.every(s => s.includes(id)))
-    expect(all.filter(id => !common.includes(id))).toEqual(all.filter(id => (canonical.mcp.servers[id]?.harnesses.length ?? 0) < HARNESSES.length))
+    expect(all.filter(id => !common.includes(id))).toEqual(all.filter(id => HARNESSES.some(h => canonical.mcp.servers[id]?.harnesses.includes(h) !== true)))
   })
 })
 
@@ -644,7 +649,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
       opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'prompt', 'preTool', 'postTool', 'stop'), omp: withPipeline(sources('src/adapters/omp/runtime'), 'prompt', 'preTool', 'postTool', 'stop'),
     }
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
-    expect(each(c => /laneStateDenial\(command\)/.test(c))).toEqual(FEATURES.laneGuard)
+    expect(each(c => /subagentStateDenial\(command\)/.test(c))).toEqual(FEATURES.laneGuard)
     expect(each(c => /reviewNotesNotice\((?:H|HARNESS|'omp'), /.test(c))).toEqual(FEATURES.reviewNotesNotice)
     expect(each(c => /answerReceipt\(/.test(c) && /questionAnswered\(/.test(c))).toEqual(FEATURES.answerReceipt)
     expect(each(c => /readOnly = true/.test(c))).toEqual(FEATURES.readOnlyStop)
@@ -935,11 +940,11 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect({ claude: /async function masked\(/.test(file(files.claude, 'hooks/register.tsx')), codex: codexHooks.includes('"PostToolUseFailure"'), opencode: /else this\.maskError\(e, cls\.kind\)/.test(sources('src/adapters/opencode/runtime')), omp: /maskResult\(event, ctx/.test(sources('src/adapters/omp/runtime')) && !/isError[^\n]*maskResult/.test(sources('src/adapters/omp/runtime')) }).toEqual(FEATURES.failedMcpMask)
     expect({ claude: /statusline claude/.test(readFileSync(join(REPO, 'src/adapters/claude/install.ts'), 'utf8')), codex: /statusline codex/.test(file(files.codex, 'config.fragment.toml')), opencode: file(files.opencode, 'plugins/buracle/tui.js').includes('prompt.footer.status'), omp: file(files.omp, 'extensions/buracle.js').includes('setStatus(') }).toEqual(FEATURES.customStatusLine)
     const falseCells = Object.entries(FEATURES).flatMap(([feature, cells]) => HARNESSES.filter(h => !cells[h]).map(h => `${feature}:${h}`)).sort()
-    expect(HOST_LIMITS.filter(l => l.kind !== 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual(falseCells)
+    expect(LIMITS_IN_SCOPE.filter(l => l.kind !== 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual(falseCells)
     const caveats = Object.entries(LIMITS).flatMap(([feature, byHarness]) => Object.keys(byHarness ?? {}).map(h => `${feature}:${h}`))
-    expect(HOST_LIMITS.filter(l => l.kind === 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual([...caveats, 'rateWindows:opencode'].sort())
-    for (const l of HOST_LIMITS) {
-      expect({ id: l.id, cell: FEATURES[l.feature as keyof typeof FEATURES]?.[l.harness] }).toEqual({ id: l.id, cell: l.kind === 'partial' })
+    expect(LIMITS_IN_SCOPE.filter(l => l.kind === 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual([...caveats, 'rateWindows:opencode'].sort())
+    for (const l of LIMITS_IN_SCOPE) {
+      expect({ id: l.id, cell: FEATURES[l.feature as keyof typeof FEATURES]?.[l.harness as Harness] }).toEqual({ id: l.id, cell: l.kind === 'partial' })
       expect({ id: l.id, told: l.reason !== '' && l.fallback !== '' && (l.kind === 'native' || l.probe !== undefined || (l.recheck ?? '') !== '') }).toEqual({ id: l.id, told: true })
     }
     expect(new Set(HOST_LIMITS.map(l => l.id)).size).toBe(HOST_LIMITS.length)
@@ -1028,7 +1033,7 @@ interface PlaceholderIds { skills: string[], protocols: string[], agents: string
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const longestFirst = (xs: readonly string[]): string[] => [...xs].sort((a, b) => b.length - a.length)
 
-function joinLabels(hs: readonly Harness[]): string {
+function joinLabels(hs: readonly AnyHarness[]): string {
   const names = hs.map(h => HARNESS_LABEL[h])
   return names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
@@ -1047,8 +1052,8 @@ function neutralProseForms(placeholder: string, protocols: readonly string[]): s
 
 /** The neutral render of a code span holding a placeholder plus more text: one variant per group of harnesses, joined with their labels. */
 function neutralCodeForm(name: 'ask_user' | 'todo' | 'spawn_agent' | 'skill', arg: string | undefined, invocable: boolean): RegExp | undefined {
-  const groups: Array<{ harnesses: Harness[], value: string }> = []
-  for (const h of ['codex', 'opencode', 'omp'] as const) {
+  const groups: Array<{ harnesses: AnyHarness[], value: string }> = []
+  for (const h of NEUTRAL_SKILL_HARNESSES) {
     const value = placeholderLiteral({ name, ...(arg === undefined ? {} : { arg }) }, h, invocable) ?? 'a short checklist in your reply'
     const hit = groups.find(g => g.value === value)
     if (hit !== undefined) hit.harnesses.push(h)

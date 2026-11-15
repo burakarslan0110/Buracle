@@ -59,8 +59,8 @@ const quill: HarnessProfile = {
 }
 
 describe('the harness registry', () => {
-  test('the four harnesses, in the order every table and loop uses', () => {
-    expect([...HARNESSES]).toEqual(['claude', 'codex', 'opencode', 'omp'])
+  test('the seven harnesses, in the order every table and loop uses', () => {
+    expect([...HARNESSES]).toEqual(['claude', 'codex', 'opencode', 'omp', 'qwen', 'pi', 'agy'])
     for (const h of HARNESSES) expect(harnessProfile(h).id).toBe(h)
     expect(isHarness('omp')).toBe(true)
     expect(isHarness('quill')).toBe(false)
@@ -68,28 +68,33 @@ describe('the harness registry', () => {
   })
 
   test('the derived tables hold what the hand-written ones held', () => {
-    expect(HARNESS_LABEL).toEqual({ claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' })
-    expect([...NEUTRAL_SKILL_HARNESSES]).toEqual(['codex', 'opencode', 'omp'])
-    expect(harnessesWhere(p => p.runtime === 'command')).toEqual(['claude', 'codex'])
+    expect(HARNESS_LABEL).toEqual({ claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi', qwen: 'Qwen Code', pi: 'Pi', agy: 'AGY CLI' })
+    expect([...NEUTRAL_SKILL_HARNESSES]).toEqual(['codex', 'opencode', 'omp', 'qwen', 'pi'])
+    expect(harnessesWhere(p => p.runtime === 'command')).toEqual(['claude', 'codex', 'qwen', 'agy'])
     expect(harnessesWhere(p => p.skills.readsClaudeProjectDir)).toEqual(['claude', 'opencode', 'omp'])
     expect(harnessesWhere(p => p.skills.readsClaudeUserDir)).toEqual(['claude', 'opencode'])
-    expect(harnessesWhere(p => !p.plan.approval)).toEqual(['opencode'])
-    expect(HARNESSES.map(h => harnessProfile(h).editBudgetMs)).toEqual([28_000, 40_000, 20_000, 20_000])
-    expect(HARNESSES.map(h => harnessProfile(h).noteName)).toEqual(['claude-code', 'codex', 'opencode', 'omp'])
+    expect(harnessesWhere(p => !p.plan.approval)).toEqual(['opencode', 'pi', 'agy'])
+    expect(HARNESSES.map(h => harnessProfile(h).editBudgetMs)).toEqual([28_000, 40_000, 20_000, 20_000, 28_000, 20_000, 28_000])
+    expect(HARNESSES.map(h => harnessProfile(h).noteName)).toEqual(['claude-code', 'codex', 'opencode', 'omp', 'qwen', 'pi', 'agy'])
     expect(HARNESSES.map(h => shellTools(harnessProfile(h)))).toEqual([
       ['Bash', 'Monitor', 'PowerShell'],
       ['Bash', 'shell', 'shell_command', 'exec_command', 'local_shell', 'unified_exec', 'container.exec'],
       ['bash', 'shell'],
       ['bash', 'eval'],
+      ['run_shell_command', 'monitor'],
+      ['bash', 'codemode'],
+      ['run_command', 'send_command_input'],
     ])
   })
 
-  test('the MCP names of the four hosts, written and read back', () => {
+  test('the MCP names of the seven hosts, written and read back', () => {
     expect(HARNESSES.map(h => harnessMcpToolName(h, 'web-search', 'search'))).toEqual([
       'mcp__plugin_buracle_web-search__search', 'mcp__web_search__search', 'web-search_search', 'mcp__web_search_search',
+      'mcp__web-search__search', 'mcp__web_search__search', 'mcp_web_search_search',
     ])
     expect(HARNESSES.map(h => harnessMcpPattern(h, 'web-search'))).toEqual([
       'mcp__plugin_buracle_web-search__*', 'mcp__web_search__*', 'web-search_*', 'mcp__web_search_*',
+      'mcp__web-search__*', 'mcp__web_search__*', 'mcp_web_search_*',
     ])
     expect(harnessMcpToolName('omp', 'Context7', 'context7_resolve-id')).toBe('mcp__context7_resolve_id')
     expect(mcpServerToken('omp', '--')).toBe('server')
@@ -111,14 +116,14 @@ describe('a fifth harness is one profile', () => {
   const five = defineHarnesses({ ...HARNESS_PROFILES, quill })
 
   test('it joins the set and every table over it', () => {
-    expect([...five.ids]).toEqual(['claude', 'codex', 'opencode', 'omp', 'quill'])
+    expect([...five.ids]).toEqual(['claude', 'codex', 'opencode', 'omp', 'qwen', 'pi', 'agy', 'quill'])
     expect(five.is('quill')).toBe(true)
     expect(five.of('quill')).toBe(quill)
     expect(five.table(p => p.label)).toEqual({ ...HARNESS_LABEL, quill: 'Quill' })
     expect(five.table(p => p.bin)['quill']).toBe('quill')
-    expect(five.where(p => p.skills.readsAgentsDir)).toEqual(['codex', 'opencode', 'omp'])
+    expect(five.where(p => p.skills.readsAgentsDir)).toEqual(['codex', 'opencode', 'omp', 'qwen', 'pi'])
     expect(five.where(p => p.skills.linkDir !== undefined)).toEqual(['quill'])
-    expect(five.where(p => p.runtime === 'command')).toEqual(['claude', 'codex', 'quill'])
+    expect(five.where(p => p.runtime === 'command')).toEqual(['claude', 'codex', 'qwen', 'agy', 'quill'])
   })
 
   test('its tools are classified from its table and its flags', () => {
@@ -158,7 +163,7 @@ describe('a fifth harness is one profile', () => {
     expect(missingEvents(quill)).toEqual(['preCompact'])
     for (const e of CANONICAL_EVENTS) for (const name of quill.events.map[e] ?? []) expect(quill.events.native).toContain(name)
     expect(five.table(p => p.events.map.preTool ?? [])['quill']).toEqual(['before'])
-    expect(five.where(p => missingEvents(p).length > 0)).toEqual(['quill'])
+    expect(five.where(p => missingEvents(p).length > 0)).toEqual(['agy', 'quill'])
   })
 
   test('its paths, process and MCP client are looked up from the profile', () => {
@@ -174,13 +179,13 @@ describe('a fifth harness is one profile', () => {
     expect(mcpClientMatches(quill, 'QL')).toBe(true)
     expect(mcpClientMatches(quill, 'sql')).toBe(false)
     expect(five.ids.find(h => processMatches(five.of(h), '/opt/quill'))).toBe('quill')
-    expect(five.ids.flatMap(h => five.of(h).protectedDirs.map(d => `${h}:${d.under}`))).toEqual(['claude:.claude', 'codex:.codex', 'opencode:.config/opencode', 'omp:.omp/agent', 'omp:.omp', 'quill:.quill'])
+    expect(five.ids.flatMap(h => five.of(h).protectedDirs.map(d => `${h}:${d.under}`))).toEqual(['claude:.claude', 'codex:.codex', 'opencode:.config/opencode', 'omp:.omp/agent', 'omp:.omp', 'qwen:.qwen', 'pi:.pi/agent', 'agy:.gemini/config', 'quill:.quill'])
     expect(five.ids.flatMap(h => five.of(h).sessionEnv)).toContain('QUILL_SESSION')
   })
 
   test('the real hosts\' config folders', () => {
     const env = { HOME: '/home/u' }
-    expect(HARNESSES.map(h => configDirOf(harnessProfile(h), env))).toEqual(['/home/u/.claude', '/home/u/.codex', '/home/u/.config/opencode', '/home/u/.omp/agent'])
+    expect(HARNESSES.map(h => configDirOf(harnessProfile(h), env))).toEqual(['/home/u/.claude', '/home/u/.codex', '/home/u/.config/opencode', '/home/u/.omp/agent', '/home/u/.qwen', '/home/u/.pi/agent', '/home/u/.gemini/config'])
     expect(configDirOf(harnessProfile('opencode'), { ...env, XDG_CONFIG_HOME: '/x/../y' })).toBe('/y/opencode')
     expect(configDirOf(harnessProfile('claude'), { ...env, CLAUDE_CONFIG_DIR: ' /c/alt ' })).toBe('/c/alt')
   })

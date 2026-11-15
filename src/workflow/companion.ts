@@ -1,9 +1,9 @@
-import { harnessTable } from '../core/harness/index'
+import { harnessProfile, harnessTable } from '../core/harness/index'
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { PreparedRun } from './companion-hosts'
-import type { CompanionSetting } from '../core/config'
+import { COMPANION_SETTINGS, type CompanionSetting } from '../core/config'
 import { HARNESSES, type Harness } from '../core/events'
 import {
   COMPANION_ATTEMPTS, COMPANION_DIFF_MAX, COMPANION_RETRY_MIN_MS, COMPANION_TIMEOUT_MAX_MIN, COMPANION_TIMEOUT_MIN, COMPANION_WAIT_MAX_SEC,
@@ -89,7 +89,7 @@ function nativeOff(setting: ReturnType<typeof loadConfigSync>['config']['plan'][
 function candidates(nowMs: number, enabled: Readonly<Record<Harness, { enabled: boolean }>>, which: (bin: string) => string | null): CompanionCandidate[] {
   let choice: ReturnType<typeof chooseHarnesses> = { picks: [], held: [] }
   try { choice = chooseHarnesses({ nowMs, checkCli: false }) } catch {  }
-  return HARNESSES.map(h => {
+  return HARNESSES.filter(h => harnessProfile(h).adapterPending !== true).map(h => {
     const pick = choice.picks.find(p => p.harness === h)
     const held = choice.held.find(x => x.harness === h && x.kind === 'window')
     const c: CompanionCandidate = { harness: h, enabled: enabled[h]?.enabled !== false, onPath: which(BIN[h]) !== null, recent: pick !== undefined || held !== undefined }
@@ -162,7 +162,7 @@ export async function companionStart(o: CompanionStartOptions, ctx: WorkflowCtx,
   let setting: CompanionSetting | undefined = cfg.plan.reviews.companion
   if (o.on !== undefined) {
     setting = companionSetting(o.on)
-    if (setting === undefined) return fail('usage', `--on must be one of off, auto, ${HARNESSES.join(', ')} (got '${o.on}')`)
+    if (setting === undefined) return fail('usage', `--on must be one of ${COMPANION_SETTINGS.join(', ')} (got '${o.on}')`)
   }
   if (setting === 'off') return ok({ ok: true, state: 'off' }, [`Second opinions are off (plan.reviews.companion: off); nothing started. Go on with ${agent} alone.`])
   let timeoutMin = COMPANION_TIMEOUT_MIN

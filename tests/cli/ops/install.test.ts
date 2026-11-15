@@ -580,6 +580,9 @@ describe('buracle install', () => {
           codexHome: join(root, 'codex-home'),
           opencodeConfigDir: join(home, '.config/opencode'),
           ompAgentDir: join(root, 'omp-agent'),
+          qwenHome: join(home, '.qwen'),
+          piAgentDir: join(root, 'omp-agent'),
+          agyDir: join(home, '.gemini/config'),
           bun: shimBun as string,
         })
       }))

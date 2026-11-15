@@ -64,10 +64,11 @@ describe('configSchemaLeaves', () => {
 
 describe('the mcp section', () => {
   test('sharing is on and no server is off by default; shared must be a boolean and each harness list a list of server ids', () => {
-    expect(defaultConfig().mcp).toEqual({ shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } })
+    expect(defaultConfig().mcp).toEqual({ shared: true, off: { claude: [], codex: [], opencode: [], omp: [], qwen: [], pi: [], agy: [] } })
     expect(configSchemaLeaves('mcp')).toEqual([
       { key: 'mcp.shared', t: 'bool' },
       { key: 'mcp.off.claude', t: 'list' }, { key: 'mcp.off.codex', t: 'list' }, { key: 'mcp.off.opencode', t: 'list' }, { key: 'mcp.off.omp', t: 'list' },
+      { key: 'mcp.off.qwen', t: 'list' }, { key: 'mcp.off.pi', t: 'list' }, { key: 'mcp.off.agy', t: 'list' },
     ])
     const bad = defaultConfig() as unknown as Record<string, any>
     bad.mcp.shared = 'yes'
@@ -81,7 +82,7 @@ describe('the mcp section', () => {
       'mcp.off.omp[0]: expected string, got number 1',
       'mcp.off.cursor: unknown key',
     ]))
-    expect(mergeConfigLenient(defaultConfig(), { mcp: { shared: false, off: { codex: ['web-fetch'] } } }).config.mcp).toEqual({ shared: false, off: { claude: [], codex: ['web-fetch'], opencode: [], omp: [] } })
+    expect(mergeConfigLenient(defaultConfig(), { mcp: { shared: false, off: { codex: ['web-fetch'] } } }).config.mcp).toEqual({ shared: false, off: { claude: [], codex: ['web-fetch'], opencode: [], omp: [], qwen: [], pi: [], agy: [] } })
   })
 })
 

@@ -13,7 +13,7 @@ function running(over: Partial<NonNullable<SessionState['plan']>> = {}, interact
   }
 }
 
-function ask(questions: Array<{ question: string, options?: Array<string | { label: string, description?: string }> }>, harness: ToolCall['harness'] = 'claude'): ToolCall {
+function ask(questions: Array<{ question: string, options?: Array<string | { label: string, description?: string }> }>, harness: 'claude' | 'codex' | 'opencode' | 'omp' = 'claude'): ToolCall {
   const tool = { claude: 'AskUserQuestion', codex: 'request_user_input', opencode: 'question', omp: 'ask' }[harness]
   const input: Record<string, unknown> = {
     questions: questions.map((q, i) => ({ id: `q${i}`, header: 'Q', question: q.question, options: (q.options ?? []).map(o => (typeof o === 'string' ? { label: o, description: '' } : o)) })),

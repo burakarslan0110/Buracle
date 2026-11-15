@@ -14,7 +14,8 @@ const text = HAS_CI ? readFileSync(FILE, 'utf8') : ''
 interface Job { name?: string, needs?: string[], steps?: Array<{ name?: string, run?: string }>, strategy?: { matrix?: { include?: Array<Record<string, string>> } } }
 const workflow = HAS_CI ? parse(text) as { jobs: Record<string, Job> } : { jobs: {} as Record<string, Job> }
 
-const PACKAGES: Record<Harness, string> = {
+// The hosts the CI job installs; Qwen Code, Pi and AGY CLI join it with their own tasks.
+const PACKAGES: Record<Exclude<Harness, 'qwen' | 'pi' | 'agy'>, string> = {
   claude: '@anthropic-ai/claude-code',
   codex: '@openai/codex',
   opencode: '@opencode/cli',

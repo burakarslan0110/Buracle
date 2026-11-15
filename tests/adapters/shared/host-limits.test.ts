@@ -40,6 +40,8 @@ const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> 
   'opencode.stop-veto': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'an unfinished plan is continued with the core reason, once per stop, until the chain cap and its one escalation' },
   'opencode.subagent-stop-hold': { file: 'tests/adapters/opencode/routing.test.ts', title: 'an invalid report asks the orchestrator to continue that reviewer once; a second one only warns; a valid one adds nothing' },
   'opencode.rate-windows': { file: 'tests/adapters/parity.test.ts', title: '5-hour and weekly usage windows on all four; OpenCode reads them from provider responses (the server plugin bundle\'s http.response hook)' },
+  'agy.no-compaction-event': { file: 'tests/adapters/shared/new-harness-groundwork.test.ts', title: 'AGY: PreCompact and SessionEnd are null in the event map, and the compaction hooks are unsupported cells' },
+  'agy.no-session-end': { file: 'tests/adapters/shared/new-harness-groundwork.test.ts', title: 'AGY: PreCompact and SessionEnd are null in the event map, and the compaction hooks are unsupported cells' },
   'omp.companion-shell': { file: 'tests/adapters/parity.test.ts', title: 'second opinion (plan.reviews.companion): every host can run it read-only; omp runs it without a shell, with the diff in its prompt' },
 }
 
@@ -126,7 +128,7 @@ describe('host limits (PARITY-10)', () => {
       const r = l.recheck ?? ''
       expect({ id: l.id, dated: /\b20\d\d-\d\d-\d\d\b/.test(r), sourced: /https?:\/\/\S+|\b[\w/-]+\.(?:rs|ts|md|mdx)\b/.test(r) }).toEqual({ id: l.id, dated: true, sourced: true })
     }
-    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(18)
+    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(20)
   })
 
   test('every limit and partial record names the test that proves its fallback, and that file holds the test', () => {

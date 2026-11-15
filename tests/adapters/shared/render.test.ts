@@ -114,8 +114,8 @@ describe('placeholders', () => {
   })
 
   test('inside inline code a placeholder becomes per-harness code variants', () => {
-    expect(renderPlaceholders('User: `{{skill:requirements}} idea` here', 'neutral')).toBe('User: `$requirements idea` in Codex, `/requirements idea` in OpenCode and Oh My Pi here')
-    expect(renderPlaceholders('User: `{{skill:memory}} x` here', 'neutral', { protocols: ['memory'] })).toBe('User: `$memory x` in Codex, `@memory x` in OpenCode, `/skill:memory x` in Oh My Pi here')
+    expect(renderPlaceholders('User: `{{skill:requirements}} idea` here', 'neutral')).toBe('User: `$requirements idea` in Codex, `/requirements idea` in OpenCode, Oh My Pi and Qwen Code, `/skill:requirements idea` in Pi here')
+    expect(renderPlaceholders('User: `{{skill:memory}} x` here', 'neutral', { protocols: ['memory'] })).toBe('User: `$memory x` in Codex, `@memory x` in OpenCode, `/skill:memory x` in Oh My Pi and Pi, `/memory x` in Qwen Code here')
     expect(renderPlaceholders('`{{agent:changes-review}}`', 'neutral')).toBe('`changes-review`')
     expect(renderPlaceholders('Run `{{skill:plan-build}} x`.', 'codex')).toBe('Run `$plan-build x`.')
   })
@@ -125,7 +125,7 @@ describe('placeholders', () => {
     expect(renderPlaceholders(same, 'neutral')).toBe('```text\nchanges-review\nplan_file: x\n```')
     const differs = '```text\n{{skill:plan-build}} go\n```'
     expect(renderPlaceholders(differs, 'neutral')).toBe([
-      '**Codex:**', '```text', '$plan-build go', '```', '**OpenCode and Oh My Pi:**', '```text', '/plan-build go', '```',
+      '**Codex:**', '```text', '$plan-build go', '```', '**OpenCode, Oh My Pi and Qwen Code:**', '```text', '/plan-build go', '```', '**Pi:**', '```text', '/skill:plan-build go', '```',
     ].join('\n'))
   })
 

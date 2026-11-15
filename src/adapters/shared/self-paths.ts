@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from 'node:path'
 import type { SelfPaths } from '../../core/policy/write-guard'
-import { buracleHome, claudeDir, codexHome, expandHome, home, isCheckout, localBinDir, ompAgentDir, ompHome, opencodeConfigDir, repoRoot } from '../../engine/paths'
+import { buracleHome, claudeDir, codexHome, expandHome, home, isCheckout, localBinDir, ompAgentDir, ompHome, opencodeConfigDir, repoRoot, qwenHome, piAgentDir, agyDir } from '../../engine/paths'
 
 export interface SelfPathsSource {
   home(): string
@@ -11,12 +11,15 @@ export interface SelfPathsSource {
   opencodeConfigDir(): string
   ompAgentDir(): string
   ompHome(): string
+  qwenHome(): string
+  piAgentDir(): string
+  agyDir(): string
   repoRoot(): string
   isCheckout(dir: string): boolean
   expandHome(p: string): string
 }
 
-const ROOTS = ['buracleHome', 'localBinDir', 'claudeDir', 'codexHome', 'opencodeConfigDir', 'ompAgentDir', 'ompHome'] as const
+const ROOTS = ['buracleHome', 'localBinDir', 'claudeDir', 'codexHome', 'opencodeConfigDir', 'ompAgentDir', 'ompHome', 'qwenHome', 'piAgentDir', 'agyDir'] as const
 
 function attempt(fn: () => string | undefined): string | undefined {
   try {
@@ -38,7 +41,7 @@ function installedCheckout(p: SelfPathsSource, configured: string | undefined): 
 }
 
 export function selfPaths(configuredRepo?: string, source?: SelfPathsSource): SelfPaths {
-  const p: SelfPathsSource = source ?? { home, buracleHome, localBinDir, claudeDir, codexHome, opencodeConfigDir, ompAgentDir, ompHome, repoRoot, isCheckout, expandHome }
+  const p: SelfPathsSource = source ?? { home, buracleHome, localBinDir, claudeDir, codexHome, opencodeConfigDir, ompAgentDir, ompHome, qwenHome, piAgentDir, agyDir, repoRoot, isCheckout, expandHome }
   const out: SelfPaths = {}
   for (const key of ROOTS) {
     const v = attempt(() => p[key]())

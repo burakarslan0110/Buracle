@@ -94,7 +94,7 @@ describe('buracle install builds the generated files first', () => {
 
       const unknown = memoryIO()
       expect(await installRun(['nope'], unknown)).toBe(1)
-      expect(unknown.err()).toContain('unknown harness nope (expected claude, codex, opencode, omp)')
+      expect(unknown.err()).toContain('unknown harness nope (expected claude, codex, opencode, omp, qwen, pi, agy)')
       const old = memoryIO()
       expect(await installRun(['--harness', 'codex'], old)).toBe(1)
       expect(old.err()).toBe('buracle install: --harness was removed; name the harnesses instead: `buracle install codex`\n')

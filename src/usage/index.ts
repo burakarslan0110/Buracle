@@ -6,6 +6,7 @@ import { collectClaude } from './claude'
 import { collectCodex } from './codex'
 import { collectOmp } from './omp'
 import { collectOpencode } from './opencode'
+import { pendingCollector } from './pending'
 import type { Collector, CollectOptions, UsageCacheEntry } from './types'
 
 export const COLLECTORS: Readonly<Record<Harness, Collector>> = {
@@ -13,6 +14,9 @@ export const COLLECTORS: Readonly<Record<Harness, Collector>> = {
   codex: collectCodex,
   opencode: collectOpencode,
   omp: collectOmp,
+  qwen: pendingCollector('qwen'),
+  pi: pendingCollector('pi'),
+  agy: pendingCollector('agy'),
 }
 
 export interface RefreshOptions extends Partial<CollectOptions> {

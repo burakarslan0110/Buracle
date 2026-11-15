@@ -47,3 +47,22 @@ export const OMP_EVENTS: readonly string[] = [
   'todo_reminder', 'goal_updated', 'credential_disabled', 'input', 'tool_approval_requested', 'tool_approval_resolved', 'tool_call',
   'tool_result', 'user_bash', 'user_python', 'mcp_notification',
 ]
+
+export const QWEN_EVENTS: readonly string[] = [
+  'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PostToolBatch', 'UserPromptSubmit', 'UserPromptExpansion', 'SessionStart',
+  'SessionEnd', 'SessionDelete', 'MessageDisplay', 'Stop', 'StopFailure', 'SubagentStart', 'SubagentStop', 'PreCompact',
+  'PostCompact', 'Notification', 'PermissionRequest', 'PermissionDenied', 'TodoCreated', 'TodoCompleted', 'InstructionsLoaded',
+  'FileChanged',
+]
+
+export const PI_EVENTS: readonly string[] = [
+  'project_trust', 'resources_discover', 'mcp_servers_change', 'session_start', 'session_info_changed', 'session_before_switch',
+  'session_before_fork', 'session_before_compact', 'session_compact', 'session_compact_failed', 'session_before_tree', 'session_tree',
+  'session_shutdown', 'before_agent_start', 'agent_start', 'agent_end', 'agent_before_settle', 'agent_settled', 'ui_prompt_start',
+  'ui_prompt_end', 'turn_start', 'turn_end', 'message_start', 'message_update', 'message_end', 'tool_execution_start',
+  'tool_execution_update', 'tool_execution_end', 'context', 'context_with_system', 'before_provider_headers', 'before_provider_request',
+  'after_provider_response', 'provider_stream_event', 'cache_warming_decision', 'model_select', 'thinking_level_select', 'tool_call',
+  'tool_result', 'user_bash', 'input',
+]
+
+export const AGY_EVENTS: readonly string[] = ['SessionStart', 'PreToolUse', 'PostToolUse', 'PreInvocation', 'PostInvocation', 'Stop']

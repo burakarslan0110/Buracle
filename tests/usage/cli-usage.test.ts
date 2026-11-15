@@ -23,7 +23,7 @@ describe('parseUsageArgs', () => {
   test('verbs and harness lists', () => {
     expect(parseUsageArgs([])).toEqual({ refresh: false, offline: false, json: false, background: false })
     expect(parseUsageArgs(['refresh', '--harness', 'claude,codex', '--harness=omp', '--json'])).toMatchObject({ refresh: true, harnesses: ['claude', 'codex', 'omp'], json: true })
-    expect(parseUsageArgs(['--harness', 'cursor'])).toEqual({ error: "unknown harness 'cursor' (expected claude, codex, opencode, omp)" })
+    expect(parseUsageArgs(['--harness', 'cursor'])).toEqual({ error: "unknown harness 'cursor' (expected claude, codex, opencode, omp, qwen, pi, agy)" })
     expect(parseUsageArgs(['--month'])).toEqual({ error: 'unknown option --month' })
     expect(parseUsageArgs(['frobnicate'])).toEqual({ error: 'unknown argument frobnicate' })
   })
@@ -38,7 +38,7 @@ describe('buracle usage', () => {
     expect(code).toBe(0)
     const j = JSON.parse(o.out()) as { v: number, harnesses: Record<string, UsageCacheEntry> }
     expect(j.v).toBe(1)
-    expect(Object.keys(j.harnesses)).toEqual(['claude', 'codex', 'opencode', 'omp'])
+    expect(Object.keys(j.harnesses)).toEqual(['claude', 'codex', 'opencode', 'omp', 'qwen', 'pi', 'agy'])
     expect(j.harnesses['codex']?.windows.map(w => w.label)).toEqual(['5h', '7d'])
     expect(readUsageCache()?.harnesses.codex?.windows.map(w => w.pct)).toEqual([22, 41])
   }))

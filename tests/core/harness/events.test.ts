@@ -37,12 +37,18 @@ describe('canonical events per harness', () => {
       codex: ['PreToolUse', 'PermissionRequest'],
       opencode: ['permission.evaluate', 'tool.execute.before'],
       omp: ['tool_call'],
+      qwen: ['PreToolUse'],
+      pi: ['tool_call'],
+      agy: ['PreToolUse'],
     })
     expect(STOP_EVENTS).toEqual({
       claude: ['classic.Stop', 'classic.SubagentStop'],
       codex: ['Stop', 'SubagentStop'],
       opencode: ['session.execution.succeeded', 'session.idle'],
       omp: ['session_stop'],
+      qwen: ['Stop', 'SubagentStop'],
+      pi: ['agent_before_settle'],
+      agy: ['Stop'],
     })
     for (const h of HARNESSES) expect(HOOK_EVENTS[h]).toBe(harnessProfile(h).events.native)
   })

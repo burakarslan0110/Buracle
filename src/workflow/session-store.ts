@@ -204,7 +204,7 @@ function samePath(a: string, b: string): boolean {
 export function profileGuard(h: Harness, runtimeCfg: unknown, env: Record<string, string | undefined>): string | undefined {
   const profile = (isHarness(h) ? harnessProfile(h) : undefined)
   if (profile === undefined) return undefined
-  const spec = { key: profile.configDir.key, label: profile.label, variable: profile.configDir.env }
+  const spec = { key: profile.configDir.key, label: profile.label, variable: profile.configDir.env ?? profile.relocationEnv[0] ?? 'its config variable' }
   const resolved = runtimeCfg !== null && typeof runtimeCfg === 'object' ? (runtimeCfg as { resolved?: unknown }).resolved : undefined
   const installed = resolved !== null && typeof resolved === 'object' ? (resolved as Record<string, unknown>)[spec.key] : undefined
   if (typeof installed !== 'string' || !posix.isAbsolute(installed)) return undefined

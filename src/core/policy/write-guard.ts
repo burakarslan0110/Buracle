@@ -26,6 +26,9 @@ export interface SelfPaths {
   opencodeConfigDir?: string
   ompAgentDir?: string
   ompHome?: string
+  qwenHome?: string
+  piAgentDir?: string
+  agyDir?: string
   repo?: string
 }
 

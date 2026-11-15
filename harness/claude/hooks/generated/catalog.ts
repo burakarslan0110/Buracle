@@ -20,7 +20,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "buracle-memory",
       "routing": [
@@ -34,7 +37,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "harnesses": [
         "claude",
         "codex",
-        "opencode"
+        "opencode",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "chrome-devtools",
       "routing": [
@@ -49,7 +55,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "codegraph",
       "routing": [
@@ -64,7 +73,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "context7",
       "routing": [
@@ -79,7 +91,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "grep",
       "routing": [
@@ -94,7 +109,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "semble",
       "routing": [
@@ -109,7 +127,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "web-fetch",
       "routing": [
@@ -124,7 +145,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "web-search",
       "routing": [

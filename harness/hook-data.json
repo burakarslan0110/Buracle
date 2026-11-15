@@ -16,7 +16,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -52,7 +55,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -77,7 +83,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -101,7 +110,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -118,7 +130,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "monitor",
         "critical": false,
@@ -145,7 +160,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -171,7 +189,10 @@
         "harnesses": [
           "claude",
           "codex",
-          "opencode"
+          "opencode",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": false,
@@ -192,7 +213,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "hard",
         "critical": true,

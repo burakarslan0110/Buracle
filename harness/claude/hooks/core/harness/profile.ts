@@ -14,6 +14,11 @@ export type McpTokenRule = (part: string, fallback: string) => string
 
 export const wordDashToken: McpTokenRule = part => part.replace(/[^A-Za-z0-9_-]/g, '_')
 export const wordToken: McpTokenRule = part => part.replace(/[^A-Za-z0-9_]/g, '_')
+/** Letters, digits, `_` and `-` kept; every other run collapses to one `_`, trimmed at both ends. */
+export const collapsedWordDashToken: McpTokenRule = (part, fallback) => {
+  const t = part.replace(/[^A-Za-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
+  return t.length > 0 ? t : fallback
+}
 export const lowerWordToken: McpTokenRule = (part, fallback) => {
   const t = part.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
   return t.length > 0 ? t : fallback
@@ -56,13 +61,17 @@ export interface HarnessProfile {
   runtime: 'command' | 'inprocess'
   /** The suffix of the command hooks' spool file, where an in-process writer of the same host has the plain one. */
   spoolSuffix?: string
+  /** Buracle knows the host (this profile) but has no adapter for it yet: its hook handlers and installer are stubs. The harness's own task removes this. */
+  adapterPending?: true
+  /** The host's non-interactive mode takes its prompt as an argument and reads none from stdin, so a text-only run cannot be fed one. */
+  noStdinPrint?: boolean
   /** How long the checks after an edit may run. */
   editBudgetMs: number
   configDir: {
     /** The key of this folder in `SelfPaths` and in `src/engine/paths.ts`. */
     key: string
-    /** The variable that relocates it, and the folder under its value when the variable names a parent. */
-    env: string
+    /** The variable that names this folder (an absolute path), where the host has one, and the folder under its value when the variable names a parent. */
+    env?: string
     envSubdir?: string
     /** The default, under the home folder. */
     under: string
@@ -216,7 +225,7 @@ function joined(dir: string, rel: string): string {
 
 /** The host's config folder in this environment: the relocating variable when it is an absolute path, else the default under HOME. */
 export function configDirOf(p: Pick<HarnessProfile, 'configDir'>, env: Readonly<Record<string, string | undefined>>): string | undefined {
-  const moved = absolute(env[p.configDir.env])
+  const moved = p.configDir.env !== undefined ? absolute(env[p.configDir.env]) : undefined
   if (moved !== undefined) return p.configDir.envSubdir !== undefined ? joined(moved, p.configDir.envSubdir) : moved
   const home = absolute(env['HOME'])
   return home !== undefined ? joined(home, p.configDir.under) : undefined

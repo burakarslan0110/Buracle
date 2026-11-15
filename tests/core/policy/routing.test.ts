@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { Harness, ToolCall } from '../../../src/core/events'
 import { HARNESSES, classifyTool, parseMcpName } from '../../../src/core/events'
+import { harnessProfile } from '../../../src/core/harness/index'
 import type { CatalogMcp } from '../../../src/core/catalog'
 import { catalogMcp, catalogSkills } from '../../../src/core/catalog'
 import type { McpHealth, RoutingPolicy } from '../../../src/core/policy/routing'
@@ -20,8 +21,10 @@ const MCP_IDS = ['buracle-memory', 'chrome-devtools', 'codegraph', 'context7', '
 function call(harness: Harness, tool: string, input: Record<string, unknown>): ToolCall {
   return { harness, sessionId: 's', cwd: '/repo', tool, input, ...classifyTool(harness, tool, input, '/repo', MCP_IDS) }
 }
-const WEB_SEARCH: Record<Harness, string> = { claude: 'WebSearch', codex: 'web_search', opencode: 'websearch', omp: 'web_search' }
-const WEB_FETCH: Record<Exclude<Harness, 'codex'>, string> = { claude: 'WebFetch', opencode: 'webfetch', omp: 'fetch' }
+// Pi has no built-in web search or fetch tool, so the loops below run over the hosts that have one.
+const WEB_SEARCH: Partial<Record<Harness, string>> = { claude: 'WebSearch', codex: 'web_search', opencode: 'websearch', omp: 'web_search', qwen: 'web_search', agy: 'search_web' }
+const WEB_SEARCH_HOSTS = HARNESSES.filter(h => Object.values(harnessProfile(h).tools.kinds).includes('web_search'))
+const WEB_FETCH: Partial<Record<Harness, string>> = { claude: 'WebFetch', opencode: 'webfetch', omp: 'fetch', qwen: 'web_fetch', agy: 'read_url_content' }
 const withStrictness = (s: RoutingPolicy['strictness']): RoutingPolicy => ({ ...POLICY, strictness: s })
 
 describe('canonical/routing.yaml', () => {
@@ -129,8 +132,8 @@ describe('harness MCP tool names', () => {
 
 describe('routeTool: built-in web tools', () => {
   test('enforce denies a built-in web search while web-search is healthy, naming the MCP tool per harness', () => {
-    for (const h of HARNESSES) {
-      const d = routeTool(call(h, WEB_SEARCH[h], { query: 'bun 1.4 release notes' }), POLICY, { 'web-search': 'ok', context7: 'ok' })
+    for (const h of WEB_SEARCH_HOSTS) {
+      const d = routeTool(call(h, WEB_SEARCH[h] as string, { query: 'bun 1.4 release notes' }), POLICY, { 'web-search': 'ok', context7: 'ok' })
       expect(d.action).toBe('deny')
       if (d.action !== 'deny') continue
       expect(d.hook).toBe('H03')
@@ -150,8 +153,8 @@ describe('routeTool: built-in web tools', () => {
   test('web-search down: a built-in web search goes to web-fetch first (a search results page), the built-in only when web-fetch is down too', () => {
     const cat = POLICY.categories.find(c => c.id === 'web-search')
     expect([...(cat?.prefer ?? []), ...(cat?.fallback ?? [])]).toEqual(['mcp:web-search/search', 'mcp:web-fetch/fetch_url', 'builtin:web_search'])
-    for (const h of HARNESSES) {
-      const c = call(h, WEB_SEARCH[h], { query: 'bun 1.4 changelog' })
+    for (const h of WEB_SEARCH_HOSTS) {
+      const c = call(h, WEB_SEARCH[h] as string, { query: 'bun 1.4 changelog' })
       const d = routeTool(c, POLICY, { 'web-search': 'down' })
       expect({ h, action: d.action }).toEqual({ h, action: 'deny' })
       if (d.action === 'deny') {
@@ -170,14 +173,14 @@ describe('routeTool: built-in web tools', () => {
 
   test('a server that is off counts as unavailable: its fallback built-in is allowed with a note that says "off", and web-search falls back to web-fetch first', () => {
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const fetch = routeTool(call(h, WEB_FETCH[h], { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'off' })
+      const fetch = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'off' })
       expect({ h, action: fetch.action }).toEqual({ h, action: 'allow' })
       const note = fetch.action === 'allow' ? fetch.context?.join(' ') ?? '' : ''
       expect(note).toContain('MCP server is off')
       expect(note).not.toContain('is down')
     }
-    for (const h of HARNESSES) {
-      const search = call(h, WEB_SEARCH[h], { query: 'bun 1.4 changelog' })
+    for (const h of WEB_SEARCH_HOSTS) {
+      const search = call(h, WEB_SEARCH[h] as string, { query: 'bun 1.4 changelog' })
       const viaFetch = routeTool(search, POLICY, { 'web-search': 'off' })
       expect({ h, action: viaFetch.action }).toEqual({ h, action: 'deny' })
       if (viaFetch.action === 'deny') expect(viaFetch.reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
@@ -196,7 +199,7 @@ describe('routeTool: built-in web tools', () => {
 
   test('built-in fetch follows web-fetch health; claude.ai pages need the built-in session', () => {
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://docs.example.com/x' }), POLICY, { 'web-fetch': 'ok' })
+      const d = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://docs.example.com/x' }), POLICY, { 'web-fetch': 'ok' })
       expect(d.action).toBe('deny')
       if (d.action === 'deny') expect(d.reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
     }
@@ -213,7 +216,7 @@ describe('routeTool: built-in web tools', () => {
     const cat = POLICY.categories.find(c => c.id === 'web-fetch')
     expect([...(cat?.prefer ?? []), ...(cat?.fallback ?? [])]).toEqual(['mcp:web-fetch/fetch_url', 'builtin:web_fetch'])
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'down' })
+      const d = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'down' })
       expect({ h, action: d.action }).toEqual({ h, action: 'allow' })
       expect(d.action === 'allow' ? d.context?.join(' ') : '').toContain('allowed as a fallback')
     }
@@ -227,7 +230,7 @@ describe('routeTool: built-in web tools', () => {
     }
     for (const url of ['https://example.com/docs', 'https://github.com/colinhacks/zod', 'https://www.npmjs.com/', 'not a url']) expect({ url, docs: isDocsUrl(url) }).toEqual({ url, docs: false })
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://docs.rs/serde' }), POLICY, { 'web-fetch': 'ok', context7: 'ok' })
+      const d = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://docs.rs/serde' }), POLICY, { 'web-fetch': 'ok', context7: 'ok' })
       expect(d.action).toBe('deny')
       if (d.action === 'deny') {
         expect(d.hook).toBe('H03')
@@ -315,7 +318,7 @@ describe('capabilityCard (H15)', () => {
     const skills = catalogSkills(bundle.skills)
     const lsp = bundle.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
     expect(lsp.length).toBeGreaterThan(0)
-    const plugins: Record<Harness, string[]> = { claude: [], codex: [], opencode: [], omp: [] }
+    const plugins: Record<Harness, string[]> = { claude: [], codex: [], opencode: [], omp: [], qwen: [], pi: [], agy: [] }
     for (const h of HARNESSES) {
       const mcp = catalogMcp(bundle.mcp, h)
       const c = capabilityCard({ policy: POLICY, mcp, plugins: plugins[h], harness: h, ...(h === 'claude' ? { lsp } : {}) })

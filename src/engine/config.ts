@@ -121,6 +121,9 @@ export interface ResolvedPaths {
   codexHome: string
   opencodeConfigDir: string
   ompAgentDir: string
+  qwenHome: string
+  piAgentDir: string
+  agyDir: string
   bun: string
 }
 
@@ -149,6 +152,9 @@ export function runtimeConfigSnapshot(config: BuracleConfig, stamp?: string): Ru
       codexHome: paths.codexHome(),
       opencodeConfigDir: paths.opencodeConfigDir(),
       ompAgentDir: paths.ompAgentDir(),
+      qwenHome: paths.qwenHome(),
+      piAgentDir: paths.piAgentDir(),
+      agyDir: paths.agyDir(),
       bun: bunExecutable(),
     },
   }
