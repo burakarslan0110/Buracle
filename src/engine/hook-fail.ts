@@ -1,7 +1,12 @@
 export const GUARD_EVENTS: Readonly<Record<string, readonly string[]>> = {
   claude: ['PreToolUse'],
   codex: ['PreToolUse'],
+  qwen: ['PreToolUse'],
+  agy: ['PreToolUse'],
 }
+
+/** The hosts whose pre-tool answer is `{ decision, reason }`; the others read Claude Code's `hookSpecificOutput`. */
+const DECISION_DENY_HOSTS: readonly string[] = ['agy']
 
 export function isGuardEvent(harness: string, event: string): boolean {
   return (GUARD_EVENTS[harness] ?? []).includes(event)
@@ -21,8 +26,12 @@ export function denyJson(reason: string): string {
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n'
 }
 
+export function denyJsonFor(harness: string, reason: string): string {
+  return DECISION_DENY_HOSTS.includes(harness) ? JSON.stringify({ decision: 'deny', reason }) + '\n' : denyJson(reason)
+}
+
 export function failClosedOutcome(harness: string, event: string, detail: string): { stdout: string, exitCode: number } | undefined {
-  return isGuardEvent(harness, event) ? { stdout: denyJson(failClosedReason(detail)), exitCode: 0 } : undefined
+  return isGuardEvent(harness, event) ? { stdout: denyJsonFor(harness, failClosedReason(detail)), exitCode: 0 } : undefined
 }
 
 export function isFailClosedReason(reason: unknown): boolean {

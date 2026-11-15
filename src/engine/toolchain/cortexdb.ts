@@ -13,6 +13,14 @@ export const CORTEXDB_ASSETS: Readonly<Record<string, string>> = {
   'linux-arm64': 'cortexdb-mcp-linux-arm64',
 }
 
+// No version is pinned: an install takes the newest release. This is the oldest one Buracle works with: the memory
+// calls `sweep_expired` and saves `review_status`, and CortexDB has both since 2.137.0.
+export const CORTEXDB_MIN_VERSION = '2.137.0'
+
+export function cortexdbTooOld(version: string): boolean {
+  return VERSION_RE.test(version) && compareVersions(version, CORTEXDB_MIN_VERSION) < 0
+}
+
 export const CORTEXDB_BIN_ENV = 'BURACLE_CORTEXDB_BIN'
 const RELEASES_URL = 'https://github.com/liliang-cn/cortexdb/releases'
 const DOWNLOAD_TIMEOUT_MS = 180_000
@@ -65,7 +73,7 @@ export function cortexdbLaunch(bin: CortexdbBinary): string[] {
 
 export type CortexdbCheck =
   | { status: 'ok', path: string, version: string, source: 'env' | 'toolchain' }
-  | { status: 'missing' | 'damaged' | 'unsupported', detail: string }
+  | { status: 'missing' | 'damaged' | 'unsupported' | 'old', detail: string }
 
 export function checkCortexdb(env: Readonly<Record<string, string | undefined>> = process.env): CortexdbCheck {
   const bin = cortexdbBinary(env)
@@ -81,6 +89,7 @@ export function checkCortexdb(env: Readonly<Record<string, string | undefined>> 
     return { status: 'damaged', detail: `cannot read ${bin.path}: ${(e as Error).message}` }
   }
   if (got !== want) return { status: 'damaged', detail: `${bin.path} does not match the sha256 its release published (reinstall: buracle install)` }
+  if (cortexdbTooOld(bin.version)) return { status: 'old', detail: `CortexDB ${bin.version} is older than the ${CORTEXDB_MIN_VERSION} Buracle needs (buracle install takes the newest release)` }
   return { status: 'ok', ...bin }
 }
 

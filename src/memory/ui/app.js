@@ -11,15 +11,11 @@ import { detailView, regionView, searchView } from './panel.js'
 import { wirePointer } from './pointer.js'
 import { createRenderer } from './render.js'
 import { createTheme } from './theme.js'
-import { extensionsView } from './extensions.js'
-import { createInbox, inboxView } from './inbox.js'
-import { loadWork, WORK_TABS, workView } from './work.js'
 
 const $ = (id) => document.getElementById(id)
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
 const STORE_KEY = 'buracle.brain.scope'
 const PANEL_WIDTH = 440
-const WIDE = new Set(['work'])
 
 const state = {
   overview: null,
@@ -59,8 +55,6 @@ $('btn-health').prepend(icon('pulse'))
 $('btn-settings').append(icon('gear'))
 $('btn-graph').append(icon('graph'))
 $('btn-review').append(icon('file'))
-$('btn-work').append(icon('chart'))
-$('btn-inbox').prepend(icon('bell'))
 $('panel-back').append(icon('back'))
 $('panel-close').append(icon('close'))
 $('graph-back-icon').append(icon('back', 'icon xs'))
@@ -124,7 +118,7 @@ const graph = createGraph(graphCanvas, {
 const theme = createTheme($('btn-theme'), (name) => { renderer.setTheme(name); graph.setTheme(name) })
 
 function panelDocked() {
-  return state.panel !== null && innerWidth >= 1100 && !WIDE.has(state.panel.view)
+  return state.panel !== null && innerWidth >= 1100
 }
 
 function freeArea() {
@@ -197,10 +191,7 @@ function setHover(i) {
   updateEmphasis()
 }
 
-let migrationTimer = 0
-
 function showState(kind, info = {}) {
-  clearTimeout(migrationTimer)
   const el = $('state')
   const splash = kind === 'loading' && !state.booted
   if (splash && el.dataset.kind === 'splash' && !el.hidden) return
@@ -214,19 +205,6 @@ function showState(kind, info = {}) {
     const reload = h('button', { type: 'button', class: 'btn' }, t('btn.reload'))
     reload.addEventListener('click', () => location.reload())
     el.replaceChildren(h('div', { class: 'card', role: 'alert' }, h('p', { class: 'state-title' }, icon('alert', 'icon'), t('state.cortexMissing')), h('p', { class: 'state-lead' }, t('state.cortexLead')), h('pre', null, code), reload))
-  } else if (kind === 'migrating' || kind === 'migration_failed') {
-    const failed = kind === 'migration_failed'
-    const retry = h('button', { type: 'button', class: 'btn' }, t('btn.retry'))
-    retry.addEventListener('click', () => { void loadAll() })
-    if (!failed) migrationTimer = setTimeout(() => { void loadAll() }, 3000)
-    el.replaceChildren(h('div', { class: 'card', role: failed ? 'alert' : 'status' },
-      h('p', { class: 'state-title' }, icon(failed ? 'alert' : 'loop', 'icon'), t(failed ? 'state.migrationFailed' : 'state.migrating')),
-      h('p', { class: 'state-lead' }, t(failed ? 'state.migrationFailedLead' : 'state.migratingLead')),
-      h('pre', null, h('code', null, info.fix ?? (failed ? 'buracle mem migrate' : 'buracle mem migrate --status'))),
-      failed && info.message ? h('p', { class: 'state-lead' }, t('state.migrationWhy', { message: info.message })) : null,
-      failed ? h('p', { class: 'state-lead' }, t('state.migrationRollback')) : null,
-      failed ? h('pre', null, h('code', null, 'buracle mem migrate --rollback')) : null,
-      retry))
   } else {
     const retry = h('button', { type: 'button', class: 'btn' }, t('btn.retry'))
     retry.addEventListener('click', () => { void loadAll() })
@@ -242,7 +220,6 @@ function hideState() {
 function apiError(r) {
   if (state.es === null) setLive('offline')
   if (r.status === 503 && r.body?.error === 'cortexdb_missing') showState('cortex', { fix: r.body.fix })
-  else if (r.status === 503 && (r.body?.error === 'migrating' || r.body?.error === 'migration_failed')) showState(r.body.error, { fix: r.body.fix, message: r.body.message })
   else showState(r.status === 404 ? 'unknown' : 'error', { message: r.body?.message ?? (r.status === 0 ? t('state.noServer') : `HTTP ${r.status}`) })
 }
 
@@ -305,13 +282,6 @@ async function loadAll() {
   if (state.overview.store.installed === false) {
     setLive('offline')
     showState('cortex', { fix: state.overview.store.fix })
-    return
-  }
-  // While Buracle 0.5's files are being folded into the new brain file (or the move failed), say so instead of showing an empty brain.
-  const move = state.overview.migration
-  if (move?.state === 'running' || move?.state === 'failed') {
-    setLive('offline')
-    showState(move.state === 'running' ? 'migrating' : 'migration_failed', { fix: move.fix, message: move.error })
     return
   }
   setScope(pickScope())
@@ -554,7 +524,6 @@ async function renderPanel(focus = false, quiet = false) {
   if (p === null) return
   const seq = ++state.seq.panel
   const body = $('panel-body')
-  $('panel').classList.toggle('wide', WIDE.has(p.view))
   const now = Date.now()
   const place = quiet ? holdPlace(body) : null
   const done = (head) => {
@@ -600,19 +569,6 @@ async function renderPanel(focus = false, quiet = false) {
     if (seq !== state.seq.panel) return
     if (!r.ok) { body.replaceChildren(errorBlock(r)); done({ title: t('settings.title') }); return }
     done(settingsView(body, r.body, manageCtx))
-  } else if (p.view === 'work') {
-    const tab = WORK_TABS.includes(p.arg) ? p.arg : 'sessions'
-    loading(t(`work.tab.${tab}`))
-    const r = await loadWork(tab, state.scope)
-    if (seq !== state.seq.panel) return
-    if (!r.ok) { body.replaceChildren(errorBlock(r)); done({ title: t(`work.tab.${tab}`) }); return }
-    done(workView(body, r.body, { ...panelCtx, ...manageCtx, scope: () => state.scope }, now, tab, extensionsView))
-  } else if (p.view === 'inbox') {
-    loading(t('inbox.title'))
-    const r = await inbox.refresh()
-    if (seq !== state.seq.panel) return
-    if (!r.ok) { body.replaceChildren(errorBlock(r)); done({ title: t('inbox.title') }); return }
-    done(inboxView(body, r.body, { ...manageCtx, inbox, openPlan: (doc) => { location.href = `/review?doc=${encodeURIComponent(doc)}` } }, now))
   }
 }
 
@@ -628,8 +584,6 @@ $('panel-close').addEventListener('click', () => closePanel())
 $('panel-back').addEventListener('click', () => { goBack() })
 $('btn-health').addEventListener('click', (e) => openPanel('health', null, e.currentTarget))
 $('btn-settings').addEventListener('click', (e) => openPanel('settings', null, e.currentTarget))
-$('btn-work').addEventListener('click', (e) => openPanel('work', 'sessions', e.currentTarget))
-$('btn-inbox').addEventListener('click', (e) => openPanel('inbox', null, e.currentTarget))
 $('scope').addEventListener('change', (e) => setScope(e.currentTarget.value))
 
 const input = $('q')
@@ -719,8 +673,6 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 't' || e.key === 'T') theme.toggle()
   else if (e.key === 'h' || e.key === 'H') openPanel('health', null, document.activeElement)
   else if (e.key === 's' || e.key === 'S') openPanel('settings', null, document.activeElement)
-  else if (e.key === 'w' || e.key === 'W') openPanel('work', 'sessions', document.activeElement)
-  else if (e.key === 'n' || e.key === 'N') openPanel('inbox', null, document.activeElement)
   else if (/^[1-7]$/.test(e.key)) openPanel('region', Number(e.key) - 1, document.activeElement)
 })
 
@@ -731,9 +683,5 @@ document.addEventListener('visibilitychange', () => {
   } else if (state.graph !== null) graph.start()
   else renderer.start()
 })
-
-const inbox = createInbox({ arrived: (n) => announce(t('inbox.arrived', { n: num(n) })) })
-void inbox.refresh()
-inbox.start()
 
 void loadAll()

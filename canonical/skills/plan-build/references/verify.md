@@ -17,11 +17,11 @@ Order matters: finish every code fix (review findings included) before you recor
    - `inventory-open`: an `## Inventory` row whose task is missing or not ticked.
 
    Work that is missing is a gap (V8). A file you changed without a reason on record gets a Deviation entry, or you undo your own change. Never revert a file this run did not change: in `working-tree` mode the diff can include the user's own edits. Name those in the report and leave them out of `changed_files`.
-5. {{todo}}: one item per step V1 to V10.
+5. Your todo tool: one item per step V1 to V10.
 
 ## V1. Launch the changes review
 
-Launch {{agent:changes-review}} with {{spawn_agent}}, in the background when the harness supports it, using the input block from SKILL.md (*Review agents*): `plan_file`, `slug`, `base_ref`, `diff_range`, `worktree_path` (worktree runs), `changed_files`, `audit` (the V0 audit result: "clean", or its warning lines), `test_commands` (the checks you run in V2, V4 and V5), `evidence` (the task `Verify:` results you already have), and `user_request` if you still have it verbatim. Record it at once: `buracle plan review start --role changes --handle <the agent's id or session id>`. With `reviews.companion` not `off`, start the second opinion too (SKILL.md, *Review agents*, `--role changes`). Run V2 while they work; collect the reports in V3.
+Launch the `changes-review` agent with your subagent tool, in the background when the harness supports it, using the input block from SKILL.md (*Review agents*): `plan_file`, `slug`, `base_ref`, `diff_range`, `worktree_path` (worktree runs), `changed_files`, `audit` (the V0 audit result: "clean", or its warning lines), `test_commands` (the checks you run in V2, V4 and V5), `evidence` (the task `Verify:` results you already have), and `user_request` if you still have it verbatim. Record it at once: `buracle plan review start --role changes --handle <the agent's id or session id>`. With `reviews.companion` not `off`, start the second opinion too (SKILL.md, *Review agents*, `--role changes`). Run V2 while they work; collect the reports in V3.
 
 **Review off** (`reviews.changes: false` in `buracle config get plan`; a Bugfix plan ignores it, see [bugfix-verify.md](bugfix-verify.md) BV1): do not launch it. In V3, review the diff yourself against the concerns in changes-review's instructions (plan deviations, correctness, regressions, error handling, security, tests, docs) and add "independent review off (plan.reviews.changes)" under `## Unverified`.
 
@@ -119,7 +119,7 @@ Everything in V2 to V7 green: the user's code notes and the result review below,
 4. `buracle plan set status IN_PROGRESS`, then `buracle plan set phase implement`.
 5. Continue with [implement.md](implement.md). No user prompt is needed.
 
-If the same gap survives three iterations, or closing it needs a product decision: `buracle notify attention_needed "<title>" "<gap>" --plan <path>`, `buracle plan pause --kind decision --reason "<gap>"`, then ask: try a different approach / accept it as a known issue (it moves to `## Unverified`) / stop.
+If the same gap survives three iterations, or closing it needs a product decision: `buracle plan pause --kind decision --reason "<gap>"`, then ask: try a different approach / accept it as a known issue (it moves to `## Unverified`) / stop.
 
 ### The user's code notes
 
@@ -129,9 +129,9 @@ The user may pin notes to changed lines in the review page (`/brain review`). Be
 
 While `plan.resultApproval` is on (the default), the user reviews the verified result before anything is merged or marked verified. This is the one planned stop between the approved plan and VERIFIED; `buracle plan verify` refuses until the approval is recorded.
 
-1. `buracle plan pause --kind decision --reason "result review"` and `buracle notify plan_approval "<title>" "Ready for your review" --plan <path>`.
-2. Show at most 15 lines: what changed, the checks that passed (command → result), the runtime evidence, `## Unverified`, and the review findings you declined. In a worktree run, put the V9 merge choice into the same {{ask_user}} call.
-3. Ask with {{ask_user}}: approve the result (recommended) / request changes / I will test it first.
+1. `buracle plan pause --kind decision --reason "result review"`.
+2. Show at most 15 lines: what changed, the checks that passed (command → result), the runtime evidence, `## Unverified`, and the review findings you declined. In a worktree run, put the V9 merge choice into the same structured-question tool call.
+3. Ask with your structured-question tool: approve the result (recommended) / request changes / I will test it first.
    - Approve: `buracle plan approve-result` (it ends the pause), then V9 and V10.
    - Request changes (in the reply, or as notes on the review page; read them as above): `buracle plan resume`. Make a small in-scope fix, re-run the checks it touches and record them in `## Evidence`; send anything larger through the loop back above. Then ask again from step 1.
    - Test first: keep the pause and end the turn; ask again when the user reports back.
@@ -140,16 +140,13 @@ Only an explicit approval of this result counts. A bare "continue", silence or g
 
 ## V9. Worktree merge
 
-Swarm runs first (`Swarm: on`, or the older `Board: on`): `buracle work close --json` removes the merged tasks' lane worktrees, closes the panes `buracle work spawn` opened (`--keep-panes` leaves them open) and removes the board file; a kept worktree in its output is an unmerged task to settle before verification. `buracle plan verify` removes a board file that is still there, closes those panes too, and names the worktrees left behind.
-
 Worktree runs only, before marking anything verified (a run on a branch made with `buracle worktree branch` has nothing to merge; the report names the branch):
 
 1. Commit everything in the worktree; `git -C <worktree> status --porcelain` must print nothing.
-2. If the result review already took the merge choice, act on it. Otherwise `buracle plan pause --kind decision --reason "merge decision"`, show the summary from `buracle worktree diff <slug> --json` and ask with {{ask_user}}: squash-merge into the base, then remove the worktree and its branch (recommended) / keep the worktree for manual review / discard the work. Then `buracle plan resume`.
-3. Squash-merge: `buracle worktree sync <slug> --json`, then act on the exit code:
-   - **0**: merged. Run the post-merge checks below, then `buracle worktree cleanup <slug>` (after this sync it needs no `--force`).
-   - **2**: merged, but local changes stashed before the merge (never the plan file) could not be restored. Do not pop or drop the stash. Tell the user their earlier local changes are in `git stash list` and need a manual `git stash pop`. Run the post-merge checks and clean up as for 0.
-   - **1**: nothing merged. Read the error (conflict, dirty base, lock). If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), resolve conflicts in files this run changed, re-run the checks and retry once; otherwise pause and ask. Never clean up in this state.
+2. If the result review already took the merge choice, act on it. Otherwise `buracle plan pause --kind decision --reason "merge decision"`, show the summary from `buracle worktree diff <slug> --json` and ask with your structured-question tool: squash-merge into the base, then remove the worktree and its branch (recommended) / keep the worktree for manual review / discard the work. Then `buracle plan resume`.
+3. Squash-merge with git in the main checkout, on the base branch (the CLI does not merge): `git merge --squash <branch>`, then `git commit` with a message of your own. Then:
+   - **Merged**: run the post-merge checks below, then `buracle worktree cleanup <slug>` (after the merge it needs no `--force`).
+   - **A conflict or an error**: undo the attempt with `git reset --merge`; never stash or discard the user's own changes. If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), resolve conflicts in files this run changed, re-run the checks and retry once; otherwise pause and ask. Never clean up in this state.
 4. **Post-merge checks**, in the main checkout, because the base may have moved on: the full test suite, the type check, lint, the build, and one smoke run of a changed entry point (run the CLI command, start the server and send one request, or load the page). Record each as an `## Evidence` row marked post-merge. A failure is fixed on the base branch as a separate commit (`fix: post-merge regression from plan-build/<slug>`), then every post-merge check runs again. Do not verify before all of them are green.
 5. Keep: leave the worktree; the report names the branch and path. Discard: confirm a second time, then `buracle worktree cleanup <slug> --discard`, `buracle plan unregister` and `buracle flow end --outcome cancelled`. A discarded plan is not VERIFIED.
 

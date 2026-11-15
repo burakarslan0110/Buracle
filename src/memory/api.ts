@@ -1,12 +1,13 @@
 import { isAbsolute, relative, resolve } from 'node:path'
 import {
-  CONTRADICTED_NOTE_MAX, contradictionNote, FILE_AS_KINDS, hitLine, isMemId, isMemKind, KIND_INFO, memLocked, memoryIdFor, memProtected, rankHits, searchTerms, similarMemories, WRITABLE_KINDS,
+  CONTRADICTED_NOTE_MAX, contradictionNote, FILE_AS_KINDS, hitLine, isMemId, isMemKind, KIND_INFO, memLocked, memoryIdFor, memProtected, rankHits, READ_ONLY_KINDS, searchTerms, similarMemories, WRITABLE_KINDS,
   type MemConflict, type MemItem, type MemKind, type MemLayer, type MemOrigin,
 } from '../core/memory/brain'
 import { memAround, memFilterPath, memMatchesFilter, memMatchesWords, memNewestFirst, memPage, type MemFilter } from '../core/memory/filter'
 import { memQueryWords } from '../core/memory/query'
 import { memStemForms } from '../core/memory/stem'
-import { memClip, memOneLine, redact } from '../core/memory/text'
+import { redact } from '../core/memory/redact'
+import { memClip, memOneLine } from '../core/memory/text'
 import { realPath } from '../engine/fsx'
 import { revParse } from '../engine/git'
 import { log } from '../engine/log'
@@ -20,7 +21,7 @@ import {
   type BrainRef, type Stored,
 } from './store'
 
-export type MemoryErrorCode = 'invalid_input' | 'not_found' | 'conflict' | 'no_project' | 'not_editable' | 'store_unavailable' | 'migrating'
+export type MemoryErrorCode = 'invalid_input' | 'not_found' | 'conflict' | 'no_project' | 'not_editable' | 'store_unavailable'
 
 export class MemoryError extends Error {
   readonly code: MemoryErrorCode
@@ -129,8 +130,6 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
     if (e instanceof CortexError) {
       if (e.code === 'not_installed') throw new MemoryError('store_unavailable', e.message)
       if (e.code === 'busy') throw new MemoryError('conflict', e.message)
-      if (e.code === 'migrating') throw new MemoryError('migrating', e.message)
-      if (e.code === 'migration_failed') throw new MemoryError('store_unavailable', e.message)
       throw new MemoryError('store_unavailable', `the memory store did not answer: ${e.message}`)
     }
     throw e
@@ -227,11 +226,11 @@ export async function search(ctx: MemoryCtx, input: SearchInput): Promise<Search
     } else if (narrowed) {
       const pool = new Map(all.filter(i => memMatchesFilter(i, filter, now)).map(i => [itemKey(i), i]))
       for (const q of queries) {
-        // Narrowed by `about`, the engine also walks the graph from those topics. That ranks what is linked to them higher; what is
-        // found still has to match the words of the query, as it does without the graph.
+        // Narrowed by `about`, the engine also walks the graph from those topics, and its answer stands: a memory it
+        // reached through the graph is a hit although its wording shares nothing with the query.
         const byAbout = about !== undefined && about.length > 0
         const hits = (await Promise.all(refs.map(r => searchLayer(r, q, topK, byAbout ? { about } : {})))).flat()
-          .filter(h => pool.has(itemKey(h.item)) && (!byAbout || memMatchesWords(h.item, q)))
+          .filter(h => pool.has(itemKey(h.item)))
         const hit = new Set(hits.map(h => itemKey(h.item)))
         const local = [...pool.values()].filter(i => !hit.has(itemKey(i)) && memMatchesWords(i, q))
         for (const item of rankHits(q, [...hits.map(h => ({ item: pool.get(itemKey(h.item)) as MemItem, rank: h.rank })), ...local.map((item, n) => ({ item, rank: hits.length + n }))])) add(item)
@@ -432,6 +431,8 @@ export async function write(ctx: MemoryCtx, input: WriteInput, trusted: TrustedW
   const kindRaw = input.kind ?? input.type
   if (!isMemKind(kindRaw)) throw new MemoryError('invalid_input', `type must be one of: ${WRITABLE_KINDS.join(', ')}`)
   const kind: MemKind = kindRaw
+  // Nobody writes a convention or a profile memory any more, Buracle itself included; the stored ones stay readable.
+  if (READ_ONLY_KINDS.includes(kind)) throw new MemoryError('invalid_input', `${kind} memories come from an older Buracle and are no longer written; write a preference memory instead`)
   if (trusted.internal !== true && !WRITABLE_KINDS.includes(kind)) {
     throw new MemoryError('invalid_input', kind === 'core'
       ? 'core pages exist already (core-brief, core-architecture, …): change one with memory_update'

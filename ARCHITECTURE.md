@@ -1,257 +1,182 @@
-# Buracle architecture: audit and target design
+# Buracle architecture
 
-This document records why Buracle's memory was simplified in 0.6 and what the result looks like. Part 1 is the
-audit of 0.5.0, with numbers measured on macOS (Apple silicon, Bun 1.4.3) against a real CortexDB 2.139.0 binary.
-Part 2 is the target architecture and the reason for every component that was removed or kept. The harness and
-platform matrix is in [COMPATIBILITY.md](COMPATIBILITY.md); upgrading and rolling back is in
-[MIGRATION.md](MIGRATION.md).
+This is the contributor's map of Buracle: where each kind of code lives, how one source of truth becomes the
+configuration of four harnesses (Claude Code, Codex CLI, OpenCode and Oh My Pi), and which invariants hold the pieces
+together. [README.md](README.md) is the user's guide, [COMPATIBILITY.md](COMPATIBILITY.md) says what each harness
+supports, and [AGENTS.md](AGENTS.md) holds the rules for changing the code. The design notes and the written
+contracts the code comments cite as "DESIGN §n" and "CONTRACTS §n" are not part of this repository; the code and its
+tests are the reference.
 
-## Part 1: audit of 0.5.0
+## Layers
 
-### What a terminal cost
-
-One memory-enabled session (`buracle mcp memory`) held three processes: the Bun MCP server plus one CortexDB
-child for the project brain and one for the person brain. Four parallel sessions held twelve processes. The memory
-UI server was a fourth, machine-wide process: 61 MB idle, 135 MB after the first embedding request, because it
-loaded the bundled static embedding model (105,879 rows by 256 dimensions) and served it to CortexDB over
-`POST /v1/embeddings`. Memory reads and writes therefore depended on a resident UI process whenever the model
-was installed.
-
-| Measurement (0.5.0) | Value |
-| --- | --- |
-| Processes, 1 session / 4 sessions | 3 / 12 |
-| RSS, 1 session / 4 sessions (32-memory brain) | 173-192 MB / 495-565 MB |
-| UI server RSS, idle / after the first embedding | 61 MB / 135 MB |
-| PreToolUse hook, median wall time / peak RSS | 51 ms / 52 MB |
-| `buracle --version`, median / peak RSS | 12 ms / 16.5 MB |
-| Runtime / development dependencies | 2 / 2 (7 packages, 32 MB in `node_modules`) |
-| Embedding model download / on disk | 108 MB / 27 MB |
-
-### Where the weight came from
-
-1. **A background-maintenance layer** that CortexDB makes unnecessary. Session start launched four detached Bun
-   processes (a kick, a UI server, an index run and a sweep) plus seven git calls. The first prompt of a session
-   launched a detached tick that opened up to five project brains, distilled queued sessions, ran an LLM
-   reflection per brain, and spawned verifier and repair jobs. A rate-limited tick parked a process asleep for up
-   to six hours. Session end ran another detached chain (profile, distil, reflect twice, verify, tick).
-2. **Re-implementations of CortexDB features.** Buracle called five CortexDB tools (`memory_save`, `memory_get`,
-   `memory_list_all`, `memory_search`, `memory_delete`) and used none of its buckets. The layer was a file: one
-   database per project plus one for the person. Expiry sweeping, duplicate scanning, re-ranking, recall counting
-   and the memory graph were all client-side, over a full listing of the brain (capped at 20,000 rows) on every
-   write and every filtered search. CortexDB provides native TTL, supersede, importance, review status, BM25
-   ranking with recall counts, and entity/relation graph retrieval.
-3. **An embedding subsystem** (model installer, tokenizer, quantised matrix, HTTP route, status and repair
-   steps, UI panel) used only to switch a CortexDB search from lexical to hybrid.
-4. **Per-event process starts.** Every hook event starts one Bun process (about 50 ms). Parsing the YAML
-   configuration cost about 15 ms of it on every event. Every captured tool call added an asynchronous
-   process.
-5. **An extra always-on MCP server** (Context Mode) per terminal and a detached full-CLI child per captured
-   event while it was enabled.
-
-### Cross-platform findings
-
-Confirmed defects: no honest Linux system-tool path (installer advice was Homebrew-only) and POSIX-only smoke tests.
-CI ran typecheck, the build check and the tests, but never executed a generated hook command or MCP entry. Since
-0.8.0 Buracle runs on macOS and Linux only, and Windows users run it inside WSL 2. The full list is in [COMPATIBILITY.md](COMPATIBILITY.md).
-
-## Part 2: target architecture
-
-Buracle's memory is now a thin product layer over CortexDB's own structure. Everything CortexDB already does is
-left to CortexDB; Buracle keeps only what is specific to coding agents.
-
-### The store
-
-- **One CortexDB file**, `~/.buracle/brain/brain.db`, opened by one `cortexdb-mcp` child per terminal (it was up to
-  two). CortexDB runs in its lexical (FTS5, BM25) mode: no embedding model, no vector index, no HTTP endpoint.
-- **CortexDB's own buckets** carry the two scopes: the person is scope `user` with user id `person`; a project is
-  scope `global` with the project slug as its namespace. `memory_id` is a global key in CortexDB (the same id in
-  another namespace overwrites the first row), so Buracle prefixes the stored id in one place, the store gateway:
-  `u/<id>` for the person and `p/<slug>/<id>` for a project. Everything above the gateway still sees plain ids.
-- **Native fields replace client-side code**: `ttl_seconds` expires sessions (45 days) and handoffs (14 days) inside
-  CortexDB instead of a sweep; `supersedes` retires a replaced memory from search; `importance` and `review_status`
-  carry the priority and the verified/unverified state; `entities` and `relations` on save, with `entity_names` and
-  `retrieval_mode: graph` on search, carry the relationship memory (people, services, decisions, files).
-- **Decisions and their history** are ordinary memories of kind `decision` linked by `supersedes`; the older one
-  stays readable (status `any`) and is hidden from normal recall.
-
-### What a memory records
-
-Each memory keeps its kind, title, summary, body, tags, cited files, `about` entities, importance, who wrote it
-(`author`), and the two fields that separate fact from inference: `origin` (`explicit`: stated by the user, or
-written with the CLI by hand; `inferred`: concluded by a model or an agent) and `confidence` (0 to 1; 1 for
-explicit statements). Secrets are redacted by one function in every write path (write, update, spool, capture,
-export). A new memory starts unverified unless it was verified against the code or a primary source.
-
-### Quality rules
-
-- **Duplicates**: a write that closely matches an existing memory returns the candidates and writes nothing unless
-  forced; capture compares titles and appends new evidence to a close match instead of adding a copy.
-- **Contradictions**: an inferred write never changes an explicit, pinned or verified memory. It is stored beside the
-  protected one, marked as contradicting it, and the tool result says so; only a human (or an explicit update)
-  resolves the conflict.
-- **Failed inference**: the whole model reply is validated (schema, kinds, lengths, confidence) before any candidate
-  is written. A failed, rate-limited or invalid run writes nothing; its retry state lives in the session record, not
-  in the brain.
-
-### AI-assisted capture, on demand
-
-```
-hooks append redacted events to the session spool          (no model, no process beyond the hook)
-        |
-session end: one detached, single-flight, bounded `buracle mem finalize`
-        |   1. deterministic session memory from the spool (native ttl)
-        |   2. explicit preference statements become person memories (origin explicit, confidence 1)
-        |   3. one harness-CLI call distils decisions, gotchas, procedures and knowledge (origin inferred)
-        |   4. at most three other stale spools are settled, then the child exits
-`buracle mem capture` runs the same code path by hand
-```
-
-The model call goes through the CLI of a harness that has usage headroom (the session's own first). There is no
-local model, no API key and no resident service. Agents write explicit memories directly through the MCP tools
-(`memory_write`, `memory_update`) or the CLI twins.
-
-### Processes
-
-| | 0.5.0 | 0.6 |
+| Layer | Holds | Rule |
 | --- | --- | --- |
-| Per terminal | Bun MCP server + up to 2 CortexDB children | Bun MCP server + 1 CortexDB child |
-| Session start | 8 processes spawned: memory kick, UI server, index refresh, repair job, tick, 3 CortexDB readers (3 still running 3 s later) | none |
-| Each prompt | a detached tick (first prompt) | none |
-| Tool call | hook process + an asynchronous capture process | hook process + the same asynchronous capture |
-| Session end | detached chain: profile, distil, 2 reflections, verify, tick | one bounded `mem finalize` |
-| Buracle Console (web UI) | started by sessions, resident, serves embeddings | only when you run `buracle mem ui`; stops by itself |
-| Timers | parked wake-up process up to 6 h | none |
+| `canonical/` | The one source of truth: skills, rules, review agents and YAML data (`hooks.yaml`, `mcp.yaml`, `tools.yaml`, `routing.yaml`, `statusline.yaml`, `buracle.yaml`, `skill-triggers.yaml`, `notices.yaml`, `tips.yaml`) | Names no harness; rule and skill text is the same for every harness. The only generated file is `canonical/skills/buracle/references/commands.md`, a command summary the build writes from the CLI help |
+| `src/core/` | Pure logic: guards, routing, plan and flow state, the harness profiles, status rendering, memory formats and redaction | No IO, no clock, no randomness, relative imports only (`tests/core/purity.test.ts`). The build copies it unchanged into the Claude plugin |
+| `src/engine/` | IO: paths, files, processes, git, logging, config and canonical loaders, the transaction engine, merging, the toolchain, install and update | Every write into a harness folder goes through `src/engine/txn.ts` |
+| `src/adapters/` | One folder per harness (generator, installer, doctor, hook handlers or runtime) and `shared/` (the hook pipeline and everything two adapters would otherwise duplicate) | An adapter decodes its host's payloads and encodes its host's answers; decisions come from `core` and the pipeline |
+| `src/workflow/` | Plans, flows, worktrees, review scope, project sync, skill and rule lint, the session store, the second opinion (companion) | |
+| `src/memory/` | The Brain on CortexDB: store, MCP server, capture, handoff, backup, the Buracle Console (`src/memory/ui/`) | The prefixed ids live in `src/memory/store.ts` only |
+| `src/usage/` | Per-harness usage collectors and the status line bars | |
+| `harness/` | Generated output, listed in `harness/.manifest.json`; not committed on `dev`, built by CI into the release tree for `main` | Never edited by hand |
 
-### Components removed and kept
+The CLI is `src/cli/main.ts`, a thin entry, plus `src/cli/router.ts` and one module per command in
+`src/cli/commands/`.
 
-| Component | Decision | Why |
-| --- | --- | --- |
-| Embedding model, installer, `/v1/embeddings`, status and repair steps | removed | CortexDB works lexically; the graph and filters give the structure, and the model cost 27 MB on disk, a 108 MB download and a resident UI process |
-| Context Mode server and bridge | removed | one more MCP server and a detached full-CLI child per captured event, for a saving the owner did not need |
-| tick, kick, sweep, heal, reflect, verify, settle, curate, evidence, repo scan, jobs log | removed | background upkeep that re-implemented CortexDB features or ran model calls nobody asked for |
-| Profile claims store and verification | removed | explicit preferences are now person memories like any other |
-| Per-project and per-person database files | replaced by one file with buckets | one child per terminal; CortexDB's own isolation |
-| Client-side expiry, supersede bookkeeping, recall counting | replaced by CortexDB fields | native, and they work for every client of the file |
-| MCP server, session context, handoff, spool, finalize | kept (shrunk) | the product-specific behaviour |
-| Runner and model choice for the harness CLI | kept | the review companion and capture both use them |
-| Buracle Console (web UI) | kept, on demand | browsing, graph, provenance, edit, retire and delete |
-| Backup, export, import, vault import | kept | the owner's data must stay portable and recoverable |
-| Hook layer per harness | kept, thinner | real lifecycle differences between harnesses need adapters |
+## The four pillars
 
-### Concurrency
+Each pillar has one canonical form and one way into every harness.
 
-CortexDB opens its file in WAL mode with a 5 s busy timeout, and an in-process queue orders writes; processes meet at
-SQLite's lock. Buracle adds a short per-bucket write lock around read-check-write sequences (duplicate check,
-supersede), one machine-wide lock around the model call, and an exclusive lock plus resumable marker for the
-one-time migration. Limits: a recall updates counters, so two simultaneous recalls can lose one count; a
-network-mounted home directory is not supported by SQLite's WAL mode.
+**Skills.** A skill is a folder under `canonical/skills/` with a `SKILL.md`, optional `references/`, `scripts/` and
+`evals/`. The text is harness-neutral: no render placeholders, no harness-only blocks (`buracle skills lint` rejects
+both), and where a fact differs per harness it is one short labelled sentence. The build renders each skill once into
+`harness/agents-skills/<id>`. `buracle install` writes that copy to `~/.agents/skills/<id>`, which Codex, OpenCode and
+Oh My Pi read natively. Claude Code reads the same text from the Buracle plugin's bundled skills. Which harness reads
+which folder, and how a user starts a skill (`/<id>`, `$<id>`, `@<id>`), is data in the harness profile.
 
-### Migration
+**Hooks.** `canonical/hooks.yaml` lists 26 hooks (`H01` ... `H28`; `H26` and `H27` are retired and an id is never reused). Each names what it does, whether
+it can block, whether it fails open or closed, and its binding per harness: the native event and a matcher. Behind the
+bindings every harness runs the same code, the shared pipeline described below.
 
-0.5.0 keeps `brain/person.db` and `brain/projects/<slug>.db`. The first memory command, MCP start, `buracle install`
-or `buracle update` on a machine with those files runs the migration described in [MIGRATION.md](MIGRATION.md): it
-backs the files up first, copies every memory into the new buckets (idempotent, resumable), verifies the counts, moves
-the old files aside instead of deleting them, and removes the obsolete embedding model.
+**MCP.** `canonical/mcp.yaml` declares the servers: how to launch each, its API-key variable, and which routing category
+it answers. A server ships to every harness unless it says `except: [<harness>]`, or names the few it belongs to with
+`harnesses: [...]`. Install writes each harness's own MCP entry. A server entry runs `buracle mcp run <id>`, a thin
+forwarder: servers with a shared backend (context7, semble, web-search, web-fetch) connect to one backend per machine
+on the first real call, chrome-devtools starts lazily as a child, and codegraph runs once per session. Which tool an
+agent should use for which question is `canonical/routing.yaml` plus the routing hooks.
 
-## Part 3: results
+**Brain.** One CortexDB file serves every harness through the `buracle-memory` MCP server and the `buracle mem` CLI;
+see [The Brain](#the-brain).
 
-### How it was measured
+Rules and review agents travel with them. Rules in `canonical/rules/always/` load in every session and stay under
+8,000 bytes together (`buracle rules lint` enforces it); detail lives in skill references the model reads on demand.
+`canonical/rules/paths/` rules load when the agent first touches a matching file. Review agents in `canonical/agents/`
+share their common text through `{{include:review-shared#<part>}}` lines that `resolveAgents`
+(`src/adapters/shared/agents.ts`) expands in every generator.
 
-macOS on Apple silicon, Bun 1.4.3, CortexDB 2.139.0, a brain of 32 memories written by Buracle 0.5.0 itself (24 in a
-project, 8 for the person). The 0.5.0 numbers come from the untouched 0.5.0 commit and the 0.6 numbers from the final tree,
-run back to back on the same machine, which also carried its normal desktop load, so every latency below is a median over
-30 interleaved runs (a 0.5.0 run and a 0.6 run alternate, so noise hits both). "RSS" is the resident memory of the Bun
-server and its CortexDB children, sampled 3 seconds after a search. The measuring scripts were session-local and are not
-part of the repository.
+## Events and the shared pipeline
 
-| Measurement | 0.5.0 | 0.6 |
-| --- | --- | --- |
-| Processes, 1 memory session | 3 | 2 |
-| RSS, 1 memory session | 186.6 MB | 139.3 MB |
-| Processes, 4 concurrent sessions | 12 | 8 |
-| RSS, 4 concurrent sessions | 566.1 MB | 357.9 MB |
-| RSS, 4 sessions that each wrote 4 and read 12 memories | 659 MB (12 processes) | 522 MB (8 processes) |
-| Buracle Console (web UI), idle RSS | 60.4 MB | 33.6 MB |
-| Buracle Console (web UI), after its first requests | 132.4 MB (the embedder loads) | 36.0 MB |
-| Brain file on disk (32 memories) | 1,024 KB | 688 KB |
-| Processes a session start spawns / leaves running | 8 / 3 (UI server, repair job, CortexDB reader) | 0 / 0 |
-| Other hook events: spawned | PreCompact 1, session end 2 | PreCompact 1 (a CortexDB reader inside the hook for the handoff), session end 2 (the one finalize child and its reader) |
-| PreToolUse hook, median / p90 wall time | 54 / 57 ms | 38 / 40 ms |
-| PreToolUse hook, peak RSS | 52.4 MB | 39.9 MB |
-| PostToolUse hook, median | 49 ms | 33 ms |
-| UserPromptSubmit hook, median | 84 ms | 63 ms |
-| Claude status line command, median | 49 ms | 45 ms |
-| `buracle --version`, median | 11 ms | 11 ms |
+`src/core/events.ts` defines seven canonical events: `sessionStart`, `prompt`, `preTool`, `postTool`, `stop`,
+`preCompact` and `sessionEnd`, with typed inputs and decisions (`ToolCall` and `PreDecision`, `StopInput` and
+`StopDecision`, and so on). A harness profile maps them to the host's native events; a canonical event a host lacks
+maps to `null`, and `src/adapters/shared/host-limits.ts` records the gap and the fallback.
 
-The hook gain comes from keeping the YAML parser and the configuration parse off the hook path: an installed machine has
-the merged configuration recorded by `buracle install`, and the hook reads that instead. Without the recorded
-snapshot a hook falls back to the old parse and costs what it did in 0.5.0.
+`src/adapters/shared/pipeline/` has one file per event plus `health.ts` and `types.ts`. Each function takes a typed
+input and a `PipelineDeps` object (the harness, the pure core, the environment, a `step` wrapper, lazy memory entry
+points) and returns a typed decision. It never reads a native payload and never writes a native answer: that stays in
+the adapter. Two shapes of adapter call it:
 
-### Footprint and size
+- **Command hooks** (Claude Code, Codex CLI). The host starts `buracle hook <harness> <event>` for every event. The
+  adapter (`src/adapters/claude/hook.ts` and its siblings, `src/adapters/codex/hook.ts`) decodes the JSON payload, calls
+  the pipeline and prints the host's answer. `dispatchHook` (`src/cli/commands/hook.ts`) catches every error. The
+  command hooks read `harness/hook-data.json`, the part of `canonical/` they need.
+- **In-process runtimes** (OpenCode, Oh My Pi). A plugin or extension loaded inside the host holds the same calls:
+  `src/adapters/opencode/runtime/plugin.ts` with `host.ts`, and `src/adapters/omp/runtime/extension.ts` with `host.ts`.
+  The build bundles each runtime with Bun, and the bundle is generated output.
 
-| | 0.5.0 | 0.6 |
-| --- | --- | --- |
-| Runtime / development dependencies | 2 / 2 | 3 / 2 |
-| `node_modules` | 32 MB, 7 packages | 43 MB, 10 packages |
-| Embedding model in the toolchain | 27 MB on disk, 108 MB download | none |
-| CortexDB binary | 31 MB | 31 MB |
-| Source (`src/`) | 99,938 lines, 495 files | 90,333 lines, 459 files |
-| Tests | 73,722 lines, 334 files | 67,038 lines, 317 files |
-| Hooks defined / MCP servers in the catalog | 28 / 10 | 27 / 9 |
-| Modules in the memory folder | 48 | 35 |
-| `bun test` | 6,262 pass, 219.6 s | 5,832 pass, about 200 s |
+A denial reads `Buracle H<nn>: <reason>` in every harness. Hooks fail open: a step that throws is logged and skipped. The
+exceptions are the guards (`H01`, `H02`, `H20`) on the `PreToolUse` event of the two command-hook harnesses
+(`GUARD_EVENTS` in `src/engine/hook-fail.ts`): when a guard cannot run, it answers with a deny so a broken Buracle
+never leaves a call unguarded.
 
-The dependency count did not fall: both runtime dependencies of 0.5.0 (`yaml`, `jsonc-parser`) are still used, and
-there was no dependency to remove once the embedder, which was hand-written, went. 0.6 adds a third, `beautiful-mermaid`
-(with `elkjs` and `entities`), which draws the diagrams of `buracle diagram` and the review page; that is the 11 MB
-`node_modules` grew by. The 0.6 source also gained code (the
-migration, the Brain UI edit and relations, the capture rules), so the net reduction is smaller than the deleted
-amount. Fewer tests pass than before because the tests of deleted features went with them.
+## HarnessProfile
 
-### What was verified, and how
+A harness is data first. `src/core/harness/<id>.ts` exports one `HarnessProfile` (the type is in
+`src/core/harness/profile.ts`) and `src/core/harness/index.ts` lists them. The `Harness` type, the harness order, the
+tool tables, the labels and everything below is derived from the profiles:
 
-- **Migration** on a brain written by the real 0.5.0 code: every field of all 32 memories equals the 0.5.0 export; a
-  second run changes nothing; a migration killed with SIGKILL at 60, 150 and 300 ms (and at twelve other moments in
-  the unit-level sweep) resumes to the same result as a clean run; the verified backup is taken first.
-- **Concurrency**: four sessions each wrote project and person memories and found all 48 of the others' within the
-  run; four sessions writing the same claim at once stored exactly one copy.
-- **Brain UI API**: a scripted 35-step sequence on the migrated brain lists memories with scope, provenance, confidence
-  and timestamps; returns relations and the graph; corrects (version +1, `origin: explicit`), retires, restores and
-  deletes with the next read reflecting each; refuses a missing token, a cross-origin write and a stale version; and the
-  server stops with no child left. The same flows were exercised in a real browser (edit, retire, the Health panel,
-  a phone-width layout), with no console errors.
-- **Spawn census**: each Claude hook event (session start, prompt, tool calls, compaction, stop, session end) was fired with a
-  sample payload in an installed sandbox whose project was a copy of this repository, while every process on the machine
-  was sampled every 25 ms until 3.5 s after the hook returned. 0.5.0 spawned 8 processes at session start; 0.6 spawns none,
-  and its only other spawns are the handoff's CortexDB reader (inside the compaction hook) and, at session end, the one
-  finalize child with its reader.
-- **Teardown**: closing all sessions leaves no process; the UI server's CortexDB readers exit within 250 ms of a
-  SIGTERM; `buracle uninstall` removes 47 changes, stops the UI, leaves `brain.db` untouched and leaves no process.
-- **Against the real engine**: the memory tests also run against the real CortexDB binary (`BURACLE_CORTEXDB_SMOKE`):
-  651 pass, 0 fail. That run is what exposed that CortexDB 2.139.0 refuses an accepted memory without a reviewer, which
-  the fake used by the normal suite had not enforced; both are fixed and the fake now enforces the rule.
+- identity: label, binary name, how to tell a running host from its process, whether its runtime is `command` or
+  `inprocess`, its config folder and the variables that relocate it;
+- skills: which folders it reads, how a skill is invoked, how prose names a skill and how the model loads one;
+- plan mode: how the model enters it and whether leaving it is an approval the hooks can see;
+- MCP: how the host spells tool names (`mcp__server__tool`, plugin prefixes) and which client names identify it;
+- events: the canonical-to-native map and the native events a `hooks.yaml` binding may name;
+- tools: native tool name to kind (`bash`, `edit`, `patch`, `ask_user`, `agent`, ...).
 
-### Known limits and remaining work
+Code outside `src/core/harness/` never switches on a harness name; it asks the profile. A missing profile field is
+added to the type, not worked around with a literal.
 
-- Only macOS was executed. Linux and WSL 2 are covered by the CI definition and by portable-API review
-  ([COMPATIBILITY.md](COMPATIBILITY.md)); nothing was pushed, so the CI jobs have been parsed, not run.
-- A tool call that the capture hook records still costs one short hook process (about 40 ms). Narrowing those hooks, or
-  reading the harness transcript once at the end of the session instead, would remove it; it was left alone because it
-  changes what the capture sees.
-- A session start no longer starts a background index run at all. codegraph brings its own index up to date when its
-  server starts (checked: a file added while no server ran was in the index right after the next start), the launcher of
-  that server builds the first index of a project that has none, and semble re-indexes when it searches. In a folder that
-  holds several projects no server is started for the children, so their indexes are built on demand (`buracle index
-  ensure --cwd <project>`, which the context line tells the agent to run), not in the background; the pre-warming of
-  semble at session start is gone too, so the first semble search of a session pays for its own indexing.
-- The Bun memory server is the largest part of a terminal's memory (it holds the runtime and a cache of the brain's
-  listing). It was not tuned.
-- The third-party MCP servers (codegraph, semble, context7, the web servers) are untouched and are the heaviest
-  processes of a terminal.
-- Rows written before 0.6 keep their `expires` date as data: they are hidden when it passes but the engine does not drop
-  them. A recall updates counters, so two simultaneous recalls can lose one count.
-- CortexDB's behaviour was verified on 2.139.0 only; the first read of a brain in a process lists the whole file
-  (capped at 20,000 rows).
-- The first commit of this work (Remove Context Mode, embeddings and background maintenance) states its size as "~13k source
-  lines and ~25k test lines fewer". Measured against 0.5.0 the net change at that commit was about 11.6k fewer source lines
-  and 8.3k fewer test lines; the table above has the final figures.
+Adding a harness takes:
+
+1. a profile file and its line in `src/core/harness/index.ts`;
+2. a minimum version in `src/engine/update/min-versions.ts` and any gaps in `src/adapters/shared/host-limits.ts`;
+3. an adapter in `src/adapters/<id>/` that implements `Adapter` from `src/adapters/registry.ts` (`detect`, `build`,
+   `installPlan`, `doctor`, and `hook` or an in-process runtime) and its line in the registry, written thin because
+   decisions come from the pipeline;
+4. bindings for it in `canonical/hooks.yaml` and `canonical/statusline.yaml`, and an `except:` on any server it should
+   not get in `canonical/mcp.yaml`.
+
+For a command-hook harness, step 3 is small because the wiring lives once in `src/adapters/shared/command-host/`: the
+default `PipelineDeps` (`commandDeps`: step log, lazily loaded memory modules, workspace readers, UI hooks), the event
+frame (`runFrame`: parse stdin, session-id handling, the guard-only path, the memory-runner skip) and the events every
+such host runs the same way (`startContext`, `promptContext`, `guardTool`, `afterTool`, `stopReason`). The adapter keeps
+its codec (`shared/claude-dialect.ts` for the Claude-shaped ones: decode the native payload, encode the pipeline's
+decision) and the steps only its host has. Qwen Code and AGY CLI are written this way; Claude Code and Codex use the
+workspace readers and the log and payload helpers and keep their native-only events.
+
+The parity tests (`tests/adapters/parity.test.ts`) fail until each of these is consistent.
+
+## Transactions and the ownership ledger
+
+Every write into a harness's folder is a `Plan` (`{ id, harness, ops }`) applied by `applyPlans()` in
+`src/engine/txn.ts`. An op is a `file`, a `json-merge` / `jsonc-merge` / `yaml-merge`, `toml-tables`, an `md-block`, a
+`symlink`, a `remove`, an `exec` (with its undo) and a few list and rekey merges; every op names its `owner`. A
+transaction takes a lock, backs up what it will touch under `~/.buracle/backups/<txn>`, journals, writes atomically,
+verifies and records every written path in the ownership ledger `~/.buracle/state/owned.json`.
+
+The ledger keeps user files safe. A file that exists but is not in the ledger, or whose hash changed since Buracle wrote
+it, becomes a conflict and Buracle keeps the user's version. Uninstall removes only what the ledger proves Buracle
+wrote. An unreadable ledger stops the run; nothing writes an empty one. A failed transaction rolls itself back. A
+journal left `applying` or `rollback-failed` by a crash is finished by `repairUnsettled()` before `buracle install` or
+`buracle update` write anything, and when it cannot be finished they stop with a message. Every path comes from
+`src/engine/paths.ts`, which honors `HOME` and `BURACLE_HOME`; that is how tests and development builds stay out of the
+real folders.
+
+Install runs in this order: build the generated files, copy the checkout to a frozen runtime under
+`~/.buracle/runtime/<id>` and check the copy, install the toolchain, then apply the core plan, the skills plan and one
+plan per detected harness, each its own transaction (`src/engine/update/install-core.ts` composes them). A harness that
+fails rolls back alone. Hooks and the CLI run the frozen runtime, so a checkout edit reaches them at the next install.
+
+## The Brain
+
+One CortexDB file, `~/.buracle/brain/brain.db`, holds every memory. CortexDB's own buckets separate the scopes: the
+person is scope `user` with user id `person`, and each project is scope `global` with its slug as the namespace. A
+`memory_id` is global in CortexDB, so `src/memory/store.ts` is the only place that prefixes it: `u/<id>` for the person
+and `p/<slug>/<id>` for a project. Everything above the store sees plain ids. One `cortexdb-mcp` child serves a
+terminal. The required CortexDB is 2.137.0 or newer (`CORTEXDB_MIN_VERSION` in `src/engine/toolchain/cortexdb.ts`); the
+install otherwise takes the latest release after it passes the memory check, with the brain backed up first.
+
+A memory has a kind, title, summary, body, tags, cited files, `about` entities, importance and the two fields that
+separate fact from inference: `origin` (`explicit` or `inferred`) and `confidence`. Native CortexDB fields do the
+bookkeeping: `ttl_seconds` (sessions 45 days, handoffs 14), `supersedes`, `importance`, `review_status`, entities and
+relations for graph retrieval. Secrets are masked by one module, `src/core/memory/redact.ts`, on every write path. An
+inferred write never changes an explicit, pinned or verified memory; it is stored beside it, marked as contradicting.
+
+Capture is small. The adapters append redacted entries to a session spool file and start no process for it: the
+prompt, the turn or stop, a compaction and a note. The files a session touched come from git (`git diff --name-only` since the
+session started, plus untracked files). When a session ends, one detached, bounded `buracle mem finalize`
+(`src/memory/finalize.ts`) writes the session memory, files the preferences the user stated, asks a harness CLI with
+usage headroom for the durable findings (validated as a whole before anything is written) and settles up to three
+older sessions. `buracle mem capture` runs the same code on demand.
+
+What is swept, and when: `finalize` ends by calling CortexDB's `sweep_expired`, which deletes the session and handoff
+memories whose time has run out (a time to live only hides a row until then); it also drops old redaction and session
+records, stale spools and dead locks. A brain backup is a copy of the whole file (`src/memory/backup.ts`); a session end
+takes one when the newest is over a day old and keeps the newest ten. Nothing else runs in the background: no timers and
+no start-up jobs.
+
+## Generation and drift
+
+`buracle build` runs every adapter's generator over `canonical/` and `src/core/` and writes `harness/<harness>/`,
+`harness/agents-skills/` and `harness/hook-data.json`. Output is deterministic (no timestamps, stable key order) and
+every file is listed in `harness/.manifest.json`; only listed files are ever deleted as stale. It also writes the command
+summary skill reference (the one generated file that stays committed, under `canonical/`) and `docs/reference/` (local,
+outside git). `harness/` itself is not committed on `dev`: the `release` job in CI builds it into the release tree, so
+`main` holds it, and `buracle install` / `buracle update` build it first in a checkout that has none. `buracle build
+--check` writes nothing: it builds twice into temporary output roots and fails unless the two trees are byte-identical
+and the manifest lists exactly the files written; when a local `harness/` exists it is compared too, and the
+committed command reference always is. Because every CLI run refreshes `$BURACLE_HOME/state/runtime-config.json`, which installed harnesses read, development runs point `HOME`
+and `BURACLE_HOME` at a temp folder.
+
+The three release checks (typecheck, determinism check, tests) run in CI on macOS arm64 and Linux x64; `AGENTS.md` has the
+commands and the branch model.

@@ -7,6 +7,9 @@ import { adapter as claude } from './claude/index'
 import { adapter as codex } from './codex/index'
 import { adapter as opencode } from './opencode/index'
 import { adapter as omp } from './omp/index'
+import { adapter as qwen } from './qwen/index'
+import { adapter as pi } from './pi/index'
+import { adapter as agy } from './agy/index'
 
 export interface AdapterContext { repoRoot: string; config: BuracleConfig; canonical: CanonicalBundle; paths: typeof import('../engine/paths'); buracleBin: string }
 export interface Adapter {
@@ -21,7 +24,7 @@ export interface Adapter {
 
 export interface HookFailure extends Error { hookResult: { stdout: string, exitCode: number } }
 
-const ADAPTERS: Readonly<Record<Harness, Adapter>> = { claude, codex, opencode, omp }
+const ADAPTERS: Readonly<Record<Harness, Adapter>> = { claude, codex, opencode, omp, qwen, pi, agy }
 
 export function getAdapter(h: Harness): Adapter {
   return ADAPTERS[h]

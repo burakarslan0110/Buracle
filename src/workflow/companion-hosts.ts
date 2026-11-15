@@ -1,3 +1,4 @@
+import { harnessTable } from '../core/harness/index'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -16,7 +17,7 @@ import { MEMORY_RUNNER_DIR_PREFIX } from '../memory/spawn'
 export const COMPANION_MCP: readonly string[] = COMPANION_MCP_SERVERS
 export const OPENCODE_COMPANION_AGENT = 'buracle-companion'
 export const COMPANION_DIR_PREFIX = `${MEMORY_RUNNER_DIR_PREFIX}companion-`
-export const COMPANION_BIN: Readonly<Record<Harness, string>> = { claude: 'claude', codex: 'codex', opencode: 'opencode', omp: 'omp' }
+export const COMPANION_BIN: Readonly<Record<Harness, string>> = harnessTable(p => p.bin)
 
 const CLAUDE_SHELL_ALLOW: readonly string[] = ['git status *', 'git diff *', 'git log *', 'git show *', 'git ls-files *', 'git blame *', 'git merge-base *', 'git rev-parse *', 'rg *']
 const CLAUDE_SHELL_DENY: readonly string[] = ['git *--output*', 'rg *--pre*', 'rg *--hostname-bin*']
@@ -169,7 +170,12 @@ const omp: CompanionHost = {
   prepare: o => ({ argv: ompArgv(o.agent, o.repo, o.timeoutMs), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
 }
 
-const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp }
+// A harness Buracle has no second-opinion run for yet: choosing it fails that attempt and the next target is tried.
+function pendingHost(harness: Harness): CompanionHost {
+  return { harness, shell: false, scratch: false, prepare: () => { throw new Error(`a second opinion from ${harness} is not supported yet`) } }
+}
+
+const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen: pendingHost('qwen'), pi: pendingHost('pi'), agy: pendingHost('agy') }
 
 export const companionTestHooks: { extraArgs?: (h: Harness) => string[] } = {}
 

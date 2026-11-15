@@ -370,7 +370,7 @@ async function refreshBand($: EngineInterface, S: ModState, force = false): Prom
     const state = await loadSessionState($, rt, sid)
     S.planPath = state.plan?.path
     const files: Core.BandFiles = {
-      sid, now: await nowMs($), state, band: rt.cfg.workflow.band, foldAfterSec: rt.cfg.workflow.foldAfterSec,
+      sid, now: await nowMs($), state, band: rt.cfg.workflow.band, foldAfterSec: Core.FOLD_AFTER_SEC,
       flow: raw === undefined ? undefined : Core.parseFlow(parseJson(raw)) ?? 'keep',
     }
     const planText = state.plan !== undefined ? await readText($, state.plan.path) : undefined
@@ -465,14 +465,6 @@ async function turnEnded($: EngineInterface, S: ModState, durationMs: number, re
     S.suggest = { text: CHECK_SUGGESTION, until: now + 60_000 }
     $.clock.after(1_500, () => void suggestNow($, S))
   }
-  const after = (await runtime($, S)).cfg.workflow.notifyAfterSec
-  if (after > 0 && durationMs >= after * 1000 && reason !== 'aborted') {
-    const run = Core.bandSummary(Core.bandView(Core.bandInputOf(await read($, BAND))))
-    const text = Core.longTurnText(durationMs, after, run)
-    if (text !== undefined) {
-      try { await $.ui.notify(text, { title: 'Buracle' }) } catch (err) { debug($, `notify: ${errText(err)}`) }
-    }
-  }
 }
 
 async function resumeHint($: EngineInterface, S: ModState): Promise<void> {
@@ -515,7 +507,7 @@ async function consentDialog($: EngineInterface, S: ModState, commands: readonly
       break
     }
     if (answer !== ALLOW_ONCE && answer !== ALLOW_SESSION) {
-      return `Buracle H20 (consent.gate): the user refused \`${shown}\` in the consent dialog. Do not run it or anything that does the same; ask the user what they want instead.`
+      return `Buracle H20: the user refused \`${shown}\` in the consent dialog. Do not run it or anything that does the same; ask the user what they want instead.`
     }
     const uses = commands.filter(c => Core.consentNeeds(c).some(n => n.kind === need.kind || (need.kind === 'force-push' && n.kind === 'push'))).length
     const grant: Core.ConsentGrant = answer === ALLOW_SESSION
@@ -594,7 +586,7 @@ async function masked($: EngineInterface, S: ModState, toolUseId: string, ran: T
 }
 
 async function contextToast($: EngineInterface, S: ModState, pct: number | undefined): Promise<void> {
-  const w = Core.contextWatch(S.warned, pct, (await runtime($, S)).cfg.context)
+  const w = Core.contextWatch(S.warned, pct)
   S.warned = w.warned
   if (w.warn === undefined || pct === undefined) return
   const critical = w.band === 'critical'

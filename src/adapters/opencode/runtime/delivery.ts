@@ -8,9 +8,10 @@ export interface PendingPrompt {
   delivery: 'steer' | 'queue'
   route?: PromptRoute
   attach: string[]
-  guidance?: string
+  /** The prompt's context from the pipeline, around the routing note: several prompts delivered together share one note. */
+  before: string[]
   text?: string
-  notice?: string
+  after: string[]
   workflows?: string[]
   delivered?: boolean
 }
@@ -64,9 +65,7 @@ export function mergeRoutes(routes: readonly PromptRoute[], compiled: CompiledTr
   const candidates = [...invoked, ...load].some(explicit) ? [] : union([...asks.slice(ROUTE_CAPS.load), ...routes.flatMap(r => r.candidates)])
     .filter(id => !explicit(id) && !invoked.includes(id) && !load.includes(id)).slice(0, ROUTE_CAPS.candidates)
   const categories = union(routes.flatMap(r => r.categories)).slice(0, ROUTE_CAPS.categories)
-  const memory: PromptRoute['memory'] = { recall: routes.some(r => r.memory.recall), write: routes.some(r => r.memory.write) }
-  if ((memory.recall || memory.write) && routes.some(r => r.memory.cli === true)) memory.cli = true
-  const merged: PromptRoute = { invoked, load, candidates, categories, memory }
+  const merged: PromptRoute = { invoked, load, candidates, categories }
   const libs = union(routes.flatMap(r => r.libs ?? []))
   if (libs.length > 0 && categories.some(id => compiled.categories.some(c => c.id === id && c.deps !== undefined))) merged.libs = libs.slice(0, 3)
   return merged
@@ -83,6 +82,6 @@ export function deliveredPrompts(taken: readonly PendingPrompt[], compiled: Comp
   }
   const parts: string[] = []
   const planMode = readOnly ? taken.flatMap(p => p.workflows ?? []).map(w => readOnlyStartNotice(w, 'opencode')).find(n => n !== undefined) : undefined
-  for (const t of [planMode, ...taken.map(p => p.guidance), text, ...taken.map(p => p.notice)]) if (t !== undefined && t.trim() !== '' && !parts.includes(t)) parts.push(t)
+  for (const t of [planMode, ...taken.flatMap(p => p.before), text, ...taken.flatMap(p => p.after)]) if (t !== undefined && t.trim() !== '' && !parts.includes(t)) parts.push(t)
   return route !== undefined ? { route, parts } : { parts }
 }

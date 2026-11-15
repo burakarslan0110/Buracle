@@ -12,7 +12,6 @@ export interface InstalledPackage {
   extras?: string[]
   python?: string
   links?: string[]
-  previous?: { version: string }
   rolled_back?: string
   installed_at: string
 }

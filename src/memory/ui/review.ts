@@ -3,10 +3,10 @@ import { basename, dirname, join } from 'node:path'
 import { HARNESSES } from '../../core/events'
 import { docDirOf } from '../../core/plan/doc-dirs'
 import { dropNote, editNote, openNotes, parseNoteInput, withNote, type ReviewNotesFile, REVIEW_DOC_DIRS } from '../../core/plan/notes'
+import { loadConfigSync } from '../../engine/config'
 import * as paths from '../../engine/paths'
 import { tilde } from '../../engine/update/output'
 import { listWorktrees, realish, repoFacts, type RepoFacts } from '../../workflow/gitx'
-import { notificationsFile } from '../../workflow/notify'
 import { analyzePlan } from '../../workflow/plan-file'
 import { changesTarget, checkoutId, docId, docTarget, newNoteId, readNotes, repoKey, updateNotes, type NotesTarget } from '../../workflow/review-notes'
 import { diagramSvgs } from '../../workflow/diagram'
@@ -17,11 +17,10 @@ import { UiApiError } from './api'
 const DOCS_PER_REPO = 80
 const DOC_MAX_BYTES = 1024 * 1024
 const SESSION_FRESH_MS = 7 * 24 * 60 * 60 * 1000
-const ASK_FRESH_MS = 2 * 24 * 60 * 60 * 1000
 const LIST_CACHE_MS = 4000
 const DIAGRAMS_PER_DOC = 30
 
-export interface ReviewSessionMark { harness: string, session: string, status: string, phase: string, paused: boolean, reason?: string, since?: string }
+export interface ReviewSessionMark { harness: string, session: string, status: string, phase: string, paused: boolean, reason?: string, since?: string, /** Set while the plan waits for the user's approval: since when. */ awaiting?: string }
 
 export type ReviewDocKind = 'prd' | 'build' | 'audit' | 'bugfix' | 'plan'
 
@@ -75,7 +74,11 @@ function docInfo(path: string, s: { mtimeMs: number, size: number }): { title?: 
   return out
 }
 
+const APPROVED_STATUSES: ReadonlySet<string> = new Set(['APPROVED', 'IN_PROGRESS', 'COMPLETE', 'VERIFIED'])
+
 function boundPlans(nowMs: number): Map<string, ReviewSessionMark> {
+  let planApprovalOn = true
+  try { planApprovalOn = loadConfigSync().config.plan.planApproval !== false } catch { planApprovalOn = true }
   const out = new Map<string, ReviewSessionMark & { at: number }>()
   for (const h of HARNESSES) {
     let dirs: string[] = []
@@ -85,7 +88,7 @@ function boundPlans(nowMs: number): Map<string, ReviewSessionMark> {
       let at: number
       try { at = statSync(file).mtimeMs } catch { continue }
       if (nowMs - at > SESSION_FRESH_MS) continue
-      let st: { plan?: { path?: unknown, status?: unknown, phase?: unknown }, interaction?: { state?: unknown, reason?: unknown, since?: unknown } }
+      let st: { plan?: { path?: unknown, status?: unknown, phase?: unknown, type?: unknown }, approvals?: { planApprovedAt?: unknown }, interaction?: { state?: unknown, reason?: unknown, since?: unknown } }
       try { st = JSON.parse(readFileSync(file, 'utf8')) as typeof st } catch { continue }
       const p = st.plan
       if (p === undefined || typeof p.path !== 'string') continue
@@ -93,30 +96,19 @@ function boundPlans(nowMs: number): Map<string, ReviewSessionMark> {
       const prev = out.get(key)
       if (prev !== undefined && prev.at >= at) continue
       const paused = st.interaction?.state === 'paused'
+      // The plan waits for the user's approval when its session state says what the stop guard reads to let such a
+      // turn end (`awaiting-approval`): the plan phase, not approved, not a build contract, approval asked for.
+      const approved = st.approvals?.planApprovedAt !== undefined || (typeof p.status === 'string' && APPROVED_STATUSES.has(p.status))
+      const awaiting = p.phase === 'plan' && !approved && (paused || (p.type !== 'Build' && planApprovalOn))
       out.set(key, {
         at, harness: h, session: sid, status: typeof p.status === 'string' ? p.status : '', phase: typeof p.phase === 'string' ? p.phase : '', paused,
+        ...(awaiting ? { awaiting: new Date(paused && typeof st.interaction?.since === 'number' ? st.interaction.since : at).toISOString() } : {}),
         ...(paused && typeof st.interaction?.reason === 'string' ? { reason: st.interaction.reason.slice(0, 200) } : {}),
         ...(paused && typeof st.interaction?.since === 'number' ? { since: new Date(st.interaction.since).toISOString() } : {}),
       })
     }
   }
   return new Map([...out].map(([k, { at: _at, ...v }]) => [k, v]))
-}
-
-function approvalAsks(nowMs: number): Map<string, string> {
-  const out = new Map<string, string>()
-  let text = ''
-  try { text = readFileSync(notificationsFile(), 'utf8') } catch { return out }
-  for (const line of text.split('\n').slice(-400)) {
-    if (line.trim() === '') continue
-    try {
-      const r = JSON.parse(line) as { type?: unknown, plan?: unknown, ts?: unknown }
-      if ((r.type !== 'plan_approval' && r.type !== 'prd_approval') || typeof r.plan !== 'string' || typeof r.ts !== 'string') continue
-      if (nowMs - Date.parse(r.ts) > ASK_FRESH_MS) continue
-      out.set(realish(r.plan), r.ts)
-    } catch {  }
-  }
-  return out
 }
 
 function docFiles(top: string): string[] {
@@ -153,7 +145,7 @@ function docKind(rel: string, type: string | undefined): ReviewDocKind {
   return 'plan'
 }
 
-function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessionMark>, asks: Map<string, string>): { doc: ReviewDoc, facts: RepoFacts } | undefined {
+function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessionMark>): { doc: ReviewDoc, facts: RepoFacts } | undefined {
   const t = docTarget(facts, path)
   if (t === undefined || t.doc === undefined) return undefined
   let modified = ''
@@ -167,16 +159,16 @@ function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessi
   const rel = t.doc.rel
   const name = rel.slice(rel.lastIndexOf('/') + 1).replace(/\.md$/, '')
   const meta = metaForPlan(facts.commonDir, t.doc.path)
-  const changes = meta !== undefined && meta.lane !== true && existsSync(meta.path) ? checkoutId(meta.path) : checkoutId(facts.top)
+  const changes = meta !== undefined && existsSync(meta.path) ? checkoutId(meta.path) : checkoutId(facts.top)
   const mark = marks.get(t.doc.path)
-  const ask = asks.get(t.doc.path)
   const doc: ReviewDoc = {
     id: docId(t.doc.path), path: t.doc.path, rel, dir: rel.split('/')[1] ?? '', kind: docKind(rel, info.type), title: info.title ?? name, modified, ...counts(t), changes,
     ...(info.type !== undefined ? { type: info.type } : {}),
     ...(info.status !== undefined ? { status: info.status } : {}),
     ...(info.approved !== undefined ? { approved: info.approved } : {}),
     ...(mark !== undefined ? { session: mark } : {}),
-    ...(ask !== undefined ? { asked: ask } : {}),
+    // "Waiting for your approval" is read from the session's plan state alone; nothing else records the ask.
+    ...(mark?.awaiting !== undefined ? { asked: mark.awaiting } : {}),
   }
   return { doc, facts }
 }
@@ -202,9 +194,8 @@ async function build(nowMs: number): Promise<Listing> {
     if (root !== undefined) await add(root, slug, rec.ownerRepo !== undefined && rec.ownerRepo !== '' ? rec.ownerRepo : undefined)
   }
   const marks = boundPlans(nowMs)
-  const asks = approvalAsks(nowMs)
   const pinned = new Map<string, RepoFacts>()
-  for (const p of new Set([...marks.keys(), ...asks.keys()])) {
+  for (const p of marks.keys()) {
     if (!existsSync(p)) continue
     const facts = await factsOf(dirname(p), nowMs)
     if (facts === undefined) continue
@@ -224,7 +215,7 @@ async function build(nowMs: number): Promise<Listing> {
       if (seen.has(real)) continue
       seen.add(real)
       if (list.length >= DOCS_PER_REPO && !r.extra.has(p)) break
-      const e = docEntry(real, pinned.get(p) ?? r.facts, marks, asks)
+      const e = docEntry(real, pinned.get(p) ?? r.facts, marks)
       if (e === undefined) continue
       list.push(e.doc)
       docs.set(e.doc.id, e)

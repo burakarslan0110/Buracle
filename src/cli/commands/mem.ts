@@ -3,13 +3,13 @@ import { resolve } from 'node:path'
 import type { CommandIO } from '../router'
 import type { Harness } from '../../core/events'
 import { isHarness } from '../../core/events'
-import { memIsSlug } from '../../core/memory/note'
+import { memIsSlug, memNoteHarness } from '../../core/memory/note'
 import { memSegmentWith } from '../../core/memory/status'
 import * as paths from '../../engine/paths'
 import { resolveSession } from '../../workflow/session-store'
 
 export const name = 'mem'
-export const summary = 'Memory (one CortexDB brain: a bucket per project and one for the person): search, get, write, update, status, capture, backup, migrate, import, web UI'
+export const summary = 'Memory (one CortexDB brain: a bucket per project and one for the person): search, get, write, update, status, capture, backup, web UI'
 export const usage = `Usage: buracle mem <subcommand> [args…] [--json]
 
 The memory lives in one CortexDB file, ~/.buracle/brain/brain.db, with a bucket for each project and one
@@ -54,7 +54,7 @@ Capture (the model-assisted writing, on demand)
 
 Backups and moving a brain (the brain stays on this machine; nothing is synced)
   backup [--keep N]                          copy brain.db (every bucket: a backup is always the whole file, so
-                                             --project and --person are refused; \`export\` saves one bucket)
+                                             --project and --person are refused)
                                              into ~/.buracle/brain/backups/<id>/ and keep the newest 10 copies
   backup --list                              the backups, newest first, with the buckets each holds
   restore ID (--project SLUG | --person | --all)
@@ -63,26 +63,8 @@ Backups and moving a brain (the brain stays on this machine; nothing is synced)
                                              --person take only that bucket out of the backup and leave the
                                              others as they are. The brain as it was goes into a
                                              pre-restore backup first.
-  migrate [--status | --dry-run | --rollback [--force] | --purge-legacy]
-                                             fold the per-layer files of Buracle 0.5 (person.db, projects/)
-                                             into brain.db: verified copies first, nothing deleted, safe to
-                                             run again. It also runs by itself at the first memory call. A large
-                                             file shows how far the copy is on stderr (not with --json).
-                                             --rollback puts the 0.5 files back (brain.db is kept as
-                                             brain.db.rolled-back unless --force); --purge-legacy deletes the
-                                             moved-aside files and the copies
-  export [--project SLUG | --person] [--type K]… [--out FILE]
-                                             the live memories of one brain as JSON lines, secrets masked
-                                             again (decisions, gotchas, procedures, knowledge, references,
-                                             preferences and core pages; --type picks kinds, capture too)
-  import FILE|- [--project SLUG] [--dry-run]
-                                             write an export into this project's brain and the person's
-                                             through memory_write: duplicates and what an earlier import
-                                             brought are skipped, and every memory starts unverified
   project init [--cwd DIR]                   map this folder to its project
-  import-vault [--vault PATH] [--dry-run]    copy the live notes of the old Obsidian vault into the
-                                             brains once (the vault is only read)
-  doctor [--no-mcp]                          CortexDB binary, the brain file and its migration, leak check, MCP handshake
+  doctor [--no-mcp]                          CortexDB binary, the brain file, leak check, MCP handshake
                                              (--json: {"checks":[{level,check,detail}]}; exit 1 errors, 2 warnings)
   ui [--open] [--port N] [--stop]            the Buracle Console (http://localhost:41777): starts it in the
                                              background when it does not run, prints its address. With
@@ -98,7 +80,6 @@ Backups and moving a brain (the brain stays on this machine; nothing is synced)
                                              stops by the same rule)
 
 Sessions (called by hooks; nothing is recorded under BURACLE_NO_CAPTURE=1)
-  start --harness H --session SID [--cwd DIR]
   finalize --harness H --session SID [--detach]
                                              the session end: the same work as capture, then up to 3 other
                                              stale sessions (--detach starts it in the background)
@@ -110,10 +91,10 @@ Global: --json for machine-readable output. Exit codes: 0 ok, 1 error, 2 user ac
 interface Parsed { pos: string[], flags: Map<string, string[]>, bools: Set<string> }
 
 const VALUE_FLAGS = new Set([
-  'vault', 'cwd', 'project', 'style', 'scope', 'layer', 'type', 'kind', 'status', 'since', 'until', 'limit', 'max-tokens',
+  'cwd', 'project', 'style', 'scope', 'layer', 'type', 'kind', 'status', 'since', 'until', 'limit', 'max-tokens',
   'title', 'summary', 'description', 'body', 'body-file', 'source', 'supersedes', 'tag', 'importance', 'review', 'harness',
   'session', 'model', 'port', 'patch', 'reason', 'expected-version', 'branch', 'slug', 'trigger', 'origin', 'confidence',
-  'file', 'about', 'offset', 'around', 'depth', 'keep', 'out', 'page',
+  'file', 'about', 'offset', 'around', 'depth', 'keep', 'page',
 ])
 
 class UsageError extends Error {}
@@ -128,8 +109,7 @@ function parse(argv: string[]): Parsed {
     if (!a.startsWith('--') || a === '--') { pos.push(a); continue }
     const eq = a.indexOf('=')
     const key = a.slice(2, eq > 0 ? eq : undefined)
-    // `--status` takes a value for search (live|any) and none for `migrate --status`.
-    if (VALUE_FLAGS.has(key) && !(key === 'status' && pos[0] === 'migrate')) {
+    if (VALUE_FLAGS.has(key)) {
       const value = eq > 0 ? a.slice(eq + 1) : argv[++i]
       if (value === undefined) throw new UsageError(`--${key} needs a value`)
       flags.set(key, [...(flags.get(key) ?? []), value])
@@ -177,10 +157,9 @@ async function ctxFor(p: Parsed) {
     ...(one(p, 'session') !== undefined ? { session: one(p, 'session') as string } : {}),
     ...(one(p, 'harness') !== undefined ? { harness: one(p, 'harness') as string } : {}),
   })
-  const harnessName = (h: string) => (h === 'claude' ? 'claude-code' : h)
   return session
-    ? cliContext(cwdOf(p), harnessName(session.harness), { session: session.sessionId, agent: true })
-    : cliContext(cwdOf(p), one(p, 'harness') !== undefined ? harnessName(one(p, 'harness') as string) : 'human')
+    ? cliContext(cwdOf(p), memNoteHarness(session.harness), { session: session.sessionId, agent: true })
+    : cliContext(cwdOf(p), one(p, 'harness') !== undefined ? memNoteHarness(one(p, 'harness') as string) : 'human')
 }
 
 function harnessSession(p: Parsed): { h: Harness, sid: string } | undefined {
@@ -208,7 +187,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     if (e instanceof MemoryError) {
       if (json) io.stdout.write(JSON.stringify({ error: e.code, message: e.message, ...(e.data ?? {}) }, null, 2) + '\n')
       else io.stderr.write(`buracle mem ${sub}: ${e.message}\n`)
-      return e.code === 'conflict' || e.code === 'store_unavailable' || e.code === 'no_project' || e.code === 'migrating' ? 2 : 1
+      return e.code === 'conflict' || e.code === 'store_unavailable' || e.code === 'no_project' ? 2 : 1
     }
     io.stderr.write(`buracle mem ${sub}: ${e instanceof Error ? e.message : String(e)}\n`)
     return 1
@@ -323,14 +302,6 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       else io.stdout.write(text)
       return 0
     }
-    case 'start': {
-      const hs = harnessSession(p)
-      if (!hs) { io.stderr.write('buracle mem start: --harness and --session (or a session env var) are required\n'); return 2 }
-      const { sessionStart } = await import('../../memory/finalize')
-      const r = await sessionStart(hs.h, hs.sid, cwdOf(p))
-      out(io, json, r, r.skipped !== undefined ? `skipped: ${r.skipped}` : `session recorded${r.slug !== undefined ? ` (project ${r.slug})` : ''}${r.resumed ? ' (resumed)' : ''}`)
-      return r.skipped === 'invalid-session' ? 2 : 0
-    }
     case 'finalize': {
       const hs = harnessSession(p)
       if (!hs) { io.stderr.write('buracle mem finalize: --harness and --session (or a session env var) are required\n'); return 2 }
@@ -376,20 +347,6 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       out(io, json, r, [`Project: ${r.slug} (${r.scope}) → ${r.db}`, ...r.warnings.map(w => `warning: ${w}`)].join('\n'))
       return 0
     }
-    case 'import-vault': {
-      const { importVault } = await import('../../memory/import-vault')
-      const r = await importVault({ ...(one(p, 'vault') !== undefined ? { vault: resolve(one(p, 'vault') as string) } : {}), ...(p.bools.has('dry-run') ? { dryRun: true } : {}) })
-      if (!r.found) { out(io, json, r, `No old vault at ${r.vault}: nothing to import.`); return 0 }
-      const lines = [`${r.dryRun ? 'Would import' : 'Imported'} ${r.imported.length} memories from ${r.vault} (the vault was only read):`,
-        ...r.imported.map(i => `  + ${i.layer === 'person' ? 'person' : i.project}/${i.id} (${i.kind}) <- ${i.from}`),
-        ...(r.skipped.length > 0 ? [`Skipped ${r.skipped.length}:`, ...r.skipped.slice(0, 40).map(s => `  - ${s.from}: ${s.reason}`)] : [])]
-      out(io, json, r, lines.join('\n'))
-      return 0
-    }
-    case 'migrate': {
-      const { memMigrateCommand } = await import('./mem-migrate')
-      return memMigrateCommand({ json, has: k => p.bools.has(k), out: (value, text) => out(io, json, value, text), progress: line => { io.stderr.write(`buracle mem migrate: ${line}\n`) }, usage: message => { throw new UsageError(message) } })
-    }
     case 'doctor': {
       const { doctorExitCode, memDoctor } = await import('../../memory/doctor')
       const checks = await memDoctor({ cwd: cwdOf(p), mcp: !p.bools.has('no-mcp') })
@@ -398,11 +355,10 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       return doctorExitCode(checks)
     }
     case 'ui': return uiCommand(p, io, json)
-    case 'backup': case 'restore': case 'export': case 'import': {
+    case 'backup': case 'restore': {
       const { memDataCommand } = await import('./mem-data')
       return memDataCommand(sub, {
-        rest, json, one: k => one(p, k), many: k => many(p, k), int: k => int(p, k), has: k => p.bools.has(k), project: () => projectFlag(p),
-        ctx: () => ctxFor(p), stdin: () => stdinText(io), out: (value, text) => out(io, json, value, text), write: text => { io.stdout.write(text) },
+        rest, int: k => int(p, k), has: k => p.bools.has(k), project: () => projectFlag(p), out: (value, text) => out(io, json, value, text),
         usage: message => { throw new UsageError(message) },
       })
     }
@@ -417,8 +373,6 @@ function finalizeText(r: import('../../memory/finalize').FinalizeResult): string
   const lines = [r.memoryId !== undefined ? `session memory: ${r.memoryId}` : r.empty === true ? 'no model turn ran: no session memory' : 'not a project: no session memory']
   const c = r.capture
   if (c !== undefined) {
-    const prefs = c.preferences
-    lines.push(`preferences: ${prefs.written.length > 0 ? `filed ${prefs.written.join(', ')}` : 'none new'}${prefs.superseded.length > 0 ? `; replaced ${prefs.superseded.join(', ')}` : ''}`)
     const d = c.distill
     lines.push(d === undefined ? 'distillation: did not run'
       : d.ran ? `distillation: ${d.candidates.length} memor${d.candidates.length === 1 ? 'y' : 'ies'} written${d.candidates.length > 0 ? ` (${d.candidates.join(', ')})` : ''}`
@@ -473,7 +427,7 @@ async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<numbe
   const ui = await import('../../memory/ui')
   const { loadConfigSync } = await import('../../engine/config')
   const cfg = loadConfigSync({ repoRoot: paths.repoRoot() }).config.memory.ui
-  const port = int(p, 'port') ?? cfg.port
+  const port = int(p, 'port') ?? paths.MEMORY_UI_PORT
   const want = one(p, 'page') ?? 'brain'
   if (want !== 'brain' && want !== 'review') throw new UsageError(`--page must be brain or review (got ${JSON.stringify(want)})`)
   if (p.bools.has('stop')) {

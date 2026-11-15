@@ -1,4 +1,6 @@
-import { lstatSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
+import { NEUTRAL_SKILL_HARNESSES } from '../../core/harness/index'
+import { lstatSync, mkdtempSync, readdirSync, readFileSync, rmdirSync, rmSync, statSync, unlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, posix } from 'node:path'
 import type { Adapter, AdapterContext } from '../../adapters/registry'
 import type { CanonicalBundle } from '../../core/catalog'
@@ -7,20 +9,27 @@ import { atomicWriteSync, readTextSync, realPath, sha256 } from '../fsx'
 import * as paths from '../paths'
 import { buildContext, inCheckout, loadBundle } from './context'
 import { errText, isInside } from './output'
-import { loadCommandInfos, referenceDocs, type CommandInfo } from './reference'
+import { loadCommandInfos, referenceDocs, SKILL_COMMANDS, skillCommandReference, type CommandInfo } from './reference'
 
 export const MANIFEST_REL = 'harness/.manifest.json'
 export const DOCS_PRODUCER = 'docs'
+/** Writes the buracle skill's generated command reference into canonical/; like the docs, it is not a manifest entry. */
+export const SKILL_REFERENCE_PRODUCER = 'skill-reference'
 
 export interface GeneratedFile { path: string; content: string; exec: boolean; by: string }
 export interface ManifestEntry { by: string; sha256: string; exec: boolean }
 export interface BuildManifest { v: 1; files: Record<string, ManifestEntry> }
 
-export type DriftKind = 'changed' | 'missing' | 'stale' | 'mode' | 'manifest'
+export type DriftKind = 'changed' | 'missing' | 'stale' | 'mode' | 'manifest' | 'nondeterministic' | 'unlisted'
 export interface DriftEntry { path: string; kind: DriftKind; by?: string }
 
 export interface BuildOptions {
+  /** The checkout: canonical/, src/ and the config are read from here. */
   repoRoot: string
+  /** Where the generated files are written, read back and compared. Defaults to repoRoot. */
+  outRoot?: string
+  /** With check: false, only compare what is not under harness/ and ignore the manifest (no harness/ on disk). */
+  skipHarnessCompare?: boolean
   check: boolean
   harnesses?: readonly Harness[]
   adapters: readonly Adapter[]
@@ -36,7 +45,7 @@ export type HookDataBuilder = (canonical: CanonicalBundle) => { path: string, co
 
 export const AGENTS_SKILLS_PRODUCER = 'agents-skills'
 export const HOOK_DATA_PRODUCER = 'hook-data'
-const SHARED_SKILL_CONSUMERS: readonly Harness[] = ['codex', 'opencode', 'omp']
+const SHARED_SKILL_CONSUMERS: readonly Harness[] = NEUTRAL_SKILL_HARNESSES
 
 async function defaultSharedSkills(ctx: AdapterContext): Promise<Array<{ path: string, content: string, mode?: number }>> {
   const mod = await import('../../adapters/shared/skills')
@@ -179,6 +188,7 @@ function machinePaths(repoRoot: string): RegExp[] {
 export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
   const report: BuildReport = { ok: false, check: opts.check, producers: [], generated: 0, written: [], removed: [], unchanged: 0, drift: [], errors: [], warnings: [] }
   const repoRoot = opts.repoRoot
+  const outRoot = opts.outRoot ?? repoRoot
   let canonical = opts.canonical
   if (!canonical) {
     const loaded = loadBundle(repoRoot)
@@ -195,6 +205,20 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
   const failed = new Set<string>()
   const bundle = canonical
   await inCheckout(repoRoot, async () => {
+    // The buracle skill's command reference comes from the CLI itself and lands in the skill's source; the
+    // adapters below render this text, so one run brings canonical/ and harness/ up to date together.
+    const skillRef = bundle.skills.find(s => s.id === SKILL_COMMANDS.skill)?.files.find(f => f.path === SKILL_COMMANDS.file)
+    if (skillRef !== undefined) {
+      try {
+        const reg = opts.commands ?? await loadCommandInfos()
+        skillRef.content = skillCommandReference(reg.commands, reg.exitCodes)
+        byProducer.set(SKILL_REFERENCE_PRODUCER, [{ path: SKILL_COMMANDS.rel, content: skillRef.content, exec: false, by: SKILL_REFERENCE_PRODUCER }])
+      } catch (e) {
+        failed.add(SKILL_REFERENCE_PRODUCER)
+        report.errors.push({ source: SKILL_REFERENCE_PRODUCER, error: errText(e) })
+      }
+    }
+
     if (opts.hookData !== false) {
       try {
         const f: unknown = await (opts.hookData ?? defaultHookData)(bundle)
@@ -257,7 +281,7 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
     }
   })
 
-  const needles = machinePaths(repoRoot)
+  const needles = [...machinePaths(repoRoot), ...(outRoot === repoRoot ? [] : machinePaths(outRoot))]
   for (const [by, files] of byProducer) {
     const bad = files.find(f => needles.some(n => n.test(f.content)))
     if (bad) {
@@ -283,7 +307,7 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
   report.producers = [...byProducer.keys()].sort()
   report.generated = fresh.size
 
-  const manifestAbs = join(repoRoot, MANIFEST_REL)
+  const manifestAbs = join(outRoot, MANIFEST_REL)
   const manifestText = readTextSync(manifestAbs)
   let old: BuildManifest = { v: 1, files: {} }
   if (manifestText.ok) {
@@ -294,25 +318,27 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
   const ran = new Set(report.producers)
   const next: BuildManifest = { v: 1, files: {} }
   for (const [p, e] of Object.entries(old.files)) if (!ran.has(e.by) && safeManifestPath(p)) next.files[p] = e
-  for (const f of fresh.values()) if (f.by !== DOCS_PRODUCER) next.files[f.path] = { by: f.by, sha256: sha256(f.content), exec: f.exec }
+  for (const f of fresh.values()) if (f.by !== DOCS_PRODUCER && f.by !== SKILL_REFERENCE_PRODUCER) next.files[f.path] = { by: f.by, sha256: sha256(f.content), exec: f.exec }
   const stale = Object.entries(old.files).filter(([p, e]) => ran.has(e.by) && !fresh.has(p) && safeManifestPath(p)).map(([p]) => p).sort()
   const nextText = renderManifest(next)
 
-  const repoReal = (() => { try { return realPath(repoRoot) } catch { return repoRoot } })()
+  const repoReal = (() => { try { return realPath(outRoot) } catch { return outRoot } })()
   const ordered = [...fresh.values()].sort((a, b) => (a.path < b.path ? -1 : 1))
   if (opts.check) {
+    const skip = opts.skipHarnessCompare === true
     for (const f of ordered) {
-      const d = readDisk(join(repoRoot, f.path))
+      if (skip && f.path.startsWith('harness/')) continue
+      const d = readDisk(join(outRoot, f.path))
       if (!d.exists) report.drift.push({ path: f.path, kind: 'missing', by: f.by })
       else if (d.content === undefined || d.content !== f.content) report.drift.push({ path: f.path, kind: 'changed', by: f.by })
       else if (!sameExec(d, f)) report.drift.push({ path: f.path, kind: 'mode', by: f.by })
       else report.unchanged++
     }
-    for (const p of stale) if (readDisk(join(repoRoot, p)).exists) report.drift.push({ path: p, kind: 'stale', by: old.files[p]?.by })
-    if (!manifestText.ok || manifestText.value !== nextText) report.drift.push({ path: MANIFEST_REL, kind: 'manifest' })
+    if (!skip) for (const p of stale) if (readDisk(join(outRoot, p)).exists) report.drift.push({ path: p, kind: 'stale', by: old.files[p]?.by })
+    if (!skip && (!manifestText.ok || manifestText.value !== nextText)) report.drift.push({ path: MANIFEST_REL, kind: 'manifest' })
   } else {
     for (const f of ordered) {
-      const abs = join(repoRoot, f.path)
+      const abs = join(outRoot, f.path)
       const d = readDisk(abs)
       if (d.exists && d.content === f.content && sameExec(d, f)) { report.unchanged++; continue }
       try {
@@ -323,14 +349,14 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
       }
     }
     for (const p of stale) {
-      const abs = join(repoRoot, p)
+      const abs = join(outRoot, p)
       try {
         assertInsideRepo(abs, repoReal)
         const st = lstatSync(abs)
         if (st.isDirectory()) { report.warnings.push(`${p}: is a directory now; not removed`); continue }
         unlinkSync(abs)
         report.removed.push(p)
-        const top = p.startsWith('harness/') ? join(repoRoot, 'harness') : p.startsWith('docs/reference/') ? join(repoRoot, 'docs', 'reference') : repoRoot
+        const top = p.startsWith('harness/') ? join(outRoot, 'harness') : p.startsWith('docs/reference/') ? join(outRoot, 'docs', 'reference') : outRoot
         removeEmptyDirs(dirname(abs), top)
       } catch (e) {
         if ((e as { code?: string }).code !== 'ENOENT') report.errors.push({ source: old.files[p]?.by ?? 'build', error: `${p}: ${errText(e)}` })
@@ -346,4 +372,58 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
 
 export function hasManifest(repoRoot: string): boolean {
   try { return statSync(join(repoRoot, MANIFEST_REL)).isFile() } catch { return false }
+}
+
+/** True when the checkout holds a built harness/ (a checkout cloned from main does; a dev checkout does not). */
+export function hasBuiltHarness(repoRoot: string): boolean {
+  try { return statSync(join(repoRoot, 'harness')).isDirectory() } catch { return false }
+}
+
+function listFiles(root: string, rel: string, out: string[] = []): string[] {
+  let names: string[]
+  try { names = readdirSync(join(root, rel)).sort() } catch { return out }
+  for (const n of names) {
+    const r = posix.join(rel, n)
+    const st = lstatSync(join(root, r))
+    if (st.isDirectory()) listFiles(root, r, out)
+    else out.push(r)
+  }
+  return out
+}
+
+/**
+ * Builds twice into two throwaway output roots and requires byte-identical trees and a manifest that lists
+ * exactly the files written under harness/. The checkout itself is only read.
+ */
+export async function runDeterminismCheck(opts: Omit<BuildOptions, 'outRoot' | 'check' | 'docs' | 'skipHarnessCompare'>): Promise<BuildReport> {
+  const dirs = [mkdtempSync(join(tmpdir(), 'buracle-build-a-')), mkdtempSync(join(tmpdir(), 'buracle-build-b-'))]
+  try {
+    const reports: BuildReport[] = []
+    for (const outRoot of dirs) reports.push(await runBuild({ ...opts, outRoot, check: false, docs: false }))
+    const first = reports[0] as BuildReport
+    const report: BuildReport = { ...first, check: true, written: [], removed: [], unchanged: 0, drift: [], errors: reports.flatMap(r => r.errors), warnings: first.warnings }
+    const [a, b] = dirs as [string, string]
+    const filesA = listFiles(a, 'harness')
+    const filesB = listFiles(b, 'harness')
+    for (const p of [...new Set([...filesA, ...filesB])].sort()) {
+      const da = readDisk(join(a, p))
+      const db = readDisk(join(b, p))
+      if (!da.exists || !db.exists) report.drift.push({ path: p, kind: 'nondeterministic' })
+      else if (da.content !== db.content || da.exec !== db.exec) report.drift.push({ path: p, kind: 'nondeterministic' })
+      else report.unchanged++
+    }
+    const mt = readTextSync(join(a, MANIFEST_REL))
+    const manifest = mt.ok ? parseManifest(mt.value) : undefined
+    if (!manifest) report.drift.push({ path: MANIFEST_REL, kind: 'manifest' })
+    else {
+      const listed = new Set(Object.keys(manifest.files).filter(p => p.startsWith('harness/')))
+      const written = new Set(filesA.filter(p => p !== MANIFEST_REL))
+      for (const p of written) if (!listed.has(p)) report.drift.push({ path: p, kind: 'unlisted' })
+      for (const p of listed) if (!written.has(p)) report.drift.push({ path: p, kind: 'missing' })
+    }
+    report.ok = report.errors.length === 0 && report.drift.length === 0
+    return report
+  } finally {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true })
+  }
 }

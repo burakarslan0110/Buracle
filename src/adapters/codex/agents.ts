@@ -1,7 +1,7 @@
 import type { AgentDoc, RuleDoc, SkillDoc } from '../../core/catalog'
 import { tomlValue } from '../../engine/merge'
 import { renderMarkdown } from '../shared/render'
-import { pathGlobs } from '../shared/rules'
+import { pathRulesPointer } from '../shared/rules'
 import { oneLine } from '../shared/skills'
 
 export function tomlMultiline(s: string): string {
@@ -42,10 +42,6 @@ export function reviewAgentIds(agents: readonly AgentDoc[]): string[] {
   return agents.filter(a => a.frontmatter['output'] === 'json').map(a => a.id).sort()
 }
 
-function shortGlob(g: string): string {
-  return g.replace(/^\*\*\//, '')
-}
-
 export interface AgentsBlockInput {
   rules: readonly RuleDoc[]
   pathRulesDir: string
@@ -65,12 +61,11 @@ export function codexCommandsSection(skills: readonly SkillDoc[]): string {
   return [
     '# Buracle commands in Codex',
     '',
-    `Codex has no custom slash commands. Where the other harnesses use \`/<id>\`, the user starts a Buracle workflow here with \`$<id>\`${forms.length > 0 ? ` (${forms.join(', ')})` : ''}; any other skill is \`$<id>\` too. Buracle's own commands have these equivalents in Codex; run them for the user when they ask for one:`,
-    '- `/remember <text>`: `buracle mem remember -- "<text>"` saves it to memory as a capture; for a typed memory, follow the `$memory` protocol (memory_search, then memory_write).',
-    '- `/brain`: `buracle mem ui --open` starts the Buracle Console and opens it.',
-    '- `/brain review`: `buracle mem ui --open --page review` opens the review page, where the user reads plans, build contracts, PRDs and your changes and pins notes to them; `buracle plan notes --json` reads the open notes.',
-    '- `/buracle-status`: `buracle plan status --json`, `buracle flow status` and `buracle mem status` show the plan, the running workflow and the memory.',
-    '- `/aside <question>`: Codex\'s own `/side` asks a side question without changing this conversation.',
+    `Codex has no custom slash commands. A workflow or a skill starts with \`$<id>\`${forms.length > 0 ? ` (${forms.join(', ')})` : ''}. When the user asks for one of these, run it:`,
+    '- `/remember <text>`: `buracle mem remember -- "<text>"`; a typed memory follows `$memory`.',
+    '- `/brain`: `buracle mem ui --open`; `/brain review`: `buracle mem ui --open --page review`.',
+    '- `/buracle-status`: `buracle plan status --json` and `buracle mem status`.',
+    '- `/aside <question>`: Codex\'s own `/side`.',
   ].join('\n')
 }
 
@@ -82,29 +77,8 @@ export function codexAgentsBlock(input: AgentsBlockInput, warnings: string[] = [
     '_Managed by Buracle (`buracle install`). The source is `canonical/rules/` in the Buracle repo; edits inside this block stop future updates of it._',
   ]
   for (const r of always) parts.push(renderMarkdown(r.body, 'codex', { ...opts, file: r.file }, warnings).trim())
-  parts.push([
-    '# Memory',
-    '',
-    '- Each session starts with a short Buracle memory text: the user\'s profile, the project\'s memories and the person\'s (one CortexDB brain per project under `~/.buracle/brain`), titles and one-line summaries with ids.',
-    '- Treat it as a table of contents. Fetch details with the `buracle-memory` MCP tools: `memory_search`, then `memory_get`; `memory_status` shows its health.',
-    '- Without the MCP server, use the CLI twins: `buracle mem search "<q>"`, `buracle mem get <id>`, `buracle mem remember -- "<text>"`.',
-    '- Codex\'s own memories feature stays off and nothing is written to `~/.codex/memories`; Buracle\'s brain is the single memory.',
-  ].join('\n'))
   parts.push(codexCommandsSection(input.skillDocs ?? []))
-  if (paths.length > 0) {
-    const rows = paths.map(r => {
-      const globs = pathGlobs(r).map(g => `\`${shortGlob(g)}\``).join(', ')
-      return `| ${r.id} | ${globs === '' ? '—' : globs} | \`${input.pathRulesDir}/${r.id}.md\` |`
-    })
-    parts.push([
-      '# Path-scoped rules',
-      '',
-      'Before you edit or create a file that matches a pattern below, read that rule file once per session and follow it.',
-      '',
-      '| Rule | Files | Read |',
-      '|---|---|---|',
-      ...rows,
-    ].join('\n'))
-  }
+  const pointer = pathRulesPointer(paths.map(r => r.id), input.pathRulesDir)
+  if (pointer !== undefined) parts.push(pointer)
   return parts.join('\n\n') + '\n'
 }

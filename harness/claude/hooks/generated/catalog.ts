@@ -20,7 +20,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "buracle-memory",
       "routing": [
@@ -34,7 +37,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "harnesses": [
         "claude",
         "codex",
-        "opencode"
+        "opencode",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "chrome-devtools",
       "routing": [
@@ -49,7 +55,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "codegraph",
       "routing": [
@@ -64,7 +73,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "context7",
       "routing": [
@@ -79,7 +91,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "grep",
       "routing": [
@@ -94,7 +109,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "semble",
       "routing": [
@@ -109,7 +127,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "web-fetch",
       "routing": [
@@ -124,7 +145,10 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
         "claude",
         "codex",
         "opencode",
-        "omp"
+        "omp",
+        "qwen",
+        "pi",
+        "agy"
       ],
       "id": "web-search",
       "routing": [
@@ -150,18 +174,11 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "userInvocable": true
     },
     {
-      "description": "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
+      "description": "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
       "id": "buracle",
       "invocation": "implicit",
       "short": "When and how to call the buracle helper CLI",
       "userInvocable": false
-    },
-    {
-      "description": "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one or wait for it. The lead merges and ticks the plan. Run only when the user asks to join a board.",
-      "id": "buracle-join",
-      "invocation": "explicit",
-      "short": "Take and finish tasks of a shared plan board as a worker",
-      "userInvocable": true
     },
     {
       "description": "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.",
@@ -231,13 +248,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "research",
       "invocation": "implicit",
       "short": "Cited, MCP-backed research across web, library docs, public code and memory",
-      "userInvocable": true
-    },
-    {
-      "description": "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.",
-      "id": "security-audit",
-      "invocation": "implicit",
-      "short": "Cloudflare's security-audit skill, Buracle's default security review",
       "userInvocable": true
     }
   ]

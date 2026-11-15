@@ -32,7 +32,7 @@ whether the skill will actually be picked and followed.
 - [ ] A "Done means" list of observable evidence.
 - [ ] Numbered phases, each ending with a gate or an output.
 - [ ] Every external step names its tool: the MCP server (and tool) or the exact command.
-- [ ] Only documented `buracle` subcommands (the `buracle` skill (read `${CODEX_HOME:-~/.codex}/skills/buracle/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://buracle` in Oh My Pi) lists them).
+- [ ] Only documented `buracle` subcommands (the `buracle` skill lists them).
 - [ ] Failure handling for the failures that will really happen.
 - [ ] One short, realistic example.
 - [ ] Self-contained: no "as discussed above"; the skill runs in fresh sessions.
@@ -41,12 +41,9 @@ whether the skill will actually be picked and followed.
 
 ## Portability
 
-- [ ] No harness tool names outside harness-only blocks.
-- [ ] Placeholders only in the five allowed forms (`ask_user`, `todo`, `spawn_agent`,
-      `skill:<id>`, `agent:<id>`, each in double curly braces).
-- [ ] Harness-only blocks only where behavior truly differs; when a step needs a per-harness value
-      (such as a script path), every harness gets a block.
-- [ ] Project skills contain no placeholders and no harness-only blocks at all.
+- [ ] No harness tool names: neutral wording ("your structured-question tool", "the `<id>` skill").
+- [ ] No render placeholders (double curly braces) and no harness-only blocks.
+- [ ] A fact that differs per harness is one sentence or a short labelled list, in the one text.
 
 ## Scripts
 

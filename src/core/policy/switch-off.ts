@@ -12,11 +12,11 @@ export interface ConfigParsers {
   yaml?: (text: string) => unknown
 }
 
-const HOME_PREFIX = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)(?=\/|$)/i
+const HOME_PREFIX = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i
 
-// PowerShell runs these profiles at every start, on Windows (Documents, OneDrive's too) and in pwsh's ~/.config.
-const POWERSHELL_PROFILE = /^(?:(?:onedrive[^/]*\/)?documents\/(?:windows)?powershell|\.config\/powershell)\/[^/]*profile\.ps1$/
-const POWERSHELL_PROFILE_DIR = /^(?:(?:onedrive[^/]*\/)?documents\/(?:windows)?powershell|\.config\/powershell)$/
+// pwsh runs the profiles in ~/.config/powershell at every start.
+const POWERSHELL_PROFILE = /^\.config\/powershell\/[^/]*profile\.ps1$/
+const POWERSHELL_PROFILE_DIR = /^\.config\/powershell$/
 
 const SHELL_STARTUP: readonly string[] = [
   '.zshrc', '.zshenv', '.zprofile', '.zlogin', '.bashrc', '.bash_profile', '.bash_login', '.profile',
@@ -228,9 +228,9 @@ const SHELL_ASSIGN = new RegExp([
   `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES.replace('|HOME|', '|')})\\b`,
 ].join('|'))
 const POWERSHELL_ASSIGN = new RegExp([
-  `\\$env:(?:${NAMES}|USERPROFILE)\\s*\\+?=`,
-  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES}|USERPROFILE)\\b`,
-  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES}|USERPROFILE)['"]`,
+  `\\$env:(?:${NAMES})\\s*\\+?=`,
+  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES})\\b`,
+  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES})['"]`,
 ].join('|'), 'i')
 const PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES})\\s*</|\\bsetenv\\s+(?:${NAMES})\\b|\\b(?:${NAMES.replace('|HOME|', '|')})\\b`)
 

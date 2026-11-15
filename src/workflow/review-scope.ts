@@ -40,7 +40,7 @@ async function worktreeScope(facts: RepoFacts, m: WorktreeMeta, baseOverride?: s
   } else {
     scope.note = `the worktree directory ${m.path} no longer exists; the range covers the branch ${m.branch}`
   }
-  if (ahead === 0) warnings.push(`${m.branch} has no commits beyond ${base}: the diff is empty${m.synced !== undefined ? ' (it was already squash-merged; review the squash commit instead)' : ''}`)
+  if (ahead === 0) warnings.push(`${m.branch} has no commits beyond ${base}: the diff is empty`)
   if (warnings.length > 0) scope.warning = warnings.join('; ')
   return scope
 }
@@ -157,7 +157,7 @@ export async function resolveReviewScope(slug: string | undefined, cwd: string, 
     if (st.plan !== undefined) {
       const planPath = st.plan.path
       const m = metaForPlan(facts.commonDir, planPath) ?? await resolveMeta(facts, st.plan.slug)
-      if (m !== undefined && m.inferred !== true && m.lane !== true && existsSync(m.path)) scope = await worktreeScope(facts, m, baseArg)
+      if (m !== undefined && m.inferred !== true && existsSync(m.path)) scope = await worktreeScope(facts, m, baseArg)
     }
   }
   if (scope === undefined && facts.branch !== undefined) {

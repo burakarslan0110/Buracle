@@ -1,6 +1,7 @@
 ---
 name: project-rules
 description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules. The user starts it with /project-rules (Codex: $project-rules). When to use: The repo has no agent guidance, or it is stale, bloated or contradicts the code; after tooling changes such as a new package manager, test runner or linter (\"write an AGENTS.md\", \"set up the project rules\", \"update the instructions\", \"slim down the rules\")."
+argument-hint: "[audit | <subdirectory>]"
 metadata:
   short-description: "Generate and verify AGENTS.md and path-scoped rules for a repo"
 ---
@@ -69,6 +70,8 @@ this codebase. Every command and path in them is verified here and now.
 
 Read files with your file-read tool, in narrow ranges. Never `grep -r`, `find … | xargs grep` or
 `cat` dumps. An empty search result is not proof of absence: rephrase once or switch tools.
+MCP tools may be deferred. Load the semble, codegraph, context7 and buracle-memory tools with the
+harness's tool search before concluding that they are unavailable.
 
 ## Progress
 
@@ -83,7 +86,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 
 ## Phases
 
-Track the phases with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).
+Track the phases with your todo tool.
 
 ### 1. Inventory
 
@@ -94,14 +97,14 @@ Track the phases with your plan/todo tool (`update_plan` in Codex, `todowrite` i
   symlinks, and `buracle project check --json` for the drift Buracle already sees.
 - `buracle skills list --json` lists skills of kind `claude-only`: they live only in
   `.claude/skills`, so Codex cannot see them. Offer `buracle project sync --adopt`, which adds a
-  local link and changes no tracked file. Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) before `--adopt --move`: it turns
+  local link and changes no tracked file. Ask with your structured-question tool before `--adopt --move`: it turns
   each tracked folder into a symlink that teammates without Buracle and Windows checkouts without
   symlinks do not follow.
 - List existing guidance in one call:
   `rg --files --hidden -g 'AGENTS.md' -g 'CLAUDE.md' -g '**/.claude/rules/**' -g '**/.agents/**' -g '**/.cursor/rules/**' -g '.github/copilot-instructions.md' -g 'GEMINI.md' -g 'CONTRIBUTING.md'`.
   `CLAUDE.local.md` is usually gitignored, so `rg` skips it: check for it directly with
   `ls CLAUDE.local.md`.
-- Quick memory pass (the `memory` skill: read `${CODEX_HOME:-~/.codex}/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi): at most 3 `memory_search` queries such as
+- Quick memory pass (the `memory` skill): at most 3 `memory_search` queries such as
   `conventions`, `test command`, `<repo name> decision`.
 - Pick the mode: **create** (no guidance yet), **refresh** (guidance exists), **audit** (the user
   asked only for a review: write nothing but the report).
@@ -161,12 +164,12 @@ finding as `path:line — problem — evidence — proposed fix`. In audit mode,
   one read-only call in the current harness and put the result in the report only, since health
   goes stale. Under `## Project tools` add one line each: what it is for and when to consult it.
   In the report, name per server the harnesses that cannot reach it; offer to add the missing
-  declaration only with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi), and say it is a second copy to keep in step. Buracle's global
+  declaration only with your structured-question tool, and say it is a second copy to keep in step. Buracle's global
   servers are already covered by its routing card; do not list them.
 
 **Approval gate.** When you would change or remove human-written content, show a compact summary
 (sections added, removed and changed; line counts before → after; anything dropped and why) and
-ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi): apply, adjust, or cancel. A brand-new file in create mode needs no gate.
+ask with your structured-question tool: apply, adjust, or cancel. A brand-new file in create mode needs no gate.
 
 ### 6. Validate
 
@@ -191,8 +194,7 @@ ask with your structured-question tool (`request_user_input` in Codex, `question
 - **Exit 0:** note what it changed (skill links, the project's memory core pages, `.git/info/exclude`
   entries; it never touches `.gitignore`). Buracle repeats the link step by itself at every session
   start (H28); this run makes it happen now.
-- **Exit 2:** it needs the user; relay its message. If the project was never initialized, run
-  `buracle project init --json`, then sync again.
+- **Exit 2:** it needs the user; relay its message.
 - **Exit 1:** report the error. Never hand-create `.claude/skills` links or edit
   `.claude/settings.local.json`; the CLI owns them.
 
@@ -205,8 +207,8 @@ ask with your structured-question tool (`request_user_input` in Codex, `question
 - Audit findings: fixed, deferred, or rejected by the user.
 - The `buracle project sync` and `buracle project check` results.
 - Project MCP servers: the smoke-test result and the harnesses each one does not reach.
-- Follow-ups: a recurring procedure you noticed → `/new-skill` (Codex: `$new-skill`); a rule whose effect
-  should be measured → `/ab-test` (Codex: `$ab-test`).
+- Follow-ups: a recurring procedure you noticed → the `new-skill` skill; a rule whose effect
+  should be measured → the `ab-test` skill.
 
 The guidance files are the record; do not copy them into memory. Write a `gotcha` memory only for a
 verified trap that does not belong in the repo, such as one specific to this machine.
@@ -216,7 +218,7 @@ verified trap that does not belong in the repo, such as one specific to this mac
 | Situation | Do |
 |---|---|
 | Not a git repository | Work in the current directory; `buracle project sync` may refuse, report it. |
-| Large monorepo | Root plus top-level packages only. For many packages, launch one read-only explorer per package with your subagent tool (`spawn_agent` in Codex, `subagent` in OpenCode, `task` in Oh My Pi); each returns facts with evidence, then merge their results. |
+| Large monorepo | Root plus top-level packages only. For many packages, launch one read-only explorer per package with your subagent tool; each returns facts with evidence, then merge their results. |
 | Two competing conventions | Prefer the one in recently added files (`git log --diff-filter=A --since=6.months --name-only --format=`); ask if still unclear. |
 | Guidance contradicts the code | Ask which one is right; never pick silently. |
 | A command needs credentials or services | Document the prerequisite and the variable names, never the values. |

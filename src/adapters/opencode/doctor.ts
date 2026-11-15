@@ -1,8 +1,7 @@
 import { Database } from 'bun:sqlite'
 import { readFileSync } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
 import type { AdapterContext } from '../registry'
-import { resolveEffort } from '../../core/effort'
 import { pathExistsSync, readTextSync, sha256 } from '../../engine/fsx'
 import { getIn, jsoncParse, mdBlockGet } from '../../engine/merge'
 import type { RunResult } from '../../engine/proc'
@@ -139,38 +138,6 @@ export function permissionFinding(cfg: { bypass: boolean, enforce: boolean }, mo
   }
 }
 
-function configuredEfforts(config: unknown): string[] {
-  const out: string[] = []
-  const providers = obj(obj(config)?.['providers'])
-  for (const [p, pv] of Object.entries(providers ?? {})) {
-    for (const [m, mv] of Object.entries(obj(obj(pv)?.['models']) ?? {})) {
-      const s = obj(obj(mv)?.['settings'])
-      if (s !== undefined && ('effort' in s || 'reasoningEffort' in s)) out.push(`${p}/${m}`)
-    }
-  }
-  return out.sort()
-}
-
-export function rememberedVariants(env: Record<string, string | undefined> = process.env): string[] {
-  const xdg = env['XDG_STATE_HOME']
-  const base = xdg !== undefined && isAbsolute(xdg) ? xdg : env['HOME'] !== undefined ? join(env['HOME'], '.local', 'state') : undefined
-  if (base === undefined) return []
-  const r = readJsonc(join(base, 'opencode', 'model.json'))
-  const variants = obj(obj(r?.ok === true ? r.value : undefined)?.['variant'])
-  return Object.entries(variants ?? {}).filter(([, v]) => typeof v === 'string' && v !== '' && v !== 'default').map(([k, v]) => `${k}#${String(v)}`).sort()
-}
-
-export function effortFinding(value: string, config: unknown, remembered: readonly string[]): Finding {
-  const r = resolveEffort('opencode', value)
-  if ('invalid' in r) return { level: 'warn', detail: `effort.opencode: ${r.invalid}` }
-  if ('off' in r) return { level: 'ok', detail: 'effort.opencode is keep: Buracle leaves the models\' default effort to OpenCode' }
-  const over = [...configuredEfforts(config).map(m => `${m} (opencode.jsonc)`), ...remembered.map(m => `${m} (picked in the TUI)`)]
-  return {
-    level: 'ok',
-    detail: `default effort ${r.level}: the plugin gives it to every available model that has a ${r.level} variant (no config is written)${over.length > 0 ? `; your own choice wins for ${over.slice(0, 6).join(', ')}${over.length > 6 ? ` and ${over.length - 6} more` : ''}` : ''}`,
-  }
-}
-
 export function commandFindings(ctx: AdapterContext, configDir: string, config: unknown): Finding[] {
   const workflow = commandNames(ctx.canonical).workflow
   const files = workflow.filter(id => pathExistsSync(join(configDir, 'commands', `${id}.md`))).map(id => `commands/${id}.md`)
@@ -238,9 +205,6 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
   }
   const permission = permissionFinding(ctx.config.permissions, cli?.ok === true ? getIn(cli.value, ['session', 'permissions']).value : undefined)
   add(permission.level, 'opencode.permissions', permission.detail)
-
-  const effort = effortFinding(ctx.config.effort.opencode, parsed?.ok === true ? parsed.value : undefined, rememberedVariants())
-  add(effort.level, 'opencode.effort', effort.detail)
 
   let hashes: Record<string, string> | undefined
   try {

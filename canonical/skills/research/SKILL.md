@@ -51,10 +51,8 @@ or a memory id.
 
 Query craft, the source-quality ladder and fallbacks per tool are in
 [references/sources.md](references/sources.md).
-<!-- harness:claude -->
-MCP tools may be deferred. Load them with ToolSearch (query the server id, for example `context7` or
-`web-search`) before concluding that a tool is unavailable.
-<!-- /harness -->
+MCP tools may be deferred. Load them with the harness's tool search (query the server id, for example
+`context7` or `web-search`) before concluding that a tool is unavailable.
 
 ## Depth and budget
 
@@ -65,7 +63,7 @@ MCP tools may be deferred. Load them with ToolSearch (query the server id, for e
 | deep | landscape scans, contested or high-stakes topics, PRD research | at most 30 calls; cover official sources, maintainers, practitioners, critics and real code |
 
 Stop early once new sources stop changing the answer. From depth standard on, independent angles run
-in parallel (the *Parallel agents* rule): fan out with {{spawn_agent}}, one angle per agent, read-only,
+in parallel (the *Parallel agents* rule): fan out with your subagent tool, one angle per agent, read-only,
 the same routing table, each returning its findings with the URL and the supporting sentence for each
 claim. For deep research add one verifier agent per domain whose only job is to refute the findings
 it is given. You then verify and merge; a returned claim is a lead until you have seen its source.
@@ -87,7 +85,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 `buracle flow phase frame`. Note briefly: the exact question, the decision it informs, what would count
 as an answer, the depth, and how fresh the facts must be. When the question concerns a dependency, read
 the installed version from the manifest or lockfile first. If two readings of the question lead to
-different answers, ask once with {{ask_user}} or answer both briefly.
+different answers, ask once with your structured-question tool or answer both briefly.
 
 ## Phase 1: Recall
 
@@ -99,7 +97,7 @@ Earlier decisions and knowledge are dated evidence: cite the memory id, and re-v
 ## Phase 2: Plan
 
 `buracle flow phase plan`. Split the question into 2-6 sub-questions, each with its source type (docs,
-web, code, memory). Track them with {{todo}}. Issue independent calls in parallel.
+web, code, memory). Track them with your todo tool. Issue independent calls in parallel.
 
 ## Phase 3: Gather
 

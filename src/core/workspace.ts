@@ -1,13 +1,13 @@
-import { isWindowsPath, normalizePath, type Harness } from './events'
+import { normalizePath, type Harness } from './events'
 import { protectGlobToRegExp } from './policy/write-guard'
 
 export function pathKey(p: string, caseInsensitive: boolean): string {
-  const out = normalizePath(isWindowsPath(p) ? p : p.replace(/\\/g, '/'))
+  const out = normalizePath(p.replace(/\\/g, '/'))
   return caseInsensitive ? out.toLowerCase() : out
 }
 
 function isRootKey(k: string): boolean {
-  return k === '/' || /^[A-Za-z]:\/?$/.test(k) || /^\\\\[^\\/]+(?:\\[^\\/]+)?$/.test(k)
+  return k === '/'
 }
 
 function withinKey(child: string, parent: string): boolean {
@@ -18,11 +18,6 @@ function withinKey(child: string, parent: string): boolean {
 
 export function isPathWithin(child: string, parent: string, caseInsensitive: boolean): boolean {
   return withinKey(pathKey(child, caseInsensitive), pathKey(parent, caseInsensitive))
-}
-
-/** The Windows drive letter WSL mounts a path from (`/mnt/c/x` → `c`), or undefined for a Linux path. */
-export function wslDrive(p: string): string | undefined {
-  return /^\/mnt\/([A-Za-z])(?:\/|$)/.exec(p)?.[1]
 }
 
 export interface IndexExclusionContext {
@@ -38,7 +33,7 @@ const GLOB_CHARS = /[*?[{]/
 function excludeMatches(pattern: string, dirKey: string, ctx: IndexExclusionContext): boolean {
   let p = pattern.replace(/\\/g, '/')
   if (p === '~' || p.startsWith('~/')) p = ctx.home.replace(/\\/g, '/').replace(/\/+$/, '') + p.slice(1)
-  const absolute = p.startsWith('/') || /^[A-Za-z]:\//.test(p)
+  const absolute = p.startsWith('/')
   if (absolute && !GLOB_CHARS.test(p)) return withinKey(dirKey, pathKey(p, ctx.caseInsensitive))
   const body = p.replace(/\/{2,}/g, '/').replace(/\/+$/, '')
   const glob = absolute ? body : `**/${body.replace(/^(?:\.\/)+/, '')}`
@@ -75,6 +70,19 @@ export type IndexState =
   | { state: 'off' }
 
 export interface ProjectIndex { codegraph: IndexState; semble: IndexState }
+
+/**
+ * How Buracle keeps the code indexes (codegraph, semble): built automatically, at most once per
+ * `minIntervalMin`, for the project and up to `maxChildren` child projects.
+ */
+export interface IndexSettings { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: readonly string[], children: boolean, maxChildren: number }
+
+export const INDEX_SETTINGS: Readonly<IndexSettings> = { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }
+
+/** The index settings of a configuration: the constants plus the folders the user's `index.exclude` names. */
+export function indexSettings(cfg: { index: { exclude: readonly string[] } }): IndexSettings {
+  return { ...INDEX_SETTINGS, exclude: cfg.index.exclude }
+}
 
 export interface IndexToolFacts {
   enabled: boolean

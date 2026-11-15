@@ -6,7 +6,8 @@ import { memNoteHarness } from '../core/memory/note'
 import { memTitleSimilarity, memTitleWords } from '../core/memory/query'
 import { memSessionMemoryId } from '../core/memory/session'
 import { spoolDigest } from '../core/memory/spool'
-import { memClip, memOneLine, redact } from '../core/memory/text'
+import { redact } from '../core/memory/redact'
+import { memClip, memOneLine } from '../core/memory/text'
 import { DISTILL_BUDGET } from '../core/memory/budgets'
 import { sha256 } from '../engine/fsx'
 import { log } from '../engine/log'
@@ -256,7 +257,8 @@ export async function distillSession(h: Harness, sid: string, opts: DistillOptio
   if (excluded !== undefined) return { ...res, skipped: 'excluded', detail: `project ${slug ?? ''} is ${excluded}` }
   // An empty session has nothing to distill before it has a session memory: it is done at once,
   // with no try spent, instead of falling into no-session-memory retries (PRD R2).
-  const d = spoolDigest(readSpool(h, sid), rec?.cwd)
+  const d = spoolDigest(readSpool(h, sid))
+  const files = rec?.files ?? []
   if (!d.finalMessage && d.compactions.length === 0) return { ...res, skipped: 'nothing-to-distill' }
   const sessionId = rec?.memoryId ?? memSessionMemoryId(memNoteHarness(h), sid)
   const ref = slug !== undefined ? projectRef(slug) : undefined
@@ -276,8 +278,7 @@ export async function distillSession(h: Harness, sid: string, opts: DistillOptio
   const prompts = userPromptsBlock(d.userPrompts)
   if (prompts !== '') parts.push(prompts)
   for (const c of d.compactions) parts.push(`Compaction summary:\n${c.summary}`)
-  if (d.files.length > 0) parts.push(`Files touched: ${d.files.slice(-30).join(', ')}`)
-  if (d.failures.length > 0) parts.push(`Failed commands: ${d.failures.map(f => `${f.cmd} (exit ${f.exit})`).join('; ')}`)
+  if (files.length > 0) parts.push(`Files touched: ${files.slice(-30).join(', ')}`)
   const material = redact(parts.join('\n\n')).text.slice(0, config.maxInputTokens * 4)
   res.inputChars = material.length
   res.sha = sha256(material).slice(0, 16)
@@ -327,7 +328,7 @@ export async function distillSession(h: Harness, sid: string, opts: DistillOptio
   }
   const ctx: MemoryCtx = { cwd: rec?.cwd ?? paths.home(), harness: 'buracle', generatedBy: 'process:buracle-capture', agent: true, session: sid, project: slug ?? null, now: () => now, ...(res.model !== undefined ? { model: res.model } : {}) }
   for (const c of candidates) {
-    try { res.decisions.push(await applyCandidate(ctx, c, { sessionId, ref, existing, nowMs: now, promoteAt: config.promoteAt, files: d.files, prompts: d.userPrompts.map(p => p.text) }, res)) } catch (e) {
+    try { res.decisions.push(await applyCandidate(ctx, c, { sessionId, ref, existing, nowMs: now, promoteAt: config.promoteAt, files, prompts: d.userPrompts.map(p => p.text) }, res)) } catch (e) {
       log('warn', 'memory: a distilled candidate was not written', { title: c.title, error: e })
     }
   }

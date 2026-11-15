@@ -1,4 +1,4 @@
-import type { Harness } from '../../core/events'
+import type { CanonicalEvent, Harness } from '../../core/events'
 import { compareVersions } from '../../engine/update/versions'
 
 export type HostLimitKind = 'limit' | 'partial' | 'native'
@@ -13,6 +13,8 @@ export interface HostLimit {
   id: string
   harness: Harness
   feature: string
+  /** The canonical event the host has no native event for: its profile maps that event to null (src/core/harness/), and this record says why and what Buracle does instead. */
+  event?: CanonicalEvent
   kind: HostLimitKind
   checkedOn: string
   reason: string
@@ -58,11 +60,6 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     recheck: `codex-rs/hooks/src/schema.rs StopCommandOutputWire (continue, stopReason, suppressOutput, systemMessage, a block decision with its reason; no additionalContext); ${CHECKED}`,
   },
   {
-    id: 'codex.shell-read-nudge', harness: 'codex', feature: 'shellReadNudge', kind: 'limit', checkedOn: '0.162.1',
-    reason: 'Codex has no file-read tool to point a shell read to', fallback: 'the shell read stays allowed; the edit note names `apply_patch`',
-    recheck: `the tool list in codex-rs/core/src/tools/spec_plan.rs (no file-read tool next to apply_patch); the tool names form no readable run in the binary, so there is no probe; ${CHECKED}`,
-  },
-  {
     id: 'codex.commands-without-turn', harness: 'codex', feature: 'commandsWithoutTurn', kind: 'limit', checkedOn: '0.166.0',
     reason: 'Codex has no custom slash commands: a plugin\'s `commands` are migrated into skills, which run inside a turn, and a plugin otherwise carries skills, MCP servers, apps and hooks', fallback: '`$memory`, the CLI twins (`buracle mem ...`, `buracle plan status`) and Codex\'s own `/side`',
     probe: { kind: 'binary-run', pattern: CODEX_PLUGIN_DETAIL, closedBy: '[cC]ommands', expect: CODEX_PLUGIN_PARTS },
@@ -81,13 +78,13 @@ export const HOST_LIMITS: readonly HostLimit[] = [
   },
   {
     id: 'codex.live-panes', harness: 'codex', feature: 'livePanes', kind: 'limit', checkedOn: '0.166.0',
-    reason: 'Codex gives hooks no pane, widget or dialog', fallback: '`buracle mem status`, `buracle plan status` and the tmux status line',
+    reason: 'Codex gives hooks no pane, widget or dialog', fallback: '`buracle mem status`, `buracle plan status` and the one-line workflow notices (`workflow.codexNotices`)',
     probe: { kind: 'binary-schema', title: String.raw`\.command\.output$`, closedBy: '[pP]ane|[wW]idget|[dD]ialog|[sS]tatus_?[lL]ine', expect: ['additionalContext', 'hookSpecificOutput', 'systemMessage'] },
     recheck: `the hook output schemas in codex-rs/hooks/src/schema.rs (the common output has only systemMessage) and ${CODEX_HOOKS_DOC}; ${CHECKED}`,
   },
   {
     id: 'codex.custom-status-line', harness: 'codex', feature: 'customStatusLine', kind: 'limit', checkedOn: '0.166.0',
-    reason: 'the Codex footer shows only its own items (`tui.status_line` takes item ids, no command; openai/codex#17827)', fallback: 'Buracle picks the native items and shows its own bar through tmux (`buracle statusline codex`)',
+    reason: 'the Codex footer shows only its own items (`tui.status_line` takes item ids, no command; openai/codex#17827)', fallback: 'Buracle picks the native items',
     probe: { kind: 'binary-run', pattern: CODEX_TUI_KEYS, closedBy: String.raw`(?:^_|status_line_)(?:command|script)`, expect: CODEX_TUI_STATUS_KEYS },
     recheck: `codex-rs/tui/src/bottom_pane/status_line_setup.rs (a fixed StatusLineItem enum, no command or script) and https://github.com/openai/codex/issues/17827 (open); ${CHECKED}`,
   },
@@ -132,8 +129,8 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     recheck: OPENCODE_PLUGIN_HOOKS,
   },
   {
-    id: 'opencode.subagent-stop-hold', harness: 'opencode', feature: 'subagentStopHold', kind: 'limit', checkedOn: '2.0.30',
-    reason: 'no subagent-stop hook; a reviewer\'s final message is seen only in the parent\'s `tool.execute.after` of the `subagent` tool', fallback: 'an invalid review report gets a note asking the agent to continue that reviewer once',
+    id: 'opencode.subagent-stop-hold', harness: 'opencode', feature: 'subagentStopHold', kind: 'limit', checkedOn: '2.3.0',
+    reason: 'no subagent-stop hook; a reviewer\'s final message is seen only in the parent: as the `<subagent>` message in its `session.context` (2.3.0 and later run every subagent in the background), before that in the `tool.execute.after` of the `subagent` tool', fallback: 'an invalid review report gets a note asking the agent to continue that reviewer once',
     probe: { kind: 'binary-names', pattern: OPENCODE_TRIGGERS, closedBy: String.raw`subagent|agent\.(?:stop|end)`, expect: OPENCODE_CORE_TRIGGERS },
     recheck: OPENCODE_PLUGIN_HOOKS,
   },
@@ -164,7 +161,22 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     fallback: 'the second opinion runs with read, grep and glob only (Buracle\'s extension blocks every other tool, MCP tools and `xd://` devices included), and Buracle puts the diff and the changed files into its prompt',
     recheck: `whether a --config <file> overlay (docs/settings.md) with tools.approvalMode write (docs/approval-mode.md) and bash.patterns allow rules for the read-only git and rg commands (docs/tools/bash.md) lets bash join the read tools: per https://github.com/can1357/oh-my-pi/blob/v18.10.1/docs/bash-tool-runtime.md an allow rule grants a simple command the write tier, while redirections, substitutions, globbing and chains keep the exec tier (bash.allowCompoundCommands opts flat && chains in), bash.patterns do not bind eval (pair them with tools.approval.eval), and a prompt without a UI is refused in print mode. Probe on a real omp: with that overlay, in print mode, \`git status > /tmp/x\` and \`rg x $(pwd)\` must be refused and \`git status\` allowed; ${CHECKED}`,
   },
+  {
+    id: 'agy.no-compaction-event', harness: 'agy', feature: 'preCompact', event: 'preCompact', kind: 'limit', checkedOn: '1.5.9',
+    reason: 'the hook events of AGY CLI are SessionStart, PreToolUse, PostToolUse, PreInvocation, PostInvocation and Stop: nothing runs before or after a conversation is compacted', fallback: 'H06 and H07 are not bound; H13 injects the memory context at SessionStart and H05 watches the context size before each model call',
+    recheck: `the hooks reference embedded in the agy 1.5.9 program (Lifecycle Hooks, Supported Event Types), published at https://antigravity.google/docs; checked 2026-11-15`,
+  },
+  {
+    id: 'agy.no-session-end', harness: 'agy', feature: 'sessionEnd', event: 'sessionEnd', kind: 'limit', checkedOn: '1.5.9',
+    reason: 'AGY CLI has no event for the end of a conversation; Stop fires whenever the execution loop ends, which is the end of a turn', fallback: 'H14 captures at every Stop, so a conversation is never lost; which Stop counts as its end is decided by the AGY adapter',
+    recheck: `the hooks reference embedded in the agy 1.5.9 program (Stop contract: terminationReason, fullyIdle), published at https://antigravity.google/docs; checked 2026-11-15`,
+  },
 ]
+
+/** The record of a canonical event a host lacks; every null in a profile's event map has one. */
+export function missingEventLimit(h: Harness, event: CanonicalEvent): HostLimit | undefined {
+  return HOST_LIMITS.find(l => l.harness === h && l.event === event)
+}
 
 export function hostLimitsOf(h: Harness, kinds: readonly HostLimitKind[] = ['limit', 'partial']): HostLimit[] {
   return HOST_LIMITS.filter(l => l.harness === h && kinds.includes(l.kind))

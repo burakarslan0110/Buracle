@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import type { Adapter } from '../../adapters/registry'
 import type { CanonicalBundle } from '../../core/catalog'
-import type { PackageRollback, ToolchainOptions, ToolchainResult } from '../toolchain/index'
+import type { ToolchainOptions, ToolchainResult } from '../toolchain/index'
 import type { RunOptions, RunResult } from '../proc'
 import { run } from '../proc'
 import * as paths from '../paths'
@@ -19,8 +19,6 @@ export interface OpsDeps {
   now(): number
   confirm(question: string): Promise<boolean>
   runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'>, opts: ToolchainOptions): Promise<ToolchainResult | undefined>
-  // Puts back the version each named package held before its last install; undefined: the toolchain lock is taken.
-  rollbackToolchain(keys: readonly string[]): Promise<PackageRollback[] | undefined>
   // The PATH a fresh login shell of this kind starts with, or undefined when it is not installed (the install puts
   // ~/.local/bin on the PATH of the other of zsh and bash too).
   loginPath(shell: LoginShell, home: string): string | undefined
@@ -29,12 +27,6 @@ export interface OpsDeps {
 async function toolchainRun(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'>, opts: ToolchainOptions): Promise<ToolchainResult | undefined> {
   const t = await import('../toolchain/index')
   return opts.install ? t.withToolchainLock(opts.nowMs(), () => t.runToolchain(bundle, opts)) : t.runToolchain(bundle, opts)
-}
-
-async function toolchainRollback(keys: readonly string[]): Promise<PackageRollback[] | undefined> {
-  const t = await import('../toolchain/index')
-  const { readToolchainState } = await import('../toolchain/state')
-  return t.withToolchainLock(Date.now(), () => t.rollbackPackages(t.rollbackCandidates(readToolchainState(), keys), Date.now()))
 }
 
 async function routerCall(argv: string[]): Promise<CliResult> {
@@ -59,7 +51,6 @@ export const defaultOpsDeps: Readonly<OpsDeps> = {
   now: () => Date.now(),
   confirm: terminalConfirm,
   runToolchain: toolchainRun,
-  rollbackToolchain: toolchainRollback,
   loginPath: probeLoginPath,
 }
 

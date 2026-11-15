@@ -4,7 +4,6 @@ import { asRecord, errText, num, str } from './util'
 export class ModelFacts {
   private limits: Map<string, number> | undefined
   private loading: Promise<void> | undefined
-  private effort: { level?: string, models: ReadonlySet<string> } = { models: new Set() }
 
   constructor(private readonly ctx: Pick<ServerContext, 'model' | 'location'>, private readonly log: (msg: string, data?: unknown) => void) {}
 
@@ -12,14 +11,9 @@ export class ModelFacts {
     this.limits = undefined
   }
 
-  effortApplied(level: string | undefined, models: readonly string[]): void {
-    this.effort = level !== undefined ? { level, models: new Set(models) } : { models: new Set() }
-  }
-
   effortOf(model: ModelRef | undefined): string | undefined {
     if (model === undefined) return undefined
-    if (model.variant !== undefined && model.variant !== '' && model.variant !== 'default') return model.variant
-    return this.effort.level !== undefined && this.effort.models.has(`${model.providerID}/${model.id}`) ? this.effort.level : undefined
+    return model.variant !== undefined && model.variant !== '' && model.variant !== 'default' ? model.variant : undefined
   }
 
   async limit(ref: ModelRef): Promise<number | undefined> {

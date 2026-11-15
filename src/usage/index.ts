@@ -1,14 +1,12 @@
 import type { Harness } from '../core/events'
 import { HARNESSES } from '../core/events'
-import type { PricingTable } from '../core/usage'
 import { log } from '../engine/log'
 import { writeUsageEntries } from './cache'
 import { collectClaude } from './claude'
 import { collectCodex } from './codex'
-import { monthKeyOf } from './month'
 import { collectOmp } from './omp'
 import { collectOpencode } from './opencode'
-import { loadPricing } from './pricing'
+import { pendingCollector } from './pending'
 import type { Collector, CollectOptions, UsageCacheEntry } from './types'
 
 export const COLLECTORS: Readonly<Record<Harness, Collector>> = {
@@ -16,11 +14,13 @@ export const COLLECTORS: Readonly<Record<Harness, Collector>> = {
   codex: collectCodex,
   opencode: collectOpencode,
   omp: collectOmp,
+  qwen: pendingCollector('qwen'),
+  pi: pendingCollector('pi'),
+  agy: pendingCollector('agy'),
 }
 
-export interface RefreshOptions extends Partial<Omit<CollectOptions, 'pricing'>> {
+export interface RefreshOptions extends Partial<CollectOptions> {
   harnesses?: Harness[]
-  pricing?: PricingTable
   write?: boolean
 }
 
@@ -28,13 +28,11 @@ export interface RefreshResult { entries: UsageCacheEntry[]; errors: Array<{ har
 
 export async function refreshUsage(opts: RefreshOptions = {}): Promise<RefreshResult> {
   const nowMs = opts.nowMs ?? Date.now()
-  const pricing = opts.pricing ?? loadPricing()
   const harnesses = opts.harnesses ?? [...HARNESSES]
   const entries: UsageCacheEntry[] = []
   const errors: RefreshResult['errors'] = []
   for (const h of harnesses) {
-    const co: CollectOptions = { nowMs, pricing }
-    if (opts.month !== undefined) co.month = opts.month
+    const co: CollectOptions = { nowMs }
     if (opts.run !== undefined) co.run = opts.run
     if (opts.which !== undefined) co.which = opts.which
     if (opts.offline !== undefined) co.offline = opts.offline
@@ -46,12 +44,10 @@ export async function refreshUsage(opts: RefreshOptions = {}): Promise<RefreshRe
       log('warn', 'usage collector failed', { harness: h, error })
     }
   }
-  const current = (opts.month ?? monthKeyOf(nowMs)) === monthKeyOf(nowMs)
-  const written = opts.write !== false && current && entries.length > 0
+  const written = opts.write !== false && entries.length > 0
   if (written) writeUsageEntries(entries, nowMs)
   return { entries, errors, written }
 }
 
 export { readUsageCache, currentUsageEntry, isStale, spawnUsageRefresh, acquireUsageLock, USAGE_TTL_MS } from './cache'
-export { loadPricing, refreshPricing, pricingFile, LITELLM_PRICES_URL } from './pricing'
 export type { UsageCache, UsageCacheEntry, LatestSession, CollectOptions } from './types'

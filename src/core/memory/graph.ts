@@ -226,6 +226,8 @@ export function memGraph(items: readonly MemItem[], opts: MemGraphOptions): MemG
       if (tag === '' || tag.startsWith('rank-') || HIDDEN_TAGS.has(tag)) continue
       out.push({ id: `tag:${tag}`, type: 'tag', label: tag, kind: 'tag' })
     }
+    // Concept and file hubs come from the memory's own fields, never from the engine's graph: the engine keeps an old
+    // edge when a memory is updated, so a hub drawn from it would show links the memory no longer has.
     for (const a of i.about) {
       const label = a.trim()
       if (label === '') continue

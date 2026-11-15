@@ -1,6 +1,7 @@
 # Usage tips: Claude Code shows them in its spinner rotation (spinnerTipsOverride, labeled "Buracle"), OpenCode
-# shows one on its home screen. One line each, at most 160 characters, the same wording on every harness.
-# Write a command the way Claude Code and OpenCode spell it (`/plan-build`); Codex and Oh My Pi show no tips.
+# shows one on its home screen, Qwen Code cycles them as loading phrases (ui.customWittyPhrases) and Pi shows one as
+# the working message. One line each, at most 160 characters, the same wording on every harness.
+# Write a skill as `/<id>` (`/plan-build`): Qwen Code and Pi respell it with the profile's skill invocation (`/skill:<id>` on Pi) at build time. Codex, Oh My Pi and AGY CLI show no tips.
 tips:
   - id: plan-build
     text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first"
@@ -40,14 +41,10 @@ tips:
     text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere"
   - id: new-skill
     text: "Did a procedure twice? /new-skill turns it into a skill every harness can load"
-  - id: security-audit
-    text: "/security-audit gives focused security guidance, or a six-phase audit with findings and a report"
   - id: doctor
     text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes"
   - id: update
     text: "`buracle update` updates Buracle and everything it connects, each part from its own source"
-  - id: rollback
-    text: "`buracle rollback` undoes the newest install; values you changed by hand always stay yours"
   - id: config
     text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews"
   - id: companion-review

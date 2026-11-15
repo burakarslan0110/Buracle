@@ -1,4 +1,5 @@
-import { isAbsPath, isRootPath, isWindowsPath, nativePath, normalizePath, pathRoot, resolveNormalPath } from '../events'
+import { isAbsPath, isRootPath, normalizePath, pathRoot, resolvePath, type Harness } from '../events'
+import { HARNESSES, harnessProfile, harnessTable } from '../harness/index'
 import type { ConfigParsers, WriteContent } from './switch-off'
 import { guardedFile, switchOffChange } from './switch-off'
 
@@ -25,33 +26,29 @@ export interface SelfPaths {
   opencodeConfigDir?: string
   ompAgentDir?: string
   ompHome?: string
+  qwenHome?: string
+  piAgentDir?: string
+  agyDir?: string
   repo?: string
 }
 
-export type SelfArea = 'buracle' | 'shim' | 'claude' | 'codex' | 'opencode' | 'omp' | 'repo'
+export type SelfArea = 'buracle' | 'shim' | Harness | 'repo'
 
 interface SelfLayout { key: Exclude<keyof SelfPaths, 'repo'>; under: string; entries: readonly string[]; area: SelfArea }
 type SelfRoot = { root: string, layout: SelfLayout }
 
 const SELF_LAYOUT: readonly SelfLayout[] = [
   { key: 'buracleHome', under: '.buracle', entries: [''], area: 'buracle' },
-  { key: 'localBinDir', under: '.local/bin', entries: ['buracle', 'buracle.cmd'], area: 'shim' },
-  { key: 'claudeDir', under: '.claude', entries: ['settings.json', 'settings.local.json', 'plugins/'], area: 'claude' },
-  { key: 'codexHome', under: '.codex', entries: ['config.toml', 'hooks.json', 'rules/'], area: 'codex' },
-  { key: 'opencodeConfigDir', under: '.config/opencode', entries: [''], area: 'opencode' },
-  { key: 'ompAgentDir', under: '.omp/agent', entries: ['config.yml', 'config.yaml', 'settings.json', 'extensions/', 'hooks/'], area: 'omp' },
-  { key: 'ompHome', under: '.omp', entries: ['plugins/'], area: 'omp' },
+  { key: 'localBinDir', under: '.local/bin', entries: ['buracle'], area: 'shim' },
+  ...HARNESSES.flatMap(h => harnessProfile(h).protectedDirs.map((d): SelfLayout => ({ key: d.key as SelfLayout['key'], under: d.under, entries: d.entries, area: h }))),
 ]
 
-const HOME_PREFIX = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)(?=\/|$)/i
+const HOME_PREFIX = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i
 
 const SELF_TEXT: Readonly<Record<SelfArea, { what: string, remedy: string }>> = {
+  ...harnessTable(p => p.selfText),
   buracle: { what: "Buracle's own installation, which runs every guard hook", remedy: 'change Buracle through the buracle CLI (`buracle config set …`, `buracle install`) instead' },
   shim: { what: 'the `buracle` command on PATH, a link to the shim that runs every guard hook', remedy: '`buracle install` manages it, so ask the user to run that instead' },
-  claude: { what: "Claude Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Claude Code's own commands (`claude plugin …`, `claude mcp …`, `/config`)" },
-  codex: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp …`, `codex features …`)" },
-  opencode: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp …`, `opencode plugin …`)" },
-  omp: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set …`, `omp plugin …`)" },
   repo: { what: "Buracle's own source code, which every Buracle hook runs", remedy: 'change it from a session opened in the Buracle repository, or ask the user to make the change' },
 }
 
@@ -121,18 +118,18 @@ export function selfProtectedArea(abs: string, home: string, self?: SelfPaths, a
 
 const TEMPLATE_SUFFIX = /\.(?:example|sample|template|dist|defaults)$/i
 const SOURCE_OR_DOC = /\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts|py|pyi|go|rs|java|kt|kts|swift|rb|php|cs|c|h|cc|cpp|hpp|scala|dart|ex|exs|lua|sh|md|mdx|rst|txt|html|css)$/i
-const GENERATED_HARNESS = /^(.*)\/harness\/(?:claude|codex|opencode|omp|agents-skills)(?:\/|$)/
+const GENERATED_HARNESS = new RegExp(`^(.*)/harness/(?:${[...HARNESSES, 'agents-skills'].join('|')})(?:/|$)`)
 
 function expandHome(p: string, home: string): string {
   if (home === '') return p
   if (p === '~') return home
-  if (p.startsWith('~/') || (p.startsWith('~\\') && isWindowsPath(home))) return `${home.replace(/[\\/]+$/, '')}/${p.slice(2)}`
+  if (p.startsWith('~/')) return `${home.replace(/[\\/]+$/, '')}/${p.slice(2)}`
   return p
 }
 
 function absolute(p: string, cwd: string, home: string): string | undefined {
   if (typeof p !== 'string' || p.trim() === '') return undefined
-  return resolveNormalPath(cwd, expandHome(p.trim(), home))
+  return resolvePath(cwd, expandHome(p.trim(), home))
 }
 
 function lower(s: string): string { return s.toLowerCase() }
@@ -146,12 +143,12 @@ function within(p: string, dir: string): boolean {
 
 function shown(p: string, home: string): string {
   if (home !== '' && within(p, home) && p.length > home.length) return '~' + p.slice(home.replace(/\/+$/, '').length)
-  return nativePath(p)
+  return p
 }
 
 function code(s: string): string { return '`' + s.replace(/`/g, "'") + '`' }
 
-const CREDENTIAL_FOLDER = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i
+const CREDENTIAL_FOLDER = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.(ssh|aws|gnupg)(?:\/|$)/i
 const CREDENTIAL_WHAT: Readonly<Record<string, string>> = { ssh: "the user's SSH directory", aws: "the user's AWS credentials directory", gnupg: "the user's GnuPG directory" }
 
 const CREDENTIAL_STORES: readonly string[] = ['.netrc', '.git-credentials', '.npmrc', '.pypirc', '.docker/config.json', '.kube/config', '.config/gh/hosts.yml', '.config/gcloud/', '.azure/']
@@ -256,8 +253,8 @@ export function protectGlobToRegExp(glob: string): RegExp | null {
 function protectMatches(pattern: string, abs: string, cwd: string, home: string): boolean {
   const p = pattern.trim()
   if (p === '') return false
-  if (p.startsWith('~') || p.startsWith('/') || isWindowsPath(p)) {
-    const re = protectGlobToRegExp(normalizeGlob(windowsGlob(expandHome(p, home))))
+  if (p.startsWith('~') || p.startsWith('/')) {
+    const re = protectGlobToRegExp(normalizeGlob(expandHome(p, home)))
     return re !== null && (re.test(abs) || re.test(abs + '/'))
   }
   if (p.includes('/')) {
@@ -273,16 +270,6 @@ function protectMatches(pattern: string, abs: string, cwd: string, home: string)
 
 function normalizeGlob(p: string): string {
   return p.replace(/\/{2,}/g, '/').replace(/\/\.(?=\/)/g, '')
-}
-
-// In a drive or UNC pattern a backslash is a separator, not a glob escape; the UNC root keeps its
-// backslashes (escaped for the glob) as the normalized paths do.
-function windowsGlob(p: string): string {
-  if (!isWindowsPath(p)) return p
-  const s = p.replace(/\\/g, '/')
-  if (!s.startsWith('//')) return s
-  const root = pathRoot(p)
-  return root.replace(/\\/g, '\\\\') + s.slice(root.length)
 }
 
 function buracleRepoOf(abs: string, ctx: WriteGuardContext): string | undefined {

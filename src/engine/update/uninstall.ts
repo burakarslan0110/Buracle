@@ -1,3 +1,4 @@
+import { HARNESSES, isHarness } from '../../core/harness/index'
 import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, unlinkSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import type { Adapter, AdapterContext } from '../../adapters/registry'
@@ -71,7 +72,7 @@ export function composeUninstall(ledger: Ledger, journals: readonly Journal[], r
 }
 
 function harnessOf(owner: string): Plan['harness'] {
-  return owner === 'claude' || owner === 'codex' || owner === 'opencode' || owner === 'omp' ? owner : 'core'
+  return isHarness(owner) ? owner : 'core'
 }
 
 export function isUninstallJournal(j: Journal): boolean {
@@ -223,7 +224,7 @@ const TXN_DIR = /^\d{8}T\d{9}Z-[0-9a-f]{6}$/
 const RUNTIME_ENTRY = /^(?:[0-9a-f]{16}|\.staging-.+)$/
 const CACHE_ENTRIES = ['memory', 'usage', 'skills', 'npm', 'statusline-slugs.json', 'claude-plan.json', 'harness-versions.json', 'hook-health.json', 'runtime-drift.json']
 const TMP_FILE = /^\..*\.buracle-\d+-[0-9a-f]+\.tmp$/
-const HARNESS_DIRS = ['claude', 'codex', 'opencode', 'omp']
+const HARNESS_DIRS: readonly string[] = HARNESSES
 const LEGACY_CONTEXT_MODE_DIRS = [...HARNESS_DIRS, 'probe', 'sentinel', 'tmp', 'claude-config-empty']
 
 function knownEntry(dir: string, name: string): boolean {
@@ -318,20 +319,6 @@ export async function removeDownloadedTools(nowMs: number): Promise<string[]> {
   return names
 }
 
-export const VAULT_PRE_COMMIT_MARKER = '# Installed by buracle: refuse commits that contain secrets.'
-
-export async function removeVaultPreCommitHook(vault: string): Promise<'removed' | 'foreign' | 'missing' | 'error'> {
-  const file = join(vault, '.git', 'hooks', 'pre-commit')
-  try {
-    let text: string
-    try { text = readFileSync(file, 'utf8') } catch { return 'missing' }
-    if (!text.includes(VAULT_PRE_COMMIT_MARKER)) return 'foreign'
-    unlinkSync(file)
-    return 'removed'
-  } catch {
-    return 'error'
-  }
-}
 
 export interface ProjectLeftover { root: string; path: string; what: string; remove: string }
 

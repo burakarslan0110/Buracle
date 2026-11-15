@@ -118,10 +118,6 @@ function parseArgs(argv: string[]): Options {
 function dataDir(root: string): string {
   const raw = (process.env['CODEGRAPH_DIR'] ?? '').trim()
   if (raw !== '' && raw !== '.' && !raw.includes('..') && !/[\\/]/.test(raw) && !isAbsolute(raw)) return raw
-  const wsl = process.platform === 'linux' && ((process.env['WSL_DISTRO_NAME'] ?? '') !== '' || (process.env['WSL_INTEROP'] ?? '') !== '')
-  if (wsl && /^\/mnt\/[a-z](?:\/|$)/i.test(root)) {
-    try { if (statSync(join(root, '.codegraph-wsl')).isDirectory()) return '.codegraph-wsl' } catch {  }
-  }
   return '.codegraph'
 }
 

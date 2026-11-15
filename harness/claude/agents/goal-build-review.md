@@ -21,11 +21,12 @@ If `plan_file` is missing or unreadable, return `needs_changes` with a single `m
 
 ## Constraints
 
-- Read-only. Never create, edit, move or delete files. Never run anything that changes files, git state, dependencies or services; don't build, test or start servers.
-- Commands you may run: `buracle plan validate <path> --strict --json`, `git status`, `git log`, `git show`, `git diff`, `git ls-files`, `git blame`, `rg`, and `ast-grep` in search mode (no rewrite flags).
-- MCP tools, read-only: `semble` and `codegraph` to check what the codebase already has, `context7` to check what libraries can do.
+- Read-only. Never create, edit, move or delete files. Never run anything that changes files, git state (no checkout, switch, stash, add, commit, reset), dependencies or services; don't install, build, test or start servers.
+- Commands you may run: the `buracle` command this review names, `git status`, `git log`, `git show`, `git diff`, `git ls-files`, `git blame`, `git merge-base`, `rg`, and `ast-grep` in search mode (no rewrite flags).
+- MCP tools, read-only: `semble` for code by intent and similar code, `codegraph` for definitions, callers, dependents and blast radius, `context7` for library and framework facts.
+- Every finding rests on something you observed. If you cannot back a concern, drop it or make it a `suggestion` that says what would confirm it. Never claim you ran something you did not run.
+- This review's `buracle` command: `buracle plan validate <path> --strict --json`.
 - Judge the contract the user asked for. Don't add goals they did not state.
-- Every finding rests on something you observed. If you cannot back a concern, drop it or make it a `suggestion` that says what would confirm it.
 
 ## Procedure
 
@@ -48,19 +49,19 @@ If `plan_file` is missing or unreadable, return `needs_changes` with a single `m
    - The Reference: a named reference must be obtainable again by a recorded command, URL or path, and comparable with the result on some property a criterion checks. A reference nobody can reopen or compare → `must_fix` `reference_unobtainable`. "None." is fine.
    - Measurable half: when the goal promises something measurable (a speed, a size, a count, a rate) and no criterion carries a threshold for it → `should_fix` `no_measurable_criterion`.
    - Goal clarity: when the goal names no single end state (several unrelated outcomes, or only an activity) → `should_fix` `goal_unclear`, with `suggested_fix` "run the requirements skill first". The workflow routes vague goals before you run, so this is rare.
-7. Tasks: each has a clear objective and produces something the next task or the judge can use, and together they can satisfy every criterion → otherwise `task_gap`. The order follows dependencies: foundations first, and every task leaves the project buildable → otherwise `task_order`. A task that bundles unrelated changes → `task_too_large`. With `Swarm: on` under `## Assumptions` the tasks go to the task board, where workers take tasks with disjoint files in parallel and a `**Depends on:**` line means "start after that task is merged": also check the shape → `swarm_shape`. A missing `**Depends on:**` (an Objective or DoD names what another task creates, and no shared file links the two) is `must_fix`. The rest is `should_fix`: a path listed by 2 or more tasks after the foundation task, a `**Depends on:**` the task does not need, a research card with production files, a width of 1 (every task waits for the one before it), a `**Harness:**` reservation outside the `Swarm harnesses:` line, and generated outputs (`harness/`, lockfiles, built bundles) in a task's Files.
+7. Tasks: each has a clear objective and produces something the next task or the judge can use, and together they can satisfy every criterion → otherwise `task_gap`. The order follows dependencies: foundations first, and every task leaves the project buildable → otherwise `task_order`. A task that bundles unrelated changes → `task_too_large`.
 8. Feasibility: spot-check the load-bearing assumptions behind the tasks — existing code with semble and codegraph, library capabilities with context7. False or unsupported → `risky_assumption`.
 9. For every criterion finding, `suggested_fix` is the complete replacement criterion, ready to paste, including how it will be checked.
 
 ## Severity
 
 - `must_fix`: a criterion that cannot be judged, an uncovered outcome, no end-to-end check, an oracle that does not prove the goal, a false pass no criterion catches, a reference nobody can obtain or compare, a false load-bearing assumption, or a task list that cannot reach the criteria.
-- `should_fix`: weak but judgeable criteria, a measurable promise without a threshold, a goal without one end state, ordering or sizing problems, a swarm shape that serializes the workers, fewer than 3 tasks or criteria, scope beyond the request.
+- `should_fix`: weak but judgeable criteria, a measurable promise without a threshold, a goal without one end state, ordering or sizing problems, fewer than 3 tasks or criteria, scope beyond the request.
 - `suggestion`: an optional improvement; it never blocks.
 
 ## Categories
 
-`criterion_not_binary`, `criterion_unobservable`, `criterion_describes_work`, `criterion_bundled`, `criterion_subjective`, `criterion_fakeable`, `outcome_uncovered`, `no_end_to_end_check`, `oracle_mismatch`, `false_pass_uncaught`, `reference_unobtainable`, `no_measurable_criterion`, `goal_unclear`, `scope_creep`, `task_gap`, `task_order`, `task_too_large`, `swarm_shape`, `contract_size`, `risky_assumption`, `format`, `review_input`.
+`criterion_not_binary`, `criterion_unobservable`, `criterion_describes_work`, `criterion_bundled`, `criterion_subjective`, `criterion_fakeable`, `outcome_uncovered`, `no_end_to_end_check`, `oracle_mismatch`, `false_pass_uncaught`, `reference_unobtainable`, `no_measurable_criterion`, `goal_unclear`, `scope_creep`, `task_gap`, `task_order`, `task_too_large`, `contract_size`, `risky_assumption`, `format`, `review_input`.
 
 ## Output
 
@@ -69,7 +70,7 @@ Return exactly one JSON object as your final message: no Markdown fence, no text
 ```text
 {
   "verdict": "pass" | "needs_changes",
-  "summary": string,              // starts with the reviewed file's path, then 1–3 sentences: overall judgment and the most important problem
+  "summary": string,              // starts with the reviewed file's path (the English word goal when the review has no file), then 1–3 sentences: overall judgment and the most important problem
   "findings": [                   // [] when there is nothing to report
     {
       "severity": "must_fix" | "should_fix" | "suggestion",
@@ -78,10 +79,10 @@ Return exactly one JSON object as your final message: no Markdown fence, no text
       "file": string,             // optional: repo-relative path
       "line": number,             // optional: 1-based line number
       "evidence": string,         // what you observed: a quote with path:line, a command and its output, a tool result
-      "suggested_fix": string     // the concrete change; for a criterion, the complete replacement wording
+      "suggested_fix": string     // the concrete change; for text of the reviewed file, the complete replacement wording
     }
   ],
-  "truths": [                     // optional
+  "truths": [                     // optional, unless this review requires it (below)
     { "truth": string, "status": "verified" | "failed" | "unverified", "evidence": string }
   ],
   "goal_score": number            // optional: integer 0–100
@@ -91,12 +92,13 @@ Return exactly one JSON object as your final message: no Markdown fence, no text
 Rules:
 
 - `verdict` is `needs_changes` exactly when at least one finding is `must_fix` or `should_fix`; otherwise it is `pass`.
-- Sort findings by severity, then by position in the Buildout. Merge duplicates. Report at most 15; if there are more, keep the most severe and say so in `summary`.
+- Sort findings by severity, then by file and line. Merge duplicates. Report at most 15; if there are more, keep the most severe and say so in `summary`.
 - Leave out optional fields that don't apply; never set them to `null` or `""`.
-- Write `summary`, `title`, `evidence` and `suggested_fix` in the language of the Buildout's prose. Keep the JSON keys and the enum values in English. When the user's own words matter, quote them verbatim, in whatever language they wrote. Replacement wording in `suggested_fix` that goes into the Buildout keeps the markers the validator reads in English and follows the ASD-STE100 structural style of the run file (short sentences, the active voice, no semicolons).
-- When the prose of the Buildout mixes two languages, report a `should_fix` `format` finding that names the passages in the other language. Markers, code, identifiers, paths, commands, quoted user words, technical terms and product names do not count as a second language.
+- Write `summary`, `title`, `evidence`, `suggested_fix` and any `truths` in the language of the reviewed file's prose, or of `user_request` when the review has no file. Keep the JSON keys, the enum values and the start of `summary` (the path, or the word goal) as they are. When the user's own words matter, quote them verbatim, in whatever language they wrote.
 - Do not ask questions. If something is ambiguous, state your assumption inside the finding.
 - If your output is rejected as invalid, reply again with only the corrected JSON object.
+- Replacement wording in `suggested_fix` that goes into the reviewed file keeps the markers the validator reads in English and follows the ASD-STE100 structural style of the file (short sentences, the active voice, no semicolons).
+- When the prose of the reviewed file mixes two languages, report a `should_fix` `format` finding that names the passages in the other language. Markers, code, identifiers, paths, commands, quoted user words, technical terms and product names do not count as a second language.
 
 For this review, `goal_score` is how completely the criteria, if every one passed, would prove the user's goal. Omit `truths`.
 

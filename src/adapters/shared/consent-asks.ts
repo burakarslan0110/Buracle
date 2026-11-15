@@ -1,3 +1,4 @@
+import { isHarness } from '../../core/harness/index'
 import { readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Harness } from '../../core/events'
@@ -28,7 +29,7 @@ function parse(raw: unknown, key: string): ConsentAskRecord | undefined {
   const o = raw as Record<string, unknown>
   if (o['v'] !== 1 || o['key'] !== key || typeof o['sid'] !== 'string' || typeof o['command'] !== 'string' || typeof o['target'] !== 'string' || typeof o['at'] !== 'number') return undefined
   const h = o['harness']
-  if (h !== 'claude' && h !== 'codex' && h !== 'opencode' && h !== 'omp') return undefined
+  if (!isHarness(h)) return undefined
   const out: ConsentAskRecord = { v: 1, key, harness: h, sid: o['sid'], command: o['command'], target: o['target'], at: o['at'] }
   if (typeof o['call'] === 'string') out.call = o['call']
   if (typeof o['asked'] === 'number') out.asked = o['asked']

@@ -7364,14 +7364,952 @@ function atomicWriteSync(path, data, opts = {}) {
 }
 var init_fsx = () => {};
 
+// src/core/harness/native-events.ts
+var CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS, CODEX_EVENTS, OPENCODE_EVENTS, OMP_EVENTS, QWEN_EVENTS, PI_EVENTS, AGY_EVENTS;
+var init_native_events = __esm(() => {
+  CLAUDE_CLASSIC_EVENTS = [
+    "PreToolUse",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "PostToolBatch",
+    "PermissionDenied",
+    "Notification",
+    "UserPromptSubmit",
+    "UserPromptExpansion",
+    "SessionStart",
+    "SessionEnd",
+    "Stop",
+    "StopFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "PreCompact",
+    "PostCompact",
+    "PreModelSwitch",
+    "PostModelSwitch",
+    "PermissionRequest",
+    "Setup",
+    "TeammateIdle",
+    "TaskCreated",
+    "TaskCompleted",
+    "Elicitation",
+    "ElicitationResult",
+    "ConfigChange",
+    "InstructionsLoaded",
+    "WorktreeCreate",
+    "WorktreeRemove",
+    "CwdChanged",
+    "FileChanged",
+    "DirectoryAdded",
+    "MessageDisplay"
+  ];
+  CLAUDE_ENGINE_EVENTS = [
+    "tool.call",
+    "tool.check",
+    "tool.describe",
+    "prompt.submit",
+    "prompt.fill",
+    "prompt.suggest",
+    "prompt.edit",
+    "prompt.autocomplete",
+    "prompt.section",
+    "prompt.context",
+    "prompt.compose",
+    "prompt.attachment",
+    "prompt.mention",
+    "skill.prompt",
+    "attribution.text",
+    "command.run",
+    "command.describe",
+    "config.set",
+    "config.describe",
+    "agent.offer",
+    "agent.spawn",
+    "session.start",
+    "session.end",
+    "session.compact",
+    "session.receive",
+    "session.send",
+    "session.append",
+    "session.attach",
+    "session.detach",
+    "session.measure",
+    "turn.start",
+    "turn.step",
+    "turn.complete",
+    "ui.render",
+    "ui.resolve",
+    "ui.press",
+    "ui.input",
+    "ui.select",
+    "ui.message",
+    "ui.fault",
+    "ui.scroll",
+    "ui.focus",
+    "plugin.register",
+    "engine.create",
+    "telemetry.log",
+    "telemetry.mark"
+  ];
+  CODEX_EVENTS = [
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
+    "Interrupt"
+  ];
+  OPENCODE_EVENTS = [
+    "setup",
+    "session.prompt",
+    "session.context",
+    "session.compaction",
+    "session.generate",
+    "session.title",
+    "session.model.request",
+    "session.http.request",
+    "session.http.response",
+    "session.retry",
+    "permission.evaluate",
+    "shell.create.before",
+    "tool.execute.before",
+    "tool.execute.after",
+    "session.created",
+    "session.deleted",
+    "session.idle",
+    "session.status",
+    "session.execution.started",
+    "session.execution.succeeded",
+    "session.execution.failed",
+    "session.execution.interrupted",
+    "session.compaction.started",
+    "session.compaction.delta",
+    "session.compaction.ended",
+    "session.compaction.failed",
+    "session.usage.updated",
+    "session.tool.called",
+    "session.tool.success",
+    "session.tool.failed",
+    "session.skill.activated",
+    "session.instructions.updated",
+    "permission.asked",
+    "permission.replied",
+    "file.edited",
+    "vcs.branch.updated",
+    "mcp.status.changed",
+    "mcp.tools.changed",
+    "plugin.updated",
+    "worktree.ready",
+    "worktree.failed"
+  ];
+  OMP_EVENTS = [
+    "resources_discover",
+    "session_start",
+    "session_before_switch",
+    "session_switch",
+    "session_before_branch",
+    "session_branch",
+    "session_before_compact",
+    "session.compacting",
+    "cache_warming_decision",
+    "session_compact",
+    "session_shutdown",
+    "session_before_tree",
+    "session_tree",
+    "context",
+    "before_provider_request",
+    "after_provider_response",
+    "before_agent_start",
+    "before_subagent_spawn",
+    "agent_start",
+    "agent_end",
+    "session_stop",
+    "turn_start",
+    "turn_end",
+    "message_start",
+    "message_update",
+    "message_end",
+    "assistant_message",
+    "tool_execution_start",
+    "tool_execution_update",
+    "tool_execution_end",
+    "auto_compaction_start",
+    "auto_compaction_end",
+    "auto_retry_start",
+    "auto_retry_end",
+    "retry_fallback_applied",
+    "retry_fallback_succeeded",
+    "ttsr_triggered",
+    "todo_reminder",
+    "goal_updated",
+    "credential_disabled",
+    "input",
+    "tool_approval_requested",
+    "tool_approval_resolved",
+    "tool_call",
+    "tool_result",
+    "user_bash",
+    "user_python",
+    "mcp_notification"
+  ];
+  QWEN_EVENTS = [
+    "PreToolUse",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "PostToolBatch",
+    "UserPromptSubmit",
+    "UserPromptExpansion",
+    "SessionStart",
+    "SessionEnd",
+    "SessionDelete",
+    "MessageDisplay",
+    "Stop",
+    "StopFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "PreCompact",
+    "PostCompact",
+    "Notification",
+    "PermissionRequest",
+    "PermissionDenied",
+    "TodoCreated",
+    "TodoCompleted",
+    "InstructionsLoaded",
+    "FileChanged"
+  ];
+  PI_EVENTS = [
+    "project_trust",
+    "resources_discover",
+    "mcp_servers_change",
+    "session_start",
+    "session_info_changed",
+    "session_before_switch",
+    "session_before_fork",
+    "session_before_compact",
+    "session_compact",
+    "session_compact_failed",
+    "session_before_tree",
+    "session_tree",
+    "session_shutdown",
+    "before_agent_start",
+    "agent_start",
+    "agent_end",
+    "agent_before_settle",
+    "agent_settled",
+    "ui_prompt_start",
+    "ui_prompt_end",
+    "turn_start",
+    "turn_end",
+    "message_start",
+    "message_update",
+    "message_end",
+    "tool_execution_start",
+    "tool_execution_update",
+    "tool_execution_end",
+    "context",
+    "context_with_system",
+    "before_provider_headers",
+    "before_provider_request",
+    "after_provider_response",
+    "provider_stream_event",
+    "cache_warming_decision",
+    "model_select",
+    "thinking_level_select",
+    "tool_call",
+    "tool_result",
+    "user_bash",
+    "input"
+  ];
+  AGY_EVENTS = ["SessionStart", "PreToolUse", "PostToolUse", "PreInvocation", "PostInvocation", "Stop"];
+});
+
+// src/core/harness/profile.ts
+function mcpToken(d, server) {
+  return d.token(server, "server");
+}
+function mcpHead(d, server) {
+  return `${d.prefix}${d.plugin !== undefined ? `${d.plugin.marker}${d.plugin.name}_` : ""}${mcpToken(d, server)}${d.separator}`;
+}
+function mcpToolName(d, server, tool) {
+  const s = mcpToken(d, server);
+  let t = d.token(tool, "tool");
+  if (d.dropServerPrefix === true && t.startsWith(`${s}_`) && t.length > s.length + 1)
+    t = t.slice(s.length + 1);
+  return `${mcpHead(d, server)}${t}`;
+}
+function defineHarnesses(profiles) {
+  const ids = Object.keys(profiles);
+  for (const id of ids)
+    if (profiles[id].id !== id)
+      throw new Error(`harness profile ${JSON.stringify(profiles[id].id)} is registered as ${JSON.stringify(id)}`);
+  return {
+    ids,
+    is: (x) => typeof x === "string" && ids.includes(x),
+    of: (id) => profiles[id],
+    table: (pick) => Object.fromEntries(ids.map((id) => [id, pick(profiles[id])])),
+    where: (test) => ids.filter((id) => test(profiles[id]))
+  };
+}
+var wordDashToken = (part) => part.replace(/[^A-Za-z0-9_-]/g, "_"), wordToken = (part) => part.replace(/[^A-Za-z0-9_]/g, "_"), collapsedWordDashToken = (part, fallback) => {
+  const t = part.replace(/[^A-Za-z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t.length > 0 ? t : fallback;
+}, lowerWordToken = (part, fallback) => {
+  const t = part.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t.length > 0 ? t : fallback;
+};
+var init_profile = () => {};
+
+// src/core/harness/agy.ts
+var agyProfile;
+var init_agy = __esm(() => {
+  init_native_events();
+  init_profile();
+  agyProfile = {
+    id: "agy",
+    label: "AGY CLI",
+    shortLabel: "AGY",
+    noteName: "agy",
+    bin: "agy",
+    proc: { base: /^agy$/ },
+    runtime: "command",
+    companionPending: true,
+    noStdinPrint: true,
+    statusLineCommand: true,
+    editBudgetMs: 28000,
+    configDir: { key: "agyDir", under: ".gemini/config" },
+    relocationEnv: ["ANTIGRAVITY_CONFIG_REL_DIR"],
+    sessionEnv: ["ANTIGRAVITY_CONVERSATION_ID"],
+    protectedDirs: [
+      { key: "agyDir", under: ".gemini/config", entries: ["hooks.json", "mcp_config.json", "config.json", "plugins/"] },
+      { key: "agyDir", under: ".gemini", entries: ["antigravity-cli/settings.json"] }
+    ],
+    selfText: { what: "AGY CLI's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use AGY's own commands (`agy mcp \u2026`, `agy plugin \u2026`, `/hooks`)" },
+    skills: {
+      readsAgentsDir: false,
+      linkDir: "skills",
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: false,
+      invoke: { slash: true, dollar: false, at: false, commandTag: false },
+      mention: (id) => `/${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one by reading its SKILL.md",
+      load: (id, _explicit, file) => `read ${file ?? `skills/${id}/SKILL.md`}`,
+      candidateHow: "read skills/<id>/SKILL.md"
+    },
+    plan: {
+      enter: 'ask the user to switch to plan mode (`--mode plan`), then to say "continue", and end the turn',
+      readOnly: { name: "AGY's plan mode", leave: "leave plan mode" },
+      approval: false
+    },
+    mcp: {
+      prefix: "mcp_",
+      separator: "_",
+      token: lowerWordToken,
+      ambiguous: true,
+      syntax: "mcp_<server>_<tool> (to be confirmed against a real session)",
+      hiddenNote: "* = may be hidden: find its tools before assuming they are missing"
+    },
+    mcpClient: { includes: ["antigravity", "agy"] },
+    events: {
+      map: {
+        sessionStart: ["SessionStart"],
+        prompt: ["PreInvocation"],
+        preTool: ["PreToolUse"],
+        postTool: ["PostToolUse"],
+        stop: ["Stop"],
+        preCompact: null,
+        sessionEnd: null
+      },
+      native: AGY_EVENTS
+    },
+    tools: {
+      kinds: {
+        run_command: "bash",
+        send_command_input: "bash",
+        replace_file_content: "edit",
+        multi_replace_file_content: "edit",
+        notebook_edit: "edit",
+        write_to_file: "write",
+        view_file: "read",
+        view_file_outline: "read",
+        list_dir: "search",
+        grep_search: "search",
+        find_by_name: "search",
+        codebase_search: "search",
+        search_web: "web_search",
+        read_url_content: "web_fetch",
+        ask_user: "ask_user",
+        invoke_subagent: "agent"
+      },
+      names: { ask_user: "ask_user", todo: "task_boundary", spawn_agent: "invoke_subagent" },
+      todoProse: "keep the list in your reply"
+    }
+  };
+});
+
+// src/core/harness/claude.ts
+var CLAUDE_PLUGIN_NAME = "buracle", claudeProfile;
+var init_claude = __esm(() => {
+  init_native_events();
+  init_profile();
+  claudeProfile = {
+    id: "claude",
+    label: "Claude Code",
+    shortLabel: "CC",
+    noteName: "claude-code",
+    bin: "claude",
+    proc: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: "CLAUDE_PID" },
+    runtime: "command",
+    statusLineCommand: true,
+    spoolSuffix: "classic",
+    editBudgetMs: 28000,
+    configDir: { key: "claudeDir", env: "CLAUDE_CONFIG_DIR", under: ".claude" },
+    relocationEnv: ["CLAUDE_CONFIG_DIR"],
+    sessionEnv: ["CLAUDE_CODE_SESSION_ID"],
+    protectedDirs: [{ key: "claudeDir", under: ".claude", entries: ["settings.json", "settings.local.json", "plugins/"] }],
+    selfText: { what: "Claude Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Claude Code's own commands (`claude plugin \u2026`, `claude mcp \u2026`, `/config`)" },
+    skills: {
+      readsAgentsDir: false,
+      readsClaudeUserDir: true,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, namespace: "buracle", dollar: false, at: false, commandTag: true },
+      mention: (id, invocable) => invocable ? `/${id}` : `/buracle:${id}`,
+      agentPrefix: "buracle:",
+      howto: "the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>",
+      load: (id, explicit, file) => explicit ? `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}` : `Skill tool, buracle:${id}`,
+      candidateHow: "Skill tool, buracle:<id>"
+    },
+    plan: {
+      enter: "call the EnterPlanMode tool (load it with tool search when it is deferred)",
+      readOnly: { name: "Claude Code's plan mode", leave: "leave plan mode (Shift+Tab)" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: wordDashToken,
+      plugin: { marker: "plugin_", name: CLAUDE_PLUGIN_NAME },
+      syntax: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
+      hiddenNote: "* = may be deferred: find its tools with tool search before assuming they are missing"
+    },
+    mcpClient: { includes: ["claude"] },
+    events: {
+      map: {
+        sessionStart: ["classic.SessionStart", "classic.SubagentStart"],
+        prompt: ["classic.UserPromptSubmit"],
+        preTool: ["tool.call", "tool.check", "classic.PreToolUse"],
+        postTool: ["classic.PostToolUse", "classic.PostToolUseFailure"],
+        stop: ["classic.Stop", "classic.SubagentStop"],
+        preCompact: ["classic.PreCompact"],
+        sessionEnd: ["classic.SessionEnd"]
+      },
+      native: [...CLAUDE_ENGINE_EVENTS, ...CLAUDE_CLASSIC_EVENTS.map((e) => `classic.${e}`)]
+    },
+    tools: {
+      kinds: {
+        Bash: "bash",
+        Monitor: "bash",
+        PowerShell: "bash",
+        Edit: "edit",
+        MultiEdit: "edit",
+        NotebookEdit: "edit",
+        Write: "write",
+        Read: "read",
+        NotebookRead: "read",
+        Glob: "search",
+        Grep: "search",
+        LS: "search",
+        WebSearch: "web_search",
+        WebFetch: "web_fetch",
+        AskUserQuestion: "ask_user",
+        ExitPlanMode: "plan_exit",
+        EnterPlanMode: "plan_enter",
+        TodoWrite: "todo",
+        TaskCreate: "todo",
+        TaskUpdate: "todo",
+        TaskList: "todo",
+        TaskGet: "todo",
+        Agent: "agent",
+        Task: "agent"
+      },
+      names: { ask_user: "AskUserQuestion", todo: "TodoWrite", spawn_agent: "Agent" },
+      stringCommandOnly: ["Monitor"]
+    }
+  };
+});
+
+// src/core/harness/codex.ts
+var codexProfile;
+var init_codex = __esm(() => {
+  init_native_events();
+  init_profile();
+  codexProfile = {
+    id: "codex",
+    label: "Codex",
+    shortLabel: "Codex",
+    noteName: "codex",
+    bin: "codex",
+    proc: { base: /^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/ },
+    runtime: "command",
+    editBudgetMs: 40000,
+    configDir: { key: "codexHome", env: "CODEX_HOME", under: ".codex" },
+    relocationEnv: ["CODEX_HOME"],
+    sessionEnv: ["CODEX_SESSION_ID", "CODEX_THREAD_ID"],
+    protectedDirs: [{ key: "codexHome", under: ".codex", entries: ["config.toml", "hooks.json", "rules/"] }],
+    selfText: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp \u2026`, `codex features \u2026`)" },
+    skills: {
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: false,
+      invoke: { slash: false, dollar: true, at: false, commandTag: false },
+      mention: (id) => `$${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md",
+      load: (id) => `read ~/.agents/skills/${id}/SKILL.md`,
+      candidateHow: "read ~/.agents/skills/<id>/SKILL.md"
+    },
+    plan: {
+      enter: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
+      readOnly: { name: "Codex's Plan mode", leave: "leave Plan mode" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: wordToken,
+      syntax: "mcp__<server>__<tool>, with - written as _",
+      hiddenNote: "* = may be deferred: find its tools with tool_search before assuming they are missing"
+    },
+    mcpClient: { includes: ["codex"] },
+    events: {
+      map: {
+        sessionStart: ["SessionStart", "SubagentStart"],
+        prompt: ["UserPromptSubmit"],
+        preTool: ["PreToolUse", "PermissionRequest"],
+        postTool: ["PostToolUse"],
+        stop: ["Stop", "SubagentStop"],
+        preCompact: ["PreCompact"],
+        sessionEnd: ["SessionEnd"]
+      },
+      native: CODEX_EVENTS
+    },
+    tools: {
+      kinds: {
+        Bash: "bash",
+        shell: "bash",
+        shell_command: "bash",
+        exec_command: "bash",
+        local_shell: "bash",
+        unified_exec: "bash",
+        "container.exec": "bash",
+        apply_patch: "patch",
+        Edit: "patch",
+        Write: "patch",
+        view_image: "read",
+        web_search: "web_search",
+        webrun: "web_search",
+        request_user_input: "ask_user",
+        request_user_input_async: "ask_user",
+        update_plan: "todo",
+        spawn_agent: "agent",
+        Agent: "agent"
+      },
+      names: { ask_user: "request_user_input", todo: "update_plan", spawn_agent: "spawn_agent" }
+    }
+  };
+});
+
+// src/core/harness/omp.ts
+var ompProfile;
+var init_omp = __esm(() => {
+  init_native_events();
+  init_profile();
+  ompProfile = {
+    id: "omp",
+    label: "Oh My Pi",
+    shortLabel: "OMP",
+    noteName: "omp",
+    bin: "omp",
+    proc: { base: /^omp$/ },
+    runtime: "inprocess",
+    editBudgetMs: 20000,
+    configDir: { key: "ompAgentDir", env: "PI_CODING_AGENT_DIR", under: ".omp/agent" },
+    relocationEnv: ["PI_CODING_AGENT_DIR"],
+    sessionEnv: ["OMP_SESSION_ID"],
+    protectedDirs: [
+      { key: "ompAgentDir", under: ".omp/agent", entries: ["config.yml", "config.yaml", "settings.json", "extensions/", "hooks/"] },
+      { key: "ompHome", under: ".omp", entries: ["plugins/"] }
+    ],
+    selfText: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set \u2026`, `omp plugin \u2026`)" },
+    skills: {
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, namespace: "skill", dollar: false, at: false, commandTag: false },
+      mention: (id, invocable) => invocable ? `/${id}` : `/skill:${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one by reading skill://<id>",
+      load: (id) => `read skill://${id}`,
+      candidateHow: "read skill://<id>"
+    },
+    plan: {
+      enter: 'ask the user to turn on plan mode with `/plan` (or alt+shift+p), then to say "continue", and end the turn',
+      readOnly: { name: "Oh My Pi's plan mode", leave: "leave plan mode" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "_",
+      token: lowerWordToken,
+      ambiguous: true,
+      dropServerPrefix: true,
+      syntax: "mcp__<server>_<tool>, lower-case with - written as _",
+      hiddenNote: "* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing"
+    },
+    mcpClient: { includes: ["omp", "oh-my-pi", "pi-coding"], exact: ["pi"] },
+    events: {
+      map: {
+        sessionStart: ["session_start", "before_agent_start"],
+        prompt: ["input"],
+        preTool: ["tool_call"],
+        postTool: ["tool_result"],
+        stop: ["session_stop"],
+        preCompact: ["session.compacting"],
+        sessionEnd: ["session_shutdown"]
+      },
+      native: OMP_EVENTS
+    },
+    tools: {
+      kinds: {
+        bash: "bash",
+        eval: "eval",
+        edit: "edit",
+        ast_edit: "edit",
+        write: "write",
+        read: "read",
+        grep: "search",
+        search: "search",
+        find: "search",
+        glob: "search",
+        ast_grep: "search",
+        web_search: "web_search",
+        fetch: "web_fetch",
+        web_fetch: "web_fetch",
+        ask: "ask_user",
+        todo: "todo",
+        task: "agent"
+      },
+      names: { ask_user: "ask", todo: "todo", spawn_agent: "task" },
+      deviceScheme: "xd",
+      readFetchesUrls: true,
+      editTakesPatch: true
+    }
+  };
+});
+
+// src/core/harness/opencode.ts
+var opencodeProfile;
+var init_opencode = __esm(() => {
+  init_native_events();
+  init_profile();
+  opencodeProfile = {
+    id: "opencode",
+    label: "OpenCode",
+    shortLabel: "OpenCode",
+    noteName: "opencode",
+    bin: "opencode",
+    proc: { base: /^opencode(?:-(?:darwin|linux)\b[\w.-]*)?$/ },
+    runtime: "inprocess",
+    editBudgetMs: 20000,
+    configDir: { key: "opencodeConfigDir", env: "XDG_CONFIG_HOME", envSubdir: "opencode", under: ".config/opencode" },
+    relocationEnv: ["XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR"],
+    sessionEnv: ["OPENCODE_SESSION_ID"],
+    protectedDirs: [{ key: "opencodeConfigDir", under: ".config/opencode", entries: [""] }],
+    selfText: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp \u2026`, `opencode plugin \u2026`)" },
+    skills: {
+      readsAgentsDir: true,
+      readsClaudeUserDir: true,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, dollar: false, at: true, commandTag: false },
+      mention: (id, invocable) => invocable ? `/${id}` : `@${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one with the skill tool",
+      load: (id) => `skill tool, ${id}`,
+      candidateHow: "skill tool"
+    },
+    plan: {
+      enter: 'ask the user to switch to the plan agent (Tab), then to say "continue", and end the turn',
+      readOnly: { name: "OpenCode's read-only plan agent", leave: "switch to the build agent (Tab)" },
+      approval: false
+    },
+    mcp: {
+      prefix: "",
+      separator: "_",
+      token: wordDashToken,
+      ambiguous: true,
+      syntax: "<server>_<tool>",
+      hiddenNote: "* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool"
+    },
+    mcpClient: { includes: ["opencode"] },
+    events: {
+      map: {
+        sessionStart: ["session.created", "session.context"],
+        prompt: ["session.prompt"],
+        preTool: ["permission.evaluate", "tool.execute.before"],
+        postTool: ["tool.execute.after"],
+        stop: ["session.execution.succeeded", "session.idle"],
+        preCompact: ["session.compaction"],
+        sessionEnd: ["session.deleted"]
+      },
+      native: OPENCODE_EVENTS
+    },
+    tools: {
+      kinds: {
+        bash: "bash",
+        shell: "bash",
+        edit: "edit",
+        multiedit: "edit",
+        write: "write",
+        patch: "patch",
+        apply_patch: "patch",
+        read: "read",
+        grep: "search",
+        glob: "search",
+        list: "search",
+        ls: "search",
+        webfetch: "web_fetch",
+        websearch: "web_search",
+        codesearch: "web_search",
+        question: "ask_user",
+        todowrite: "todo",
+        todoread: "todo",
+        task: "agent",
+        subagent: "agent",
+        plan_exit: "plan_exit",
+        plan_enter: "plan_enter",
+        skill: "other",
+        execute: "other",
+        list_mcp_resources: "other",
+        read_mcp_resource: "other"
+      },
+      names: { ask_user: "question", todo: "todowrite", spawn_agent: "subagent" },
+      todoProse: "a short checklist in your replies"
+    }
+  };
+});
+
+// src/core/harness/pi.ts
+var piProfile;
+var init_pi = __esm(() => {
+  init_native_events();
+  init_profile();
+  piProfile = {
+    id: "pi",
+    label: "Pi",
+    shortLabel: "Pi",
+    noteName: "pi",
+    bin: "pi",
+    proc: { base: /^pi$/ },
+    runtime: "inprocess",
+    companionPending: true,
+    editBudgetMs: 20000,
+    configDir: { key: "piAgentDir", env: "PI_CODING_AGENT_DIR", under: ".pi/agent" },
+    relocationEnv: ["PI_CODING_AGENT_DIR"],
+    sessionEnv: ["PI_SESSION_ID"],
+    protectedDirs: [{ key: "piAgentDir", under: ".pi/agent", entries: ["settings.json", "mcp.json", "extensions/"] }],
+    selfText: { what: "Pi's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use Pi's own commands (`pi install \u2026`, `pi remove \u2026`, `pi mcp \u2026`, `/mcp`)" },
+    skills: {
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: false,
+      invoke: { slash: true, namespace: "skill", dollar: false, at: false, commandTag: false },
+      mention: (id) => `/skill:${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /skill:<id>; you load one by reading its SKILL.md",
+      load: (id, _explicit, file) => `read ${file ?? `~/.agents/skills/${id}/SKILL.md`}`,
+      candidateHow: "read ~/.agents/skills/<id>/SKILL.md"
+    },
+    plan: {
+      enter: 'ask the user to turn on a plan mode, then to say "continue", and end the turn (Pi has no built-in plan mode)',
+      readOnly: { name: "Pi's plan mode", leave: "leave plan mode" },
+      approval: false
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: wordToken,
+      syntax: "mcp__<server>__<tool>, with characters other than letters, digits and _ written as _",
+      hiddenNote: "* = may be hidden by tool exposure settings: find its tools with tool search before assuming they are missing"
+    },
+    mcpClient: { includes: ["pi-coding"], exact: ["pi"] },
+    events: {
+      map: {
+        sessionStart: ["session_start"],
+        prompt: ["input", "before_agent_start"],
+        preTool: ["tool_call"],
+        postTool: ["tool_result"],
+        stop: ["agent_before_settle"],
+        preCompact: ["session_before_compact"],
+        sessionEnd: ["session_shutdown"]
+      },
+      native: PI_EVENTS
+    },
+    tools: {
+      kinds: {
+        bash: "bash",
+        codemode: "eval",
+        edit: "edit",
+        write: "write",
+        read: "read",
+        grep: "search",
+        find: "search",
+        ls: "search"
+      },
+      names: { ask_user: "ask_user", todo: "todo", spawn_agent: "subagent" },
+      todoProse: "keep the list in your reply (Pi has no todo tool)"
+    }
+  };
+});
+
+// src/core/harness/qwen.ts
+var qwenProfile;
+var init_qwen = __esm(() => {
+  init_native_events();
+  init_profile();
+  qwenProfile = {
+    id: "qwen",
+    label: "Qwen Code",
+    shortLabel: "Qwen",
+    noteName: "qwen",
+    bin: "qwen",
+    proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
+    runtime: "command",
+    statusLineCommand: true,
+    companionPending: true,
+    editBudgetMs: 28000,
+    configDir: { key: "qwenHome", env: "QWEN_HOME", under: ".qwen" },
+    relocationEnv: ["QWEN_HOME"],
+    sessionEnv: [],
+    protectedDirs: [{ key: "qwenHome", under: ".qwen", entries: ["settings.json", "hookApprovals.json", "plugins/", "extensions/"] }],
+    selfText: { what: "Qwen Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Qwen Code's own commands (`qwen mcp \u2026`, `/hooks`)" },
+    skills: {
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: false,
+      invoke: { slash: true, dollar: false, at: false, commandTag: false },
+      mention: (id) => `/${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one with the skill tool",
+      load: (id) => `skill tool, ${id}`,
+      candidateHow: "skill tool, <id>"
+    },
+    plan: {
+      enter: "call the EnterPlanMode tool",
+      readOnly: { name: "Qwen Code's plan mode", leave: "leave plan mode (Shift+Tab)" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: collapsedWordDashToken,
+      syntax: "mcp__<server>__<tool>, with characters other than letters, digits, _ and - written as _",
+      hiddenNote: "* = may be deferred: find its tools with the tool_search tool before assuming they are missing"
+    },
+    mcpClient: { includes: ["qwen"] },
+    events: {
+      map: {
+        sessionStart: ["SessionStart", "SubagentStart"],
+        prompt: ["UserPromptSubmit"],
+        preTool: ["PreToolUse"],
+        postTool: ["PostToolUse", "PostToolUseFailure"],
+        stop: ["Stop", "SubagentStop"],
+        preCompact: ["PreCompact"],
+        sessionEnd: ["SessionEnd"]
+      },
+      native: QWEN_EVENTS
+    },
+    tools: {
+      kinds: {
+        run_shell_command: "bash",
+        monitor: "bash",
+        edit: "edit",
+        notebook_edit: "edit",
+        write_file: "write",
+        read_file: "read",
+        read_many_files: "read",
+        glob: "search",
+        grep_search: "search",
+        list_directory: "search",
+        web_search: "web_search",
+        web_fetch: "web_fetch",
+        AskUserQuestion: "ask_user",
+        ask_user_question: "ask_user",
+        ExitPlanMode: "plan_exit",
+        exit_plan_mode: "plan_exit",
+        EnterPlanMode: "plan_enter",
+        enter_plan_mode: "plan_enter",
+        TodoWrite: "todo",
+        todo_write: "todo",
+        agent: "agent",
+        Agent: "agent",
+        task: "agent"
+      },
+      names: { ask_user: "ask_user_question", todo: "todo_write", spawn_agent: "agent" }
+    }
+  };
+});
+
+// src/core/harness/index.ts
+function harnessProfile(h) {
+  return SET.of(h);
+}
+function harnessTable(pick) {
+  return SET.table(pick);
+}
+function harnessesWhere(test) {
+  return SET.where(test);
+}
+var HARNESS_PROFILES, SET, HARNESSES, HARNESS_LABEL, NEUTRAL_SKILL_HARNESSES;
+var init_harness = __esm(() => {
+  init_agy();
+  init_claude();
+  init_codex();
+  init_omp();
+  init_opencode();
+  init_pi();
+  init_qwen();
+  init_profile();
+  init_claude();
+  init_native_events();
+  init_profile();
+  HARNESS_PROFILES = {
+    claude: claudeProfile,
+    codex: codexProfile,
+    opencode: opencodeProfile,
+    omp: ompProfile,
+    qwen: qwenProfile,
+    pi: piProfile,
+    agy: agyProfile
+  };
+  SET = defineHarnesses(HARNESS_PROFILES);
+  HARNESSES = SET.ids;
+  HARNESS_LABEL = harnessTable((p) => p.label);
+  NEUTRAL_SKILL_HARNESSES = harnessesWhere((p) => p.skills.readsAgentsDir);
+});
+
 // src/engine/shim.ts
-import { readFileSync as readFileSync6, statSync as statSync7 } from "fs";
+import { readFileSync as readFileSync4, statSync as statSync6 } from "fs";
 import { resolve as resolve4 } from "path";
 function parseShimText(text) {
   const legacy = new RegExp(`^exec '${SQ}' '${SQ}' "\\$@"$`, "m").exec(text);
   if (legacy?.[1] !== undefined && legacy[2] !== undefined) {
-    const main = unquote2(legacy[2]);
-    return { mode: "legacy", bun: unquote2(legacy[1]), main, checkout: resolve4(main, "..", "..", "..") };
+    const main = unquote(legacy[2]);
+    return { mode: "legacy", bun: unquote(legacy[1]), main, checkout: resolve4(main, "..", "..", "..") };
   }
   const mode = /^# buracle-shim: (frozen|checkout)$/m.exec(text)?.[1];
   const b = new RegExp(`^b='${SQ}'$`, "m").exec(text)?.[1];
@@ -7379,23 +8317,23 @@ function parseShimText(text) {
   const c = new RegExp(`^c='${SQ}'$`, "m").exec(text)?.[1];
   if (mode === undefined || b === undefined || m === undefined)
     return;
-  const info = { mode, bun: unquote2(b), main: unquote2(m) };
+  const info = { mode, bun: unquote(b), main: unquote(m) };
   if (c !== undefined)
-    info.checkout = resolve4(unquote2(c), "..", "..", "..");
+    info.checkout = resolve4(unquote(c), "..", "..", "..");
   else if (mode === "checkout")
     info.checkout = resolve4(info.main, "..", "..", "..");
   return info;
 }
 function readShim(shim = shimPath()) {
   try {
-    return parseShimText(readFileSync6(shim, "utf8"));
+    return parseShimText(readFileSync4(shim, "utf8"));
   } catch {
     return;
   }
 }
 function isFile2(p) {
   try {
-    return statSync7(p).isFile();
+    return statSync6(p).isFile();
   } catch {
     return false;
   }
@@ -7403,7 +8341,7 @@ function isFile2(p) {
 function shimLaunch(shim = shimPath()) {
   return isFile2(shim) ? [shim] : undefined;
 }
-var SQ = "((?:[^']|'\\\\'')*)", unquote2 = (s) => s.replace(/'\\''/g, "'");
+var SQ = "((?:[^']|'\\\\'')*)", unquote = (s) => s.replace(/'\\''/g, "'");
 var init_shim = __esm(() => {
   init_paths();
 });
@@ -7412,21 +8350,21 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync10, readdirSync as readdirSync4, renameSync as renameSync3, rmSync as rmSync2, statSync as statSync12, writeFileSync } from "fs";
-import { basename as basename3, dirname as dirname7, join as join13, relative as relative3, resolve as resolve8, sep as sep3 } from "path";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync8, readdirSync as readdirSync3, renameSync as renameSync3, rmSync as rmSync2, statSync as statSync11, writeFileSync } from "fs";
+import { basename as basename3, dirname as dirname6, join as join12, relative as relative3, resolve as resolve7, sep as sep3 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
   const walk = (rel) => {
     let entries;
     try {
-      entries = readdirSync4(join13(checkout, rel), { withFileTypes: true });
+      entries = readdirSync3(join12(checkout, rel), { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
       if (SKIP_NAMES.has(e.name))
         continue;
-      const r = join13(rel, e.name);
+      const r = join12(rel, e.name);
       if (e.isDirectory())
         walk(r);
       else if (e.isFile())
@@ -7436,13 +8374,13 @@ function runtimeFiles(checkout) {
   for (const d of RUNTIME_DIRS)
     walk(d);
   for (const f of RUNTIME_FILES)
-    if (existsSync6(join13(checkout, f)))
+    if (existsSync6(join12(checkout, f)))
       out.push(f);
   return out.map((p) => p.split(sep3).join("/")).sort();
 }
 function readJson(path) {
   try {
-    const v = JSON.parse(readFileSync10(path, "utf8"));
+    const v = JSON.parse(readFileSync8(path, "utf8"));
     return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
   } catch {
     return;
@@ -7459,12 +8397,12 @@ function depsOf(pkg) {
   return out;
 }
 function runtimePackages(checkout) {
-  const root = readJson(join13(checkout, "package.json"));
+  const root = readJson(join12(checkout, "package.json"));
   if (root === undefined)
-    return { error: `${join13(checkout, "package.json")} cannot be read` };
+    return { error: `${join12(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync10(join13(checkout, "bun.lock"), "utf8");
+    lock = readFileSync8(join12(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -7477,8 +8415,8 @@ function runtimePackages(checkout) {
     const [name, want] = queue.shift();
     if (found.has(name))
       continue;
-    const dir = join13(checkout, "node_modules", ...name.split("/"));
-    const pkg = readJson(join13(dir, "package.json"));
+    const dir = join12(checkout, "node_modules", ...name.split("/"));
+    const pkg = readJson(join12(dir, "package.json"));
     const have = typeof pkg?.["version"] === "string" ? pkg["version"] : undefined;
     if (have === undefined) {
       problems.push(`${name} is not installed`);
@@ -7503,9 +8441,9 @@ function fileEntry(rel, content, mode) {
 function checkoutFingerprint(checkout, deps) {
   const parts = [];
   for (const rel of runtimeFiles(checkout)) {
-    const abs = join13(checkout, rel);
+    const abs = join12(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync10(abs), statSync12(abs).mode));
+      parts.push(fileEntry(rel, readFileSync8(abs), statSync11(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -7521,12 +8459,12 @@ function runtimeDirFingerprint(dir) {
   return "error" in pk ? undefined : checkoutFingerprint(dir, pk.deps);
 }
 function readMarker(dir) {
-  const m = readJson(join13(dir, RUNTIME_MARKER));
+  const m = readJson(join12(dir, RUNTIME_MARKER));
   if (m === undefined || m["v"] !== 1 || typeof m["id"] !== "string" || typeof m["fingerprint"] !== "string" || typeof m["checkout"] !== "string")
     return;
   return m;
 }
-function git2(dir, args) {
+function git3(dir, args) {
   try {
     const r = Bun.spawnSync(["git", "-C", dir, ...args], { stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C", GIT_TERMINAL_PROMPT: "0" } });
     return r.exitCode === 0 ? r.stdout.toString().trim() : undefined;
@@ -7535,16 +8473,16 @@ function git2(dir, args) {
   }
 }
 function checkoutGitState(checkout) {
-  const commit = git2(checkout, ["rev-parse", "HEAD"]);
+  const commit = git3(checkout, ["rev-parse", "HEAD"]);
   if (commit === undefined)
     return {};
-  const st = git2(checkout, ["status", "--porcelain", "--untracked-files=no"]);
+  const st = git3(checkout, ["status", "--porcelain", "--untracked-files=no"]);
   return st === undefined ? { commit } : { commit, dirty: st !== "" };
 }
 function runtimeDirOf(info) {
   if (info === undefined || info.mode !== "frozen")
     return;
-  const dir = resolve8(info.main, "..", "..", "..");
+  const dir = resolve7(info.main, "..", "..", "..");
   const rel = relative3(runtimeRoot(), dir);
   return rel !== "" && !rel.startsWith("..") && !rel.includes(sep3) ? dir : undefined;
 }
@@ -7602,7 +8540,7 @@ function runtimeHealth(checkout, shim = readShim()) {
     return h;
   }
   const count = (range) => {
-    const n = Number(git2(checkout, ["rev-list", "--count", range]));
+    const n = Number(git3(checkout, ["rev-list", "--count", range]));
     return Number.isFinite(n) ? n : undefined;
   };
   const behind = count(`${marker.commit}..${g.commit}`);
@@ -7616,8 +8554,9 @@ function runtimeHealth(checkout, shim = readShim()) {
   h.detail = h.drift === "behind" ? `the live runtime is ${behind} commit(s) behind the checkout (${short(marker.commit)} to ${short(g.commit)}); run \`buracle install\`` : h.drift === "ahead" ? `the live runtime is ${ahead} commit(s) ahead of the checkout (${short(marker.commit)}; the checkout is at ${short(g.commit)}); run \`buracle install\` to run the checkout's code` : `the live runtime (${short(marker.commit)}) and the checkout (${short(g.commit)}) have diverged; run \`buracle install\``;
   return h;
 }
-var RUNTIME_FILES, RUNTIME_DIRS, SKIP_NAMES;
+var RUNTIME_FILES, RUNTIME_DIRS, SKIP_NAMES, COMMAND_HOOK_HARNESSES;
 var init_runtime = __esm(() => {
+  init_harness();
   init_hook_fail();
   init_fsx();
   init_paths();
@@ -7626,116 +8565,8 @@ var init_runtime = __esm(() => {
   RUNTIME_FILES = ["package.json", "bun.lock", "tsconfig.json"];
   RUNTIME_DIRS = ["src", "canonical", "harness"];
   SKIP_NAMES = new Set([".DS_Store", "node_modules", ".git"]);
+  COMMAND_HOOK_HARNESSES = harnessesWhere((p) => p.runtime === "command" && p.adapterPending !== true);
 });
-
-// src/core/tips.ts
-var TIPS_LABEL = "Buracle";
-function isObj(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function pickTip(tips, n) {
-  const list = (tips ?? []).filter((t) => isObj(t) && typeof t.text === "string" && t.text.trim() !== "");
-  if (list.length === 0)
-    return;
-  const i = (Math.trunc(n) % list.length + list.length) % list.length;
-  return list[i];
-}
-// src/adapters/opencode/runtime/band.ts
-import { statSync as statSync4 } from "fs";
-
-// src/core/board/model.ts
-var TASK_STATUSES = ["open", "claimed", "waiting", "done", "merged", "stale"];
-var STANDBY_STALE_MS = 180000;
-function event(board, kind, at, extra = {}) {
-  const seq = board.seq + 1;
-  return { ...board, seq, updatedAt: at, events: [...board.events, { seq, kind, at, ...extra }] };
-}
-function sessionFields(s) {
-  return s === undefined ? {} : { session: s.session, harness: s.harness };
-}
-function sweep(board, now) {
-  let out = board;
-  for (const t of board.tasks) {
-    if (t.status !== "claimed" || t.leaseUntil === undefined || t.leaseUntil >= now)
-      continue;
-    const { worker, token: _token, leaseUntil: _lease, claimedAt: _c, heartbeatAt: _h, ...rest } = t;
-    const stale = { ...rest, status: "stale", ...worker !== undefined ? { lastWorker: worker } : {} };
-    out = event({ ...out, tasks: out.tasks.map((x) => x.n === t.n ? stale : x) }, "stale", now, { task: t.n, ...sessionFields(worker) });
-  }
-  return sweepStandby(out, now);
-}
-function withStandby(board, standby) {
-  const { standby: _drop, ...rest } = board;
-  return standby.length > 0 ? { ...rest, standby } : rest;
-}
-function sweepStandby(board, now) {
-  const list = board.standby;
-  if (list === undefined)
-    return board;
-  const live = list.filter((s) => s.at >= now - STANDBY_STALE_MS);
-  return live.length === list.length ? board : withStandby(board, live);
-}
-function activeWorkers(board) {
-  const out = [];
-  for (const t of board.tasks) {
-    if (t.status !== "claimed" && t.status !== "waiting" || t.worker === undefined)
-      continue;
-    if (!out.some((w) => w.harness === t.worker?.harness && w.session === t.worker.session))
-      out.push(t.worker);
-  }
-  return out;
-}
-function boardSummary(board) {
-  const s = { open: 0, claimed: 0, waiting: 0, done: 0, merged: 0, stale: 0, workers: activeWorkers(board).length, total: board.tasks.length };
-  for (const t of board.tasks)
-    s[t.status]++;
-  return s;
-}
-function boardParts(b) {
-  return [`${b.claimed} claimed`, ...b.waiting > 0 ? [`${b.waiting} waiting`] : [], ...b.done > 0 ? [`${b.done} done`] : [], ...b.stale > 0 ? [`${b.stale} stale`] : [], `${b.merged}/${b.total} merged`];
-}
-
-// src/core/events.ts
-var HARNESSES = ["claude", "codex", "opencode", "omp"];
-var DRIVE = /^[A-Za-z]:(?=[\\/]|$)/;
-function isWindowsPath(p) {
-  return typeof p === "string" && (DRIVE.test(p) || p.startsWith("\\\\"));
-}
-function windowsRoot(p) {
-  let s = p.replace(/\\/g, "/");
-  if (/^\/\/\?\/(?:[A-Za-z]:(?:\/|$)|UNC\/)/i.test(s))
-    s = s.slice(4).replace(/^UNC\//i, "//");
-  if (DRIVE.test(s))
-    return { root: `${s[0].toUpperCase()}:/`, rest: s.slice(2) };
-  const m = /^\/*([^/]*)\/*([^/]*)(.*)$/.exec(s);
-  return { root: `\\\\${m[1] ?? ""}${m[2] ? `\\${m[2]}` : ""}`, rest: m[3] ?? "" };
-}
-function normalizePath(p) {
-  if (p === "")
-    return "";
-  const win = isWindowsPath(p);
-  const { root, rest } = win ? windowsRoot(p) : { root: p.startsWith("/") ? "/" : "", rest: p };
-  const abs = root !== "";
-  const out = [];
-  for (const seg of rest.split("/")) {
-    if (seg === "" || seg === ".")
-      continue;
-    if (seg === "..") {
-      if (out.length > 0 && out[out.length - 1] !== "..")
-        out.pop();
-      else if (!abs)
-        out.push("..");
-      continue;
-    }
-    out.push(seg);
-  }
-  const body = out.join("/");
-  if (win)
-    return root.endsWith("/") ? root + body : body === "" ? root : `${root}/${body}`;
-  if (abs)
-    return "/" + body;
-  return body === "" ? "." : body;
-}
 
 // src/core/frontmatter.ts
 function parseYamlBlock(lines) {
@@ -8211,16 +9042,6 @@ var TASK_HEADING = /^Task\s+(\d+)\s*[:.\-\u2013\u2014]\s*(.*)$/i;
 var CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i;
 var LABEL = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
 var LIST_ITEM = /^\s*[-*+]\s+(.*)$/;
-var DEPENDS_TASK = /(?:task\s*)?(\d+)/gi;
-function dependsOnNumbers(rest) {
-  const out = [];
-  for (const m of rest.replace(/`/g, "").matchAll(DEPENDS_TASK)) {
-    const n = Number(m[1]);
-    if (Number.isInteger(n) && n > 0 && !out.includes(n))
-      out.push(n);
-  }
-  return out;
-}
 function scan(markdown) {
   const lines = markdown.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/);
   let fmEnd = -1;
@@ -8282,17 +9103,12 @@ function readCard(doc, card) {
   const objective = [];
   const dod = [];
   const files = [];
-  const fileLines = [];
   const badFiles = [];
-  let dependsOnLine;
   let hasObjective = false;
   let hasFiles = false;
   let hasDod = false;
   let verify = false;
   let checkbox;
-  let dependsOn;
-  let harness;
-  let badHarness;
   const prose = [];
   for (let i = card.head + 1;i < card.end; i++) {
     const line = doc.lines[i];
@@ -8344,18 +9160,6 @@ function readCard(doc, card) {
           verify = true;
           block = "other";
           prose.push(i);
-        } else if (key === "depends on") {
-          dependsOn = dependsOnNumbers(rest);
-          dependsOnLine = i;
-          block = "other";
-        } else if (key === "harness") {
-          const value = rest.replace(/`/g, "").trim();
-          const id = value.toLowerCase();
-          if (HARNESSES.includes(id))
-            harness = id;
-          else
-            badHarness = { line: i, value };
-          block = "other";
         } else
           block = "other";
         continue;
@@ -8382,7 +9186,6 @@ function readCard(doc, card) {
       const verb = m ? m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() : "";
       if (m && FILE_VERBS.includes(verb) && m[2].trim() !== "") {
         files.push({ verb, path: m[2].trim().replace(/^`(.*)`$/, "$1").replace(/^["'](.*)["']$/, "$1") });
-        fileLines.push(i);
       } else {
         badFiles.push({ line: i, text: item });
       }
@@ -8396,22 +9199,14 @@ function readCard(doc, card) {
 `).trim();
   if (d !== "")
     task.dod = d;
-  if (dependsOn !== undefined)
-    task.dependsOn = dependsOn;
-  if (harness !== undefined)
-    task.harness = harness;
   return {
     task,
-    head: card.head,
     hasObjective,
     hasFiles,
     hasDod,
     verify,
     badFiles,
-    fileLines,
-    ...dependsOnLine !== undefined ? { dependsOnLine } : {},
     ...checkbox ? { checkbox: { n: checkbox.n, line: checkbox.line } } : {},
-    ...badHarness !== undefined ? { badHarness } : {},
     prose
   };
 }
@@ -8722,11 +9517,11 @@ function count(x) {
   const n = num(x);
   return n !== undefined && n >= 0 ? Math.floor(n) : undefined;
 }
-function isObj2(x) {
+function isObj(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function entryOf(raw) {
-  if (!isObj2(raw))
+  if (!isObj(raw))
     return;
   const workflow = raw["workflow"];
   const startedAt = num(raw["startedAt"]);
@@ -8737,13 +9532,13 @@ function entryOf(raw) {
   if (typeof raw["title"] === "string" && raw["title"].trim() !== "")
     e.title = flowText(raw["title"], FLOW_TITLE_MAX);
   const p = raw["phase"];
-  if (isObj2(p) && typeof p["id"] === "string" && FLOW_ID_RE.test(p["id"]) && num(p["since"]) !== undefined) {
+  if (isObj(p) && typeof p["id"] === "string" && FLOW_ID_RE.test(p["id"]) && num(p["since"]) !== undefined) {
     e.phase = { id: p["id"], since: num(p["since"]) };
     if (typeof p["note"] === "string" && p["note"].trim() !== "")
       e.phase.note = flowText(p["note"], FLOW_NOTE_MAX);
   }
   const s = raw["step"];
-  if (isObj2(s) && typeof s["text"] === "string" && num(s["at"]) !== undefined) {
+  if (isObj(s) && typeof s["text"] === "string" && num(s["at"]) !== undefined) {
     e.step = { text: flowText(s["text"], FLOW_STEP_MAX), at: num(s["at"]) };
     const done = count(s["done"]);
     const total = count(s["total"]);
@@ -8753,13 +9548,13 @@ function entryOf(raw) {
       e.step.total = total;
   }
   const x = raw["ended"];
-  if (isObj2(x) && FLOW_OUTCOMES.includes(x["outcome"]) && num(x["at"]) !== undefined) {
+  if (isObj(x) && FLOW_OUTCOMES.includes(x["outcome"]) && num(x["at"]) !== undefined) {
     e.ended = { outcome: x["outcome"], at: num(x["at"]) };
   }
   return e;
 }
 function parseFlow(raw) {
-  if (!isObj2(raw) || raw["v"] !== 1 || !Array.isArray(raw["stack"]))
+  if (!isObj(raw) || raw["v"] !== 1 || !Array.isArray(raw["stack"]))
     return;
   const stack = [];
   for (const item of raw["stack"]) {
@@ -8789,11 +9584,6 @@ function planFlowPhase(workflow, plan, current) {
 }
 
 // src/core/flow/band.ts
-function boardNoteText(b) {
-  if (b === undefined || b.total <= 0)
-    return;
-  return `board: ${boardParts(b).join(" \xB7 ")}`;
-}
 var BUILD_MAX_ROUNDS = 4;
 var STATUS_TEXT = {
   starting: "starting",
@@ -8935,11 +9725,6 @@ function bandView(i) {
     view.note = flowText(reason, 120);
   else if (entry.phase?.note !== undefined && entry.ended === undefined)
     view.note = entry.phase.note;
-  else if (entry.ended === undefined) {
-    const board = boardNoteText(i.board);
-    if (board !== undefined)
-      view.note = board;
-  }
   if (entry.startedAt > 0) {
     view.startedAt = entry.startedAt;
     view.elapsedMin = Math.max(0, Math.floor(((entry.ended?.at ?? now) - entry.startedAt) / 60000));
@@ -9178,12 +9963,28 @@ function resumeSuggestion(v) {
   return flowText(`continue the ${v.breadcrumb.join(" \u203A ")} run${where}${v.title !== undefined ? `: ${v.title}` : ""}`, 160);
 }
 
+// src/core/flow/state.ts
+var AGENT_MAX_MS = 2 * 60 * 60000;
+var FOLD_AFTER_SEC = 8;
+
+// src/core/tips.ts
+var TIPS_LABEL = "Buracle";
+function isObj2(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function pickTip(tips, n) {
+  const list = (tips ?? []).filter((t) => isObj2(t) && typeof t.text === "string" && t.text.trim() !== "");
+  if (list.length === 0)
+    return;
+  const i = (Math.trunc(n) % list.length + list.length) % list.length;
+  return list[i];
+}
 // src/adapters/opencode/runtime/band.ts
+import { statSync as statSync3 } from "fs";
 init_paths();
 
-// src/workflow/board-store.ts
-import { readFileSync as readFileSync3, readdirSync, statSync as statSync3, unlinkSync as unlinkSync2 } from "fs";
-import { dirname as dirname3, join as join4, resolve as resolve3 } from "path";
+// src/workflow/flow.ts
+import { join as join4 } from "path";
 init_fsx();
 
 // src/engine/log.ts
@@ -9249,14 +10050,54 @@ function log(level, msg, data) {
   } catch {}
 }
 
-// src/workflow/board-store.ts
+// src/workflow/flow.ts
 init_paths();
-
-// src/workflow/plan-file.ts
-init_fsx();
 
 // src/workflow/session-store.ts
 import { join as join3, posix } from "path";
+
+// src/core/events.ts
+init_harness();
+init_profile();
+init_harness();
+init_profile();
+function mcpServerToken(harness, server) {
+  return mcpToken(harnessProfile(harness).mcp, server);
+}
+function normalizePath(p) {
+  if (p === "")
+    return "";
+  const abs = p.startsWith("/");
+  const out = [];
+  for (const seg of p.split("/")) {
+    if (seg === "" || seg === ".")
+      continue;
+    if (seg === "..") {
+      if (out.length > 0 && out[out.length - 1] !== "..")
+        out.pop();
+      else if (!abs)
+        out.push("..");
+      continue;
+    }
+    out.push(seg);
+  }
+  const body = out.join("/");
+  if (abs)
+    return "/" + body;
+  return body === "" ? "." : body;
+}
+
+// src/workflow/session-store.ts
+init_harness();
+
+// src/core/plan/native.ts
+init_harness();
+
+// src/core/plan/capture.ts
+init_harness();
+
+// src/core/plan/native.ts
+var NATIVE_PLAN_ENTER = harnessTable((p) => p.plan.enter);
 
 // src/core/policy/text.ts
 function word(body) {
@@ -9374,135 +10215,15 @@ function loadState(h, sid) {
   return r.value;
 }
 var SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
-var PROFILE_DIR = {
-  claude: { key: "claudeDir", label: "Claude Code", variable: "CLAUDE_CONFIG_DIR" },
-  codex: { key: "codexHome", label: "Codex", variable: "CODEX_HOME" },
-  opencode: { key: "opencodeConfigDir", label: "OpenCode", variable: "XDG_CONFIG_HOME" },
-  omp: { key: "ompAgentDir", label: "Oh My Pi", variable: "PI_CODING_AGENT_DIR" }
-};
-function absoluteEnv(env, name) {
-  const v = env[name];
-  return typeof v === "string" && v.trim() !== "" && posix.isAbsolute(v.trim()) ? v.trim() : undefined;
-}
-function under(dir, ...parts) {
-  return posix.join(dir, ...parts);
-}
-function liveHarnessDir(h, env) {
-  const home = absoluteEnv(env, "HOME");
-  switch (h) {
-    case "claude":
-      return absoluteEnv(env, "CLAUDE_CONFIG_DIR") ?? (home !== undefined ? under(home, ".claude") : undefined);
-    case "codex":
-      return absoluteEnv(env, "CODEX_HOME") ?? (home !== undefined ? under(home, ".codex") : undefined);
-    case "opencode": {
-      const xdg = absoluteEnv(env, "XDG_CONFIG_HOME");
-      return xdg !== undefined ? under(xdg, "opencode") : home !== undefined ? under(home, ".config", "opencode") : undefined;
-    }
-    case "omp":
-      return absoluteEnv(env, "PI_CODING_AGENT_DIR") ?? (home !== undefined ? under(home, ".omp", "agent") : undefined);
-  }
-}
-function samePath(a, b) {
-  const norm = (p) => posix.normalize(p).replace(/(.)\/+$/, "$1");
-  return norm(a) === norm(b);
-}
-function profileGuard(h, runtimeCfg, env) {
-  const spec = PROFILE_DIR[h];
-  if (spec === undefined)
-    return;
-  const resolved = runtimeCfg !== null && typeof runtimeCfg === "object" ? runtimeCfg.resolved : undefined;
-  const installed = resolved !== null && typeof resolved === "object" ? resolved[spec.key] : undefined;
-  if (typeof installed !== "string" || !posix.isAbsolute(installed))
-    return;
-  const live = liveHarnessDir(h, env);
-  if (live === undefined || samePath(installed, live))
-    return;
-  return `Buracle was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`;
-}
-
-// src/workflow/board-store.ts
-function isSession(x) {
-  return x !== null && typeof x === "object" && typeof x.harness === "string" && typeof x.session === "string";
-}
-function isStandby(x) {
-  return isSession(x) && typeof x.since === "number" && typeof x.at === "number";
-}
-function isBoard(x) {
-  if (x === null || typeof x !== "object")
-    return false;
-  const b = x;
-  if (b["v"] !== 1 || typeof b["slug"] !== "string" || typeof b["plan"] !== "string" || typeof b["base"] !== "string")
-    return false;
-  if (!isSession(b["lead"]) || typeof b["maxWorkers"] !== "number" || typeof b["leaseSec"] !== "number" || typeof b["seq"] !== "number")
-    return false;
-  if (!Array.isArray(b["tasks"]) || !Array.isArray(b["notes"]) || !Array.isArray(b["events"]) || !Array.isArray(b["constraints"]) || typeof b["context"] !== "string")
-    return false;
-  if (b["standby"] !== undefined && !(Array.isArray(b["standby"]) && b["standby"].every(isStandby)))
-    return false;
-  if (b["harnesses"] !== undefined && !(Array.isArray(b["harnesses"]) && b["harnesses"].every((h) => HARNESSES.includes(String(h)))))
-    return false;
-  if (b["panes"] !== undefined && typeof b["panes"] !== "string")
-    return false;
-  return b["tasks"].every((t) => t !== null && typeof t === "object" && typeof t.n === "number" && TASK_STATUSES.includes(String(t.status)));
-}
-function readBoardFile(path) {
-  const r = readJsonSafeSync(path);
-  if (!r.ok) {
-    if (r.code === "missing")
-      return { ok: false, code: "missing", error: `no board at ${path}` };
-    log("warn", "board: the board file is unreadable", { path, error: r.error });
-    return { ok: false, code: "invalid", error: `the board file ${path} is unreadable: ${String(r.error)}` };
-  }
-  if (!isBoard(r.value)) {
-    log("warn", "board: the board file has an unexpected shape", { path });
-    return { ok: false, code: "invalid", error: `the board file ${path} has an unexpected shape (not a v1 board)` };
-  }
-  return { ok: true, board: r.value };
-}
-function readBoard(path) {
-  const r = readBoardFile(path);
-  return r.ok ? r.board : undefined;
-}
-function boardCountsFor(h, sid, now) {
-  if (sid === undefined || !isValidSessionId(sid))
-    return;
-  const binding = sessionBoard(h, sid);
-  if (binding === undefined)
-    return;
-  const board = readBoard(binding.path);
-  if (board === undefined)
-    return;
-  return { slug: board.slug, role: binding.role, summary: boardSummary(sweep(board, now)) };
-}
-function sessionBoard(h, sid) {
-  return loadState(h, sid).board;
-}
-function terminalFile(h, sid) {
-  return isValidSessionId(sid) ? join4(sessionDir(h, sid), "board-terminal.json") : undefined;
-}
-function takeTerminalSequence(h, sid) {
-  const file = terminalFile(h, sid);
-  if (file === undefined)
-    return;
-  const r = readJsonSafeSync(file);
-  try {
-    unlinkSync2(file);
-  } catch {}
-  return r.ok && typeof r.value?.sequence === "string" && r.value.sequence !== "" ? r.value.sequence : undefined;
-}
-
-// src/workflow/flow.ts
-import { join as join5 } from "path";
-init_fsx();
-init_paths();
+var NATIVE_CLAIMS = HARNESSES.flatMap((h) => harnessProfile(h).sessionEnv.map((name) => [name, h]));
 
 // src/workflow/result.ts
 var NO_SESSION_HINT = "no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from " + "BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; " + "when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. " + "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration.";
 
 // src/workflow/flow.ts
-var DEFAULT_FOLD_SEC = 8;
+var DEFAULT_FOLD_SEC = FOLD_AFTER_SEC;
 function flowPath(h, sid) {
-  return join5(sessionDir(h, sid), "flow.json");
+  return join4(sessionDir(h, sid), "flow.json");
 }
 function readFlow(h, sid) {
   const r = readJsonSafeSync(flowPath(h, sid));
@@ -9536,9 +10257,6 @@ function bandInputFor(h, sid, nowMs, foldAfterSec = DEFAULT_FOLD_SEC) {
     if (it.reason !== undefined)
       input.interaction.reason = it.reason;
   }
-  const board = boardCountsFor(h, sid, nowMs);
-  if (board !== undefined)
-    input.board = board.summary;
   return input;
 }
 
@@ -9558,7 +10276,7 @@ function mtime(file) {
   if (file === undefined)
     return "-";
   try {
-    const st = statSync4(file);
+    const st = statSync3(file);
     return `${st.mtimeMs}:${st.size}`;
   } catch {
     return "-";
@@ -9572,8 +10290,7 @@ class BandFeeder {
     this.now = now;
   }
   key(sid, planPath) {
-    const board = sessionBoard(HARNESS, sid)?.path;
-    return [mtime(flowPath(HARNESS, sid)), mtime(statePath(HARNESS, sid)), planPath ?? "", mtime(planPath), board ?? "", mtime(board)].join("|");
+    return [mtime(flowPath(HARNESS, sid)), mtime(statePath(HARNESS, sid)), planPath ?? "", mtime(planPath)].join("|");
   }
   view(sid, foldAfterSec) {
     const hidden = { visible: false, breadcrumb: [], status: "running", phases: [], agents: [] };
@@ -9599,55 +10316,914 @@ class BandFeeder {
   }
 }
 
-// src/core/memory/stem.ts
-var CASE = 3;
-var POSSESSIVE = 2;
-var PLURAL = 1;
-var TR_LIST = [
-  ["ndaki", "V", CASE],
-  ["ndeki", "V", CASE],
-  ["daki", "", CASE],
-  ["deki", "", CASE],
-  ["taki", "", CASE],
-  ["teki", "", CASE],
-  ["ndan", "V", CASE],
-  ["nden", "V", CASE],
-  ["dan", "", CASE],
-  ["den", "", CASE],
-  ["tan", "", CASE],
-  ["ten", "", CASE],
-  ["nda", "V", CASE],
-  ["nde", "V", CASE],
-  ["da", "", CASE],
-  ["de", "", CASE],
-  ["ta", "", CASE],
-  ["te", "", CASE],
-  ["nin", "V", CASE],
-  ["nun", "V", CASE],
-  ["in", "C", CASE],
-  ["un", "C", CASE],
-  ["yla", "V", CASE],
-  ["yle", "V", CASE],
-  ["la", "C", CASE],
-  ["le", "C", CASE],
-  ["na", "V", CASE],
-  ["ne", "V", CASE],
-  ["ya", "V", CASE],
-  ["ye", "V", CASE],
-  ["ni", "V", CASE],
-  ["nu", "V", CASE],
-  ["yi", "V", CASE],
-  ["yu", "V", CASE],
-  ["si", "V", POSSESSIVE],
-  ["su", "V", POSSESSIVE],
-  ["i", "C", POSSESSIVE],
-  ["u", "C", POSSESSIVE],
-  ["lar", "", PLURAL],
-  ["ler", "", PLURAL]
-];
-var TR_SUFFIXES = [...TR_LIST].sort((a, b) => b[0].length - a[0].length);
+// src/core/policy/routing.ts
+init_harness();
+init_harness();
+function harnessMcpToolName(harness, server, tool) {
+  return mcpToolName(harnessProfile(harness).mcp, server, tool);
+}
+var SKILL_HOWTO = harnessTable((p) => p.skills.howto);
+var MCP_SYNTAX = harnessTable((p) => p.mcp.syntax);
+var HIDDEN_NOTE = harnessTable((p) => p.mcp.hiddenNote);
 
-// src/core/memory/text.ts
+// src/core/policy/skill-router.ts
+init_harness();
+var WORD_DEPS = new Set(["next", "debug", "path", "events", "util", "utils", "test", "core", "types", "common", "shared", "open", "request", "config", "app", "api", "server", "client", "lib", "main", "index"]);
+var ORDINARY_PARTS = new Set([
+  ...WORD_DEPS,
+  "errors",
+  "sync",
+  "net",
+  "text",
+  "time",
+  "log",
+  "sys",
+  "exp",
+  "tools",
+  "term",
+  "mod",
+  "image",
+  "http",
+  "json",
+  "sql",
+  "mock",
+  "assert",
+  "require",
+  "context",
+  "crypto",
+  "framework",
+  "console",
+  "kit",
+  "cli",
+  "sdk",
+  "go",
+  "node"
+]);
+var SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap((h) => harnessProfile(h).skills.invoke.namespace ?? []))];
+var SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join("|")}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`);
+var CANDIDATE_HOW = harnessTable((p) => p.skills.candidateHow);
+
+// src/adapters/shared/pipeline/types.ts
+init_fsx();
+
+// src/engine/git.ts
+init_fsx();
+import { basename as basename2, dirname as dirname3 } from "path";
+var GIT_TIMEOUT_MS = 5000;
+async function git(cwd, args) {
+  const r = await run(["git", ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS, env: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" } });
+  return r.code === 0 ? r.stdout : undefined;
+}
+async function revParse(cwd, ...args) {
+  const out = await git(cwd, ["rev-parse", ...args]);
+  return out === undefined ? undefined : out.trim();
+}
+async function remoteUrl(cwd, name = "origin") {
+  const out = await git(cwd, ["remote", "get-url", name]);
+  const u = out?.trim();
+  return u ? u : undefined;
+}
+async function commonDir(cwd) {
+  const out = await revParse(cwd, "--git-common-dir");
+  return out ? comparablePath(out, cwd) : undefined;
+}
+async function toplevel(cwd) {
+  const out = await revParse(cwd, "--show-toplevel");
+  return out ? comparablePath(out, cwd) : undefined;
+}
+function ownerRepoFromUrl(url) {
+  let s = url.trim();
+  if (s === "")
+    return;
+  s = s.replace(/[?#].*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
+  let pathPart;
+  const scp = /^[^/@:]+@[^/:]+:(.+)$/.exec(s);
+  if (scp && scp[1] !== undefined && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s))
+    pathPart = scp[1];
+  else {
+    const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)?$/i.exec(s);
+    pathPart = m ? m[1] ?? "" : s;
+  }
+  const segs = pathPart.split("/").filter((x) => x !== "" && x !== ".");
+  const repo = segs[segs.length - 1];
+  if (repo === undefined)
+    return;
+  const owner = segs.length >= 2 ? segs[segs.length - 2] : undefined;
+  return owner !== undefined ? { owner, repo } : { repo };
+}
+function slugPart(s) {
+  const folded = s.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
+  const slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
+  return slug === "" ? "project" : slug;
+}
+async function firstCommit(cwd) {
+  const out = await git(cwd, ["rev-list", "--max-parents=0", "HEAD"]);
+  if (out === undefined)
+    return;
+  return out.split(`
+`).map((l) => l.trim()).filter((l) => /^[0-9a-f]{7,40}$/.test(l)).sort()[0];
+}
+async function projectIdentity(cwd) {
+  const abs = comparablePath(cwd);
+  const common = await commonDir(abs);
+  if (common === undefined) {
+    return { slug: `${slugPart(basename2(abs))}-${sha256(abs).slice(0, 6)}`, root: abs };
+  }
+  const root = basename2(common) === ".git" ? dirname3(common) : await toplevel(abs) ?? abs;
+  const remote = await remoteUrl(abs);
+  const parsed = remote !== undefined ? ownerRepoFromUrl(remote) : undefined;
+  const name = parsed?.repo ?? basename2(root).replace(/\.git$/, "");
+  const id = { slug: slugPart(name), root, commonDir: common };
+  if (remote !== undefined)
+    id.remote = remote;
+  if (parsed?.owner !== undefined)
+    id.ownerRepo = `${parsed.owner}/${parsed.repo}`;
+  const first = await firstCommit(abs);
+  if (first !== undefined)
+    id.rootCommit = first;
+  return id;
+}
+async function projectSlug(cwd) {
+  return (await projectIdentity(cwd)).slug;
+}
+
+// src/adapters/shared/pipeline/types.ts
+function denyReason(hook, reason) {
+  return `Buracle ${hook}: ${reason.replace(/^Buracle:\s*/, "")}`;
+}
+var FENCE_FAILED = denyReason("H01", "the read-only check of this second-opinion review failed, so the call was blocked.");
+// src/core/policy/write-guard.ts
+init_harness();
+
+// src/core/policy/switch-off.ts
+var RELOCATION_VARS = [
+  "BURACLE_HOME",
+  "BURACLE_CORTEXDB_BIN",
+  "HOME",
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "PI_CODING_AGENT_DIR"
+];
+var NAMES2 = RELOCATION_VARS.join("|");
+var SHELL_ASSIGN = new RegExp([
+  `(?:^|[\\s;&|(\`])(?:(?:export|readonly|local)\\s+|(?:declare|typeset)\\s+(?:-\\w+\\s+)*)?(?:${NAMES2})\\+?=`,
+  `\\$\\{(?:${NAMES2}):?=`,
+  `\\bset\\s+(?:-{1,2}[A-Za-z-]+\\s+)*(?:${NAMES2})\\b`,
+  `\\bsetenv\\s+(?:${NAMES2})\\b`,
+  `\\bSETUVAR\\s+(?:--\\w+\\s+)*(?:${NAMES2}):`,
+  `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES2.replace("|HOME|", "|")})\\b`
+].join("|"));
+var POWERSHELL_ASSIGN = new RegExp([
+  `\\$env:(?:${NAMES2})\\s*\\+?=`,
+  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES2})\\b`,
+  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES2})['"]`
+].join("|"), "i");
+var PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES2})\\s*</|\\bsetenv\\s+(?:${NAMES2})\\b|\\b(?:${NAMES2.replace("|HOME|", "|")})\\b`);
+var SETTINGS_WORDS = {
+  "claude-settings": new RegExp(`disableAllHooks|allowManagedHooksOnly|buracle@|disabled\\w*|"(?:${NAMES2}|BURACLE_HOOK_TIMEOUT_MS)"`, "i"),
+  "codex-config": new RegExp(`\\b(?:codex_)?hooks\\b|allow_managed_hooks_only|buracle@|\\b(?:${NAMES2})\\b`, "i"),
+  "opencode-config": /buracle|["']-[^"']*\*|["']-\*["']/i,
+  "omp-settings": /buracle|disabled\w*\s*["']?\s*:\s*\[?\s*["']?\*/i
+};
+
+// src/core/policy/write-guard.ts
+var SELF_LAYOUT = [
+  { key: "buracleHome", under: ".buracle", entries: [""], area: "buracle" },
+  { key: "localBinDir", under: ".local/bin", entries: ["buracle"], area: "shim" },
+  ...HARNESSES.flatMap((h) => harnessProfile(h).protectedDirs.map((d) => ({ key: d.key, under: d.under, entries: d.entries, area: h })))
+];
+var SELF_TEXT = {
+  ...harnessTable((p) => p.selfText),
+  buracle: { what: "Buracle's own installation, which runs every guard hook", remedy: "change Buracle through the buracle CLI (`buracle config set \u2026`, `buracle install`) instead" },
+  shim: { what: "the `buracle` command on PATH, a link to the shim that runs every guard hook", remedy: "`buracle install` manages it, so ask the user to run that instead" },
+  repo: { what: "Buracle's own source code, which every Buracle hook runs", remedy: "change it from a session opened in the Buracle repository, or ask the user to make the change" }
+};
+var GENERATED_HARNESS = new RegExp(`^(.*)/harness/(?:${[...HARNESSES, "agents-skills"].join("|")})(?:/|$)`);
+function escapeRe(c) {
+  return /[\\^$.*+?()[\]{}|/]/.test(c) ? "\\" + c : c;
+}
+function globBody(glob, depth = 0) {
+  let re = "";
+  for (let i = 0;i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "\\" && i + 1 < glob.length) {
+      re += escapeRe(glob[i + 1]);
+      i++;
+      continue;
+    }
+    if (c === "*") {
+      if (glob[i + 1] === "*") {
+        const atStart = i === 0 || glob[i - 1] === "/";
+        if (atStart && glob[i + 2] === "/") {
+          re += "(?:.*/)?";
+          i += 2;
+          continue;
+        }
+        re += ".*";
+        i++;
+        continue;
+      }
+      re += "[^/]*";
+      continue;
+    }
+    if (c === "?") {
+      re += "[^/]";
+      continue;
+    }
+    if (c === "[") {
+      const close = glob.indexOf("]", i + 2);
+      if (close > i) {
+        let cls = glob.slice(i + 1, close).replace(/\\/g, "\\\\").replace(/\//g, "");
+        if (cls.startsWith("!"))
+          cls = "^" + cls.slice(1);
+        re += `[${cls}]`;
+        i = close;
+        continue;
+      }
+    }
+    if (c === "{" && depth < 4) {
+      const close = glob.indexOf("}", i + 1);
+      if (close > i) {
+        re += "(?:" + glob.slice(i + 1, close).split(",").map((a) => globBody(a, depth + 1)).join("|") + ")";
+        i = close;
+        continue;
+      }
+    }
+    re += escapeRe(c);
+  }
+  return re;
+}
+var globCache = new Map;
+function protectGlobToRegExp(glob) {
+  const hit = globCache.get(glob);
+  if (hit !== undefined)
+    return hit;
+  let re;
+  try {
+    re = new RegExp("^" + globBody(glob) + "$", "i");
+  } catch {
+    re = null;
+  }
+  if (globCache.size > 512)
+    globCache.clear();
+  globCache.set(glob, re);
+  return re;
+}
+
+// src/core/workspace.ts
+function pathKey(p, caseInsensitive) {
+  const out = normalizePath(p.replace(/\\/g, "/"));
+  return caseInsensitive ? out.toLowerCase() : out;
+}
+function isRootKey(k) {
+  return k === "/";
+}
+function withinKey(child, parent) {
+  if (parent === "/")
+    return child.startsWith("/");
+  const p = parent.endsWith("/") ? parent.slice(0, -1) : parent;
+  return child === p || child.startsWith(`${p}/`);
+}
+function isPathWithin(child, parent, caseInsensitive) {
+  return withinKey(pathKey(child, caseInsensitive), pathKey(parent, caseInsensitive));
+}
+var GLOB_CHARS = /[*?[{]/;
+function excludeMatches(pattern, dirKey, ctx) {
+  let p = pattern.replace(/\\/g, "/");
+  if (p === "~" || p.startsWith("~/"))
+    p = ctx.home.replace(/\\/g, "/").replace(/\/+$/, "") + p.slice(1);
+  const absolute = p.startsWith("/");
+  if (absolute && !GLOB_CHARS.test(p))
+    return withinKey(dirKey, pathKey(p, ctx.caseInsensitive));
+  const body = p.replace(/\/{2,}/g, "/").replace(/\/+$/, "");
+  const glob = absolute ? body : `**/${body.replace(/^(?:\.\/)+/, "")}`;
+  const self = protectGlobToRegExp(glob);
+  const inside = protectGlobToRegExp(`${glob}/**`);
+  return self?.test(dirKey) === true || inside?.test(dirKey) === true;
+}
+function indexExclusion(dir, ctx) {
+  const ci = ctx.caseInsensitive;
+  const d = pathKey(dir, ci);
+  if (isRootKey(d))
+    return "the filesystem root";
+  if (ctx.home.trim() !== "") {
+    const h = pathKey(ctx.home, ci);
+    if (!isRootKey(h)) {
+      if (d === h)
+        return "your home folder";
+      if (withinKey(h, d))
+        return "a parent of your home folder";
+    }
+  }
+  if (ctx.vault.trim() !== "" && withinKey(d, pathKey(ctx.vault, ci)))
+    return "inside the memory vault";
+  if (ctx.buracleHome.trim() !== "" && withinKey(d, pathKey(ctx.buracleHome, ci)))
+    return "inside Buracle's state folder";
+  for (const raw of ctx.exclude) {
+    const pattern = raw.trim();
+    if (pattern !== "" && excludeMatches(pattern, d, ctx))
+      return `excluded by index.exclude (${pattern})`;
+  }
+  return;
+}
+var INDEX_SETTINGS = { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 };
+function indexSettings(cfg) {
+  return { ...INDEX_SETTINGS, exclude: cfg.index.exclude };
+}
+var INDEX_RETRY_MIN = [5, 15, 60, 240, 1440];
+function indexRetryDelayMs(failures, minIntervalMin) {
+  const n = Number.isFinite(failures) ? Math.max(1, Math.floor(failures)) : 1;
+  const step = INDEX_RETRY_MIN[Math.min(n, INDEX_RETRY_MIN.length) - 1] ?? 1440;
+  return Math.max(step, Math.max(0, minIntervalMin)) * 60000;
+}
+function indexState(f, minIntervalMin) {
+  if (!f.enabled)
+    return { state: "off" };
+  const r = f.record;
+  const usable = r?.ok === true || f.present === true;
+  if (f.building !== undefined && !usable)
+    return f.building.since !== undefined ? { state: "building", since: f.building.since } : { state: "building" };
+  if (r !== undefined && r.ok)
+    return { state: "ready", at: r.at };
+  if (r !== undefined) {
+    const error = r.error !== undefined && r.error.trim() !== "" ? r.error : "failed";
+    if (f.present === true)
+      return { state: "ready", error };
+    return { state: "failed", at: r.at, error, retryAt: r.at + indexRetryDelayMs(r.failures ?? 1, minIntervalMin) };
+  }
+  return f.present === true ? { state: "ready" } : { state: "none" };
+}
+var HEALTH_ORDER = ["failed", "none", "building", "ready"];
+function indexHealth(pi) {
+  const live = [pi.codegraph, pi.semble].filter((s) => s.state !== "off").map((s) => s.state);
+  if (live.length === 0)
+    return "off";
+  return HEALTH_ORDER.find((s) => live.includes(s)) ?? "ready";
+}
+function code(s) {
+  return "`" + s.replace(/`/g, "'") + "`";
+}
+var PASS = `as codegraph ${code("projectPath")} and semble ${code("repo")}`;
+var OWNS = `Indexing is Buracle's job, not the user's decision: if codegraph says a project is not indexed, run ${code("buracle index ensure --cwd <project>")} (or wait for the background run) and call it again; never stop using codegraph for the session.`;
+
+// src/core/policy/launchers.ts
+var SCREEN_WORDS = new Set(["-ls", "-list", "-wipe", "-version", "-v", "-d", "-m", "-r", "-x", "-R", "-D", "-q", "-L", "-U", "-A", "-a", "-O", "-i", "-f", "-fn", "-fa"]);
+
+// src/core/policy/shell.ts
+var REDIR_OPS = new Set(["&>>", "&>", ">>", ">|", ">&", "<<<", "<<-", "<<", "<>", "<&", "<", ">"]);
+var COMMAND_START_WORDS = new Set(["if", "then", "else", "elif", "do", "while", "until", "!", "{", "time", "for"]);
+var RESERVED = new Set(["if", "then", "else", "elif", "fi", "do", "done", "while", "until", "{", "}", "!", "esac", "[[", "]]"]);
+var SHELL_NAMES = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish"]);
+var SUDO_ARG = new Set(["u", "g", "h", "p", "C", "D", "r", "t", "U", "T", "c"]);
+var SUDO_LONG_ARG = new Set(["--user", "--group", "--host", "--prompt", "--close-from", "--chdir", "--role", "--type", "--other-user", "--command-timeout", "--login-class"]);
+var DOAS_ARG = new Set(["u", "C"]);
+var NICE_ARG = new Set(["n"]);
+var TIMEOUT_ARG = new Set(["s", "k"]);
+var TIMEOUT_LONG_ARG = new Set(["--signal", "--kill-after"]);
+var XARGS_ARG = new Set(["I", "L", "n", "P", "s", "E", "d", "a", "R", "S"]);
+var XARGS_LONG_ARG = new Set(["--max-args", "--max-procs", "--max-chars", "--delimiter", "--arg-file", "--eof", "--replace", "--max-lines", "--process-slot-var"]);
+var STDBUF_ARG = new Set(["i", "o", "e"]);
+var SIMPLE_WRAPPERS = new Set(["nohup", "builtin", "chronic", "unbuffer", "nocorrect", "noglob", "busybox", "toybox", "-"]);
+var WRAPPER_ARGS = {
+  caffeinate: new Set(["t", "w"]),
+  taskpolicy: new Set(["c", "d", "t", "l", "p"])
+};
+var SHELL_ARG_OPTS = new Set(["o", "O"]);
+
+// src/core/policy/usage.ts
+var SHELL_SEARCH = new Set(["rg", "grep", "egrep", "fgrep", "rgrep", "ag", "ack", "find", "fd", "fdfind"]);
+var FILE_PRINTERS = new Set(["cat", "bat", "batcat", "less", "more", "head", "tail", "sed", "awk", "nl"]);
+
+// src/adapters/shared/pipeline/health.ts
+init_fsx();
+
+// src/workflow/ledger.ts
+init_fsx();
+init_paths();
+
+// src/workflow/workspace.ts
+import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync3, rmSync, statSync as statSync5, unlinkSync as unlinkSync2 } from "fs";
+import { dirname as dirname4, isAbsolute as isAbsolute4, join as join6, resolve as resolve3 } from "path";
+init_fsx();
+init_paths();
+
+// src/engine/platform.ts
+import { existsSync as existsSync2, statSync as statSync4 } from "fs";
+import { homedir } from "os";
+import { isAbsolute as isAbsolute3, join as join5 } from "path";
+function osName() {
+  const forced = process.env["BURACLE_PLATFORM"];
+  if (forced === "darwin" || forced === "linux")
+    return forced;
+  return process.platform === "darwin" ? "darwin" : "linux";
+}
+function homeDir() {
+  const h = process.env["HOME"];
+  return h !== undefined && h.trim() !== "" ? h : homedir();
+}
+function isFile(p) {
+  try {
+    return statSync4(p).isFile();
+  } catch {
+    return false;
+  }
+}
+function extraBinDirs() {
+  const home = homeDir();
+  const dirs = [join5(home, ".local", "bin"), join5(home, ".bun", "bin"), join5(home, "go", "bin"), join5(home, ".cargo", "bin")];
+  if (osName() === "darwin")
+    dirs.push("/opt/homebrew/bin", "/usr/local/bin");
+  if (osName() === "linux")
+    dirs.push("/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin");
+  return dirs;
+}
+function findExecutable(name, opts = {}) {
+  const PATH = process.env["PATH"];
+  const hit = PATH !== undefined ? Bun.which(name, { PATH }) : Bun.which(name);
+  if (hit !== null && hit !== undefined)
+    return hit;
+  for (const dir of [...opts.extra ?? [], ...extraBinDirs()]) {
+    const p = join5(dir, name);
+    if (isFile(p))
+      return p;
+  }
+  return;
+}
+
+// src/workflow/workspace.ts
+var PROJECT_MARKERS = [
+  "package.json",
+  "pyproject.toml",
+  "setup.py",
+  "requirements.txt",
+  "Pipfile",
+  "go.mod",
+  "go.work",
+  "Cargo.toml",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "settings.gradle",
+  "settings.gradle.kts",
+  "build.sbt",
+  "composer.json",
+  "Gemfile",
+  "deno.json",
+  "deno.jsonc",
+  "CMakeLists.txt",
+  "Makefile",
+  "mix.exs",
+  "pubspec.yaml",
+  "Package.swift",
+  "stack.yaml",
+  "tsconfig.json",
+  "pnpm-workspace.yaml",
+  "lerna.json",
+  "nx.json",
+  "turbo.json",
+  "WORKSPACE",
+  "WORKSPACE.bazel",
+  "MODULE.bazel"
+];
+var WORKSPACE_MARKERS = ["pnpm-workspace.yaml", "go.work", "settings.gradle", "settings.gradle.kts", "lerna.json", "nx.json", "turbo.json", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel"];
+var MARKER_SUFFIXES = [".sln", ".csproj", ".fsproj", ".xcodeproj", ".xcworkspace"];
+var CHILD_SCAN_MAX = 256;
+var INDEX_LOCK_STALE_MS = 2 * 60 * 60000;
+function caseInsensitivePaths() {
+  return osName() !== "linux";
+}
+function canonicalDir(dir) {
+  const abs = resolve3(dir);
+  try {
+    return realPath(abs);
+  } catch {
+    return abs;
+  }
+}
+function exclusionContext(vault, exclude) {
+  return {
+    home: canonicalDir(home()),
+    buracleHome: canonicalDir(buracleHome()),
+    vault: canonicalDir(vault),
+    exclude,
+    caseInsensitive: caseInsensitivePaths()
+  };
+}
+function markerEntries(dir) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const files = new Set;
+  for (const e of entries) {
+    if (e.isFile())
+      files.add(e.name);
+    else if (e.isSymbolicLink()) {
+      try {
+        if (statSync5(join6(dir, e.name)).isFile())
+          files.add(e.name);
+      } catch {}
+    }
+  }
+  return { files, names: entries.map((e) => e.name) };
+}
+function hasMarker(dir) {
+  const e = markerEntries(dir);
+  if (e === undefined)
+    return false;
+  return PROJECT_MARKERS.some((m) => e.files.has(m)) || e.names.some((n) => MARKER_SUFFIXES.some((s) => n.endsWith(s)));
+}
+function hasWorkspaceMarker(dir) {
+  const e = markerEntries(dir);
+  return e !== undefined && WORKSPACE_MARKERS.some((m) => e.files.has(m));
+}
+function markerRoot(dir, ctx) {
+  const ci = ctx.caseInsensitive;
+  let found;
+  let cur = dir;
+  for (let depth = 0;depth < 64; depth++) {
+    const k = pathKey(cur, ci);
+    if (k === "/" || /^[A-Za-z]:\/?$/.test(k) || isPathWithin(ctx.home, cur, ci))
+      break;
+    if (found === undefined) {
+      if (hasMarker(cur))
+        found = cur;
+    } else if (hasWorkspaceMarker(cur)) {
+      found = cur;
+    }
+    const parent = dirname4(cur);
+    if (parent === cur)
+      break;
+    cur = parent;
+  }
+  return found;
+}
+function isProjectDir(dir) {
+  return existsSync3(join6(dir, ".git")) || hasMarker(dir);
+}
+function activity(dir, mtimeMs) {
+  let t = mtimeMs;
+  for (const f of [".git", join6(".git", "index"), join6(".git", "HEAD")]) {
+    try {
+      t = Math.max(t, statSync5(join6(dir, f)).mtimeMs);
+    } catch {}
+  }
+  return t;
+}
+function childProjects(dir, ctx, max) {
+  let names;
+  try {
+    names = readdirSync(dir).sort();
+  } catch {
+    return [];
+  }
+  if (names.length > CHILD_SCAN_MAX)
+    return [];
+  const found = new Map;
+  for (const name of names) {
+    if (name.startsWith(".") || name === "node_modules")
+      continue;
+    const p = join6(dir, name);
+    let mtimeMs;
+    try {
+      const st = statSync5(p);
+      if (!st.isDirectory())
+        continue;
+      mtimeMs = st.mtimeMs;
+    } catch {
+      continue;
+    }
+    const real = canonicalDir(p);
+    if (indexExclusion(real, ctx) !== undefined)
+      continue;
+    if (!isProjectDir(p))
+      return [];
+    if (!found.has(real))
+      found.set(real, activity(p, mtimeMs));
+  }
+  return [...found.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, Math.max(0, max)).map(([p]) => p).sort();
+}
+async function gitTopLevel(dir) {
+  const top = await revParse(dir, "--show-toplevel").catch(() => {
+    return;
+  });
+  return top !== undefined && top.trim() !== "" ? canonicalDir(top.trim()) : undefined;
+}
+function workspaceOptions(cfg = INDEX_SETTINGS) {
+  return { vault: oldVaultRoot(), exclude: cfg.exclude, children: cfg.children, maxChildren: cfg.maxChildren };
+}
+async function resolveWorkspace(cwd, o) {
+  const dir = canonicalDir(cwd);
+  const ctx = exclusionContext(o.vault, o.exclude);
+  const here = indexExclusion(dir, ctx);
+  if (here !== undefined)
+    return { cwd: dir, children: [], excluded: here };
+  let root = await gitTopLevel(dir);
+  if (root !== undefined) {
+    const broad = indexExclusion(root, { ...ctx, exclude: [] });
+    if (broad === "your home folder" || broad === "a parent of your home folder" || broad === "the filesystem root")
+      root = undefined;
+  }
+  root ??= markerRoot(dir, ctx);
+  if (root !== undefined) {
+    const why = indexExclusion(root, ctx);
+    return why !== undefined ? { cwd: dir, children: [], excluded: why } : { cwd: dir, root, children: [] };
+  }
+  if (!o.children || o.maxChildren <= 0)
+    return { cwd: dir, children: [] };
+  return { cwd: dir, children: childProjects(dir, ctx, o.maxChildren) };
+}
+function indexTag(root) {
+  return sha256(canonicalDir(root)).slice(0, 16);
+}
+function indexRecordFile(root) {
+  return join6(indexStateDir(), `${indexTag(root)}.json`);
+}
+var CORRUPT_KEEP_MS = 14 * 86400000;
+function indexLockFile(root) {
+  return `${indexRecordFile(root)}.lock`;
+}
+function readIndexRecord(root) {
+  const r = readJsonSafeSync(indexRecordFile(root));
+  return r.ok && r.value?.v === 1 ? r.value : undefined;
+}
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+function indexLockHolder(root, nowMs) {
+  let held;
+  try {
+    held = JSON.parse(readFileSync3(indexLockFile(root), "utf8"));
+  } catch {
+    return;
+  }
+  if (held === null || typeof held !== "object")
+    return;
+  const { pid, at } = held;
+  if (typeof pid !== "number" || typeof at !== "number" || nowMs - at > INDEX_LOCK_STALE_MS)
+    return;
+  return pidAlive(pid) ? { pid, at } : undefined;
+}
+function codegraphDataDir(_root, env = process.env) {
+  const raw = (env["CODEGRAPH_DIR"] ?? "").trim();
+  if (raw !== "" && raw !== "." && !raw.includes("..") && !/[\\/]/.test(raw) && !isAbsolute4(raw))
+    return raw;
+  return ".codegraph";
+}
+function codegraphIndexPresent(root) {
+  return existsSync3(join6(root, codegraphDataDir(root), "codegraph.db"));
+}
+function projectIndex(root, cfg, nowMs, building = false) {
+  const rec = readIndexRecord(root);
+  const lock = building ? { pid: process.pid, at: nowMs } : indexLockHolder(root, nowMs);
+  const run = lock !== undefined ? { since: lock.at } : undefined;
+  const tool = (enabled, record, present) => indexState({ enabled, ...record !== undefined ? { record } : {}, ...run !== undefined ? { building: run } : {}, ...present !== undefined ? { present } : {} }, cfg.minIntervalMin);
+  return {
+    codegraph: tool(cfg.codegraph, rec?.codegraph, cfg.codegraph ? codegraphIndexPresent(root) : undefined),
+    semble: tool(cfg.semble, rec?.semble, undefined)
+  };
+}
+function idleIndex(cfg) {
+  return { codegraph: cfg.codegraph ? { state: "none" } : { state: "off" }, semble: cfg.semble ? { state: "none" } : { state: "off" } };
+}
+function infoFor(target, cfg, nowMs, building = []) {
+  const info = {
+    cwd: target.cwd,
+    children: [...target.children],
+    index: target.root !== undefined ? projectIndex(target.root, cfg, nowMs, building.includes(target.root)) : idleIndex(cfg)
+  };
+  if (target.root !== undefined)
+    info.root = target.root;
+  if (target.excluded !== undefined)
+    info.excluded = target.excluded;
+  if (target.children.length > 0) {
+    const childIndex = {};
+    for (const c of target.children)
+      childIndex[c] = projectIndex(c, cfg, nowMs, building.includes(c));
+    info.childIndex = childIndex;
+  }
+  return info;
+}
+async function workspaceInfo(cwd, cfg, nowMs) {
+  return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
+}
+// src/adapters/shared/pipeline/session-start.ts
+init_fsx();
+
+// src/adapters/shared/notices.ts
+init_fsx();
+init_paths();
+
+// src/core/project-assets.ts
+init_harness();
+
+// src/adapters/shared/project-assets.ts
+init_fsx();
+init_paths();
+
+// src/usage/bar-info.ts
+init_harness();
+import { existsSync as existsSync4, readFileSync as readFileSync5, statSync as statSync7 } from "fs";
+import { join as join7 } from "path";
+
+// src/core/flow/panes.ts
+function planPaneLines(v, state) {
+  const lines = v.visible ? bandText(v).map((text, i) => i === 0 ? { text, bold: true } : { text }) : [];
+  const plan = state.plan;
+  if (plan === undefined) {
+    lines.push({ text: "No plan is bound to this session.", bold: lines.length === 0 });
+    lines.push({ text: "A new plan: /plan-build <task> \xB7 an existing one: buracle plan register <path>", dim: true });
+    return lines;
+  }
+  lines.push({ text: `plan: ${plan.slug} (${plan.type})`, bold: true });
+  lines.push({ text: `status ${plan.status} \xB7 phase ${plan.phase}` });
+  lines.push({ text: `file: ${plan.path}`, dim: true });
+  if (state.interaction?.state === "paused")
+    lines.push({ text: 'paused: the stop guard lets the turn end; say "continue" to resume', color: "warning" });
+  lines.push({ text: `stop guard blocks: plan ${state.guard.blocksForPlan} \xB7 chain ${state.guard.blocksInChain}`, dim: true });
+  return lines;
+}
+var HARNESS_VERSION_TTL_MS = 12 * 60 * 60000;
+function count2(x) {
+  return typeof x === "number" && Number.isFinite(x) ? x : 0;
+}
+function memoryPaneLines(status, url, brain) {
+  const lines = [];
+  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 3 ? status : undefined;
+  if (s === undefined) {
+    lines.push({ text: "No memory status yet.", bold: true });
+    lines.push({ text: "`buracle mem status` and memory writes create the status file.", dim: true });
+  } else {
+    const health = typeof s["health"] === "string" && s["health"] !== "" ? s["health"] : "?";
+    const counts = s["counts"] !== null && typeof s["counts"] === "object" ? s["counts"] : {};
+    const project = typeof s["project"] === "string" ? s["project"] : undefined;
+    lines.push({ text: `memory: ${health}`, color: health === "ok" ? "success" : health === "warn" ? "warning" : "error", bold: true });
+    lines.push({ text: `${project !== undefined ? `project ${project} ${count2(counts["project"])} \xB7 ` : ""}person ${count2(counts["person"])}` });
+    const last = s["last_capture"] !== null && typeof s["last_capture"] === "object" ? s["last_capture"]["at"] : undefined;
+    lines.push({ text: `inbox ${count2(s["captures"])} \xB7 last capture ${typeof last === "string" ? last.slice(0, 16).replace("T", " ") : "none yet"}` });
+  }
+  if (url !== undefined)
+    lines.push({ text: `web UI: ${url}  (w)`, dim: true });
+  lines.push({ text: `brain: ${brain}`, dim: true });
+  return lines;
+}
+
+// src/usage/bar-info.ts
+init_fsx();
+init_paths();
+init_shim();
+var HARNESS_LABEL2 = harnessTable((p) => p.shortLabel);
+function isRecord(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function buracleVersion(repoRoot2 = repoRoot()) {
+  try {
+    const v = JSON.parse(readFileSync5(join7(repoRoot2, "package.json"), "utf8")).version;
+    return typeof v === "string" ? v : "?";
+  } catch {
+    return "?";
+  }
+}
+function claudePlan() {
+  const file = claudeJson();
+  let mtime;
+  try {
+    mtime = statSync7(file).mtimeMs;
+  } catch {
+    return;
+  }
+  const cacheFile = join7(buracleHome(), "cache", "claude-plan.json");
+  const cached = readJsonSafeSync(cacheFile);
+  if (cached.ok && cached.value?.mtime === mtime)
+    return cached.value.plan ?? undefined;
+  let plan;
+  try {
+    const j = JSON.parse(readFileSync5(file, "utf8"));
+    const oa = isRecord(j) && isRecord(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
+    if (oa === undefined)
+      plan = "API";
+    else {
+      const org = typeof oa["organizationType"] === "string" ? oa["organizationType"] : "";
+      const tier = `${typeof oa["organizationRateLimitTier"] === "string" ? oa["organizationRateLimitTier"] : ""} ${typeof oa["userRateLimitTier"] === "string" ? oa["userRateLimitTier"] : ""}`;
+      const mult = /(\d+)x/u.exec(tier)?.[1];
+      if (/max/iu.test(org))
+        plan = mult !== undefined && mult !== "1" ? `Max ${mult}x` : "Max";
+      else if (/pro/iu.test(org))
+        plan = "Pro";
+      else if (/team/iu.test(org))
+        plan = "Team";
+      else if (/enterprise/iu.test(org))
+        plan = "Enterprise";
+      else
+        plan = org !== "" ? org.replace(/^claude_/u, "") : undefined;
+    }
+  } catch {
+    plan = undefined;
+  }
+  try {
+    atomicWriteSync(cacheFile, JSON.stringify({ mtime, plan: plan ?? null }) + `
+`);
+  } catch {}
+  return plan;
+}
+var VERSION_CMD = harnessTable((p) => p.bin);
+function versionCacheFile() {
+  return join7(buracleHome(), "cache", "harness-versions.json");
+}
+async function harnessVersion(h, nowMs) {
+  const cacheFile = versionCacheFile();
+  const r = readJsonSafeSync(cacheFile);
+  const all = r.ok && isRecord(r.value) ? r.value : {};
+  const hit = all[h];
+  if (hit !== undefined && typeof hit.at === "number" && nowMs - hit.at < HARNESS_VERSION_TTL_MS && nowMs >= hit.at)
+    return hit.v;
+  const bin = findExecutable(VERSION_CMD[h]);
+  if (bin === undefined)
+    return;
+  const out = await run([bin, "--version"], { timeoutMs: 1500 });
+  const v = /(\d+\.\d+\.\d+)/u.exec(`${out.stdout}
+${out.stderr}`)?.[1];
+  all[h] = v !== undefined ? { v, at: nowMs } : { at: nowMs };
+  try {
+    atomicWriteSync(cacheFile, JSON.stringify(all) + `
+`);
+  } catch {}
+  return v;
+}
+function liveMemoryUi() {
+  const r = readJsonSafeSync(memoryUiStateFile());
+  if (!r.ok || !isRecord(r.value))
+    return;
+  const v = r.value;
+  if (typeof v["pid"] !== "number" || typeof v["port"] !== "number" || typeof v["url"] !== "string")
+    return;
+  if (v["build"] !== undefined && typeof v["build"] !== "string")
+    return;
+  try {
+    process.kill(v["pid"], 0);
+  } catch (e) {
+    if (e.code !== "EPERM")
+      return;
+  }
+  return v;
+}
+function buracleArgv() {
+  const main = join7(repoRoot(), "src", "cli", "main.ts");
+  const bun = findExecutable("bun");
+  if (bun !== undefined && existsSync4(main))
+    return [bun, main];
+  return shimLaunch();
+}
+async function barInfo(h, o) {
+  const info = { product: { name: "Buracle", version: buracleVersion() } };
+  const version = o.version ?? await harnessVersion(h, o.nowMs).catch(() => {
+    return;
+  });
+  const harness = { label: HARNESS_LABEL2[h] };
+  if (version !== undefined)
+    harness.version = version;
+  if (h === "claude") {
+    const plan = claudePlan();
+    if (plan !== undefined)
+      harness.plan = plan;
+  }
+  info.harness = harness;
+  const live = liveMemoryUi();
+  if (live !== undefined)
+    info.memoryUrl = live.url;
+  if (o.lines !== undefined)
+    info.lines = o.lines;
+  return info;
+}
+
+// src/workflow/non-project.ts
+init_paths();
+
+// src/workflow/project-assets.ts
+init_fsx();
+
+// src/adapters/shared/project-assets.ts
+var CONTEXT_KEY = Symbol.for("buracle.project-assets.context");
+
+// src/core/memory/note.ts
+init_harness();
+
+// src/core/compact.ts
+var MAX_OFFSET_MIN = 14 * 60;
+var RESTORE_RECORD_MAX_MS = 24 * 3600000;
+
+// src/adapters/shared/pipeline/pre-compact.ts
+init_fsx();
+// src/core/memory/redact.ts
 var REF = String.raw`(?!\[REDACTED)(?!\$\{?[A-Za-z_])(?!\$\()(?!\{\{)(?!<[A-Za-z_])(?!process\.env)(?!os\.environ)`;
 var TR_LETTERS = "\xE7\u011F\u0131\xF6\u015F\xFC\xC7\u011E\u0130\xD6\u015E\xDC";
 var BARE_PASS = String.raw`(?:(?<=[A-Za-z0-9][_.-])|(?<=(?:^|[\n{,["'])[ \t]*))(?:pass|pwd)(?![A-Za-z])`;
@@ -9673,11 +11249,11 @@ function passphrase(value, keySuffix) {
     return false;
   return words.join("").length >= 8;
 }
-var unquote = (v) => /^(["']).*\1$/s.test(v) ? v.slice(1, -1) : v;
+var unquote2 = (v) => /^(["']).*\1$/s.test(v) ? v.slice(1, -1) : v;
 var isRef = (v) => /^(?:\[REDACTED|\$\{?[A-Za-z_]|\$\(|\{\{|<[A-Za-z_]|process\.env|os\.environ)/.test(v);
 var has = (m, i) => m[i] ?? "";
 var secretArg = (v) => {
-  const u = unquote(v);
+  const u = unquote2(v);
   return u !== "" && !isRef(u);
 };
 function isBasicCredential(b64) {
@@ -9754,7 +11330,7 @@ var RULES = [
   {
     kind: "cli-flag",
     re: new RegExp(String.raw`((?<![^\s"'=])--(?:[A-Za-z0-9]{1,20}-){0,3}(?:password|passwd|pass|passphrase|pwd|secret|token|api-?key|access-?key|secret-?key|private-?key|client-?secret|credentials?)(?:=|[ \t]+))${REF}(${ARG})`, "gi"),
-    keep: (m) => secretArg(has(m, 2)) && !isPlainValue(unquote(has(m, 2))) ? { prefix: has(m, 1), suffix: "" } : undefined
+    keep: (m) => secretArg(has(m, 2)) && !isPlainValue(unquote2(has(m, 2))) ? { prefix: has(m, 1), suffix: "" } : undefined
   },
   {
     kind: "cli-flag",
@@ -9792,7 +11368,7 @@ var RULES = [
     keep: (m) => {
       const v = has(m, 2);
       if (/^["']/.test(v))
-        return quotedSecret(unquote(v), has(m, 1)) ? { prefix: `${has(m, 1)}${v[0]}`, suffix: v.slice(-1) } : undefined;
+        return quotedSecret(unquote2(v), has(m, 1)) ? { prefix: `${has(m, 1)}${v[0]}`, suffix: v.slice(-1) } : undefined;
       const tail = /[.,;:!?]+$/.exec(v)?.[0] ?? "";
       const core = v.slice(0, v.length - tail.length);
       if (isRef(core.replace(/^`|`$/g, "")))
@@ -9954,799 +11530,393 @@ function looksLikeAwsSecret(tok) {
 }
 var WORDISH = "(?:[a-z0-9]+|[A-Z][a-z0-9]*)";
 var PATH_SEGMENT = new RegExp(`^${WORDISH}(?:[-_.]${WORDISH})*$`);
+var MASKED_KINDS = new Set(["bash", "eval", "read", "search", "mcp"]);
 
-// src/core/memory/query.ts
-var STOPWORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "are",
-  "as",
-  "at",
-  "be",
-  "by",
-  "did",
-  "do",
-  "for",
-  "from",
-  "how",
-  "in",
-  "is",
-  "it",
-  "of",
-  "on",
-  "or",
-  "the",
-  "to",
-  "was",
-  "we",
-  "what",
-  "when",
-  "why",
-  "with",
-  "ve",
-  "ile",
-  "bir",
-  "bu",
-  "\u015Fu",
-  "su",
-  "da",
-  "de",
-  "mi",
-  "m\u0131",
-  "mu",
-  "m\xFC",
-  "ne",
-  "i\xE7in",
-  "icin",
-  "gibi",
-  "ama",
-  "veya",
-  "neden",
-  "nasil",
-  "nas\u0131l",
-  "daha",
-  "\xE7ok",
-  "cok"
-]);
-var SIMILARITY_STOPWORDS = new Set([
-  "been",
-  "but",
-  "can",
-  "could",
-  "does",
-  "has",
-  "have",
-  "had",
-  "if",
-  "into",
-  "its",
-  "may",
-  "might",
-  "must",
-  "per",
-  "should",
-  "so",
-  "such",
-  "than",
-  "that",
-  "then",
-  "these",
-  "this",
-  "those",
-  "use",
-  "uses",
-  "used",
-  "using",
-  "via",
-  "were",
-  "will",
-  "would",
-  "olarak",
-  "olan",
-  "ise",
-  "her",
-  "tum",
-  "en",
-  "kadar",
-  "artik"
-]);
-
-// src/core/memory/signals.ts
-var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
-function uw(re) {
-  return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
-}
-var SIGNATURE_STOP = new Set([
-  "always",
-  "never",
-  "from",
-  "now",
-  "going",
-  "forward",
-  "future",
-  "every",
-  "time",
-  "whenever",
-  "please",
-  "prefer",
-  "want",
-  "need",
-  "dont",
-  "don't",
-  "not",
-  "ever",
-  "stop",
-  "remember",
-  "keep",
-  "mind",
-  "make",
-  "sure",
-  "you",
-  "your",
-  "zaman",
-  "daima",
-  "asla",
-  "hicbir",
-  "bundan",
-  "sonra",
-  "boyle",
-  "artik",
-  "sakin",
-  "unutma",
-  "lutfen",
-  "tercih",
-  "ederim",
-  "istemiyorum",
-  "bir",
-  "daha",
-  "her",
-  "icin",
-  "the",
-  "and",
-  "that",
-  "this",
-  "with",
-  "should",
-  "would"
-]);
-var CATEGORY_WORDS = [
-  ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
-  ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
-  ["quality", uw(/\b(?:tests?|tdd|verify|verification|lint|typecheck|type-check|review|coverage|quality|regression|evidence)\b|\b(?:do[\u011Fg]rula|kalite|kan[\u0131i]t)/i)],
-  ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
-  ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
-];
-
-// src/core/policy/launchers.ts
-var SCREEN_WORDS = new Set(["-ls", "-list", "-wipe", "-version", "-v", "-d", "-m", "-r", "-x", "-R", "-D", "-q", "-L", "-U", "-A", "-a", "-O", "-i", "-f", "-fn", "-fa"]);
-
-// src/core/policy/shell.ts
-var REDIR_OPS = new Set(["&>>", "&>", ">>", ">|", ">&", "<<<", "<<-", "<<", "<>", "<&", "<", ">"]);
-var COMMAND_START_WORDS = new Set(["if", "then", "else", "elif", "do", "while", "until", "!", "{", "time", "for"]);
-var RESERVED = new Set(["if", "then", "else", "elif", "fi", "do", "done", "while", "until", "{", "}", "!", "esac", "[[", "]]"]);
-var SHELL_NAMES = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish"]);
-var SUDO_ARG = new Set(["u", "g", "h", "p", "C", "D", "r", "t", "U", "T", "c"]);
-var SUDO_LONG_ARG = new Set(["--user", "--group", "--host", "--prompt", "--close-from", "--chdir", "--role", "--type", "--other-user", "--command-timeout", "--login-class"]);
-var DOAS_ARG = new Set(["u", "C"]);
-var NICE_ARG = new Set(["n"]);
-var TIMEOUT_ARG = new Set(["s", "k"]);
-var TIMEOUT_LONG_ARG = new Set(["--signal", "--kill-after"]);
-var XARGS_ARG = new Set(["I", "L", "n", "P", "s", "E", "d", "a", "R", "S"]);
-var XARGS_LONG_ARG = new Set(["--max-args", "--max-procs", "--max-chars", "--delimiter", "--arg-file", "--eof", "--replace", "--max-lines", "--process-slot-var"]);
-var STDBUF_ARG = new Set(["i", "o", "e"]);
-var SIMPLE_WRAPPERS = new Set(["nohup", "builtin", "chronic", "unbuffer", "nocorrect", "noglob", "busybox", "toybox", "-"]);
-var WRAPPER_ARGS = {
-  caffeinate: new Set(["t", "w"]),
-  taskpolicy: new Set(["c", "d", "t", "l", "p"])
+// src/core/memory/spool.ts
+var SPOOL_LIMITS = {
+  excerpt: 2000,
+  promptExcerpt: 800,
+  compactExcerpt: 8000,
+  paths: 50,
+  path: 600,
+  tool: 128,
+  model: 128,
+  softFileBytes: 4 * 1024 * 1024,
+  hardFileBytes: 8 * 1024 * 1024
 };
-var SHELL_ARG_OPTS = new Set(["o", "O"]);
 
-// src/core/policy/routing.ts
-var CLAUDE_PLUGIN_NAME = "buracle";
-var MCP_SYNTAX = {
-  claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
-  codex: "mcp__<server>__<tool>, with - written as _",
-  opencode: "<server>_<tool>",
-  omp: "mcp__<server>_<tool>, lower-case with - written as _"
-};
-var GREP_FAMILY = new Set(["grep", "egrep", "fgrep", "ggrep"]);
+// src/core/policy/code-scan.ts
+var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
+var HOME_ENV = new Set(["HOME"]);
+var LOOKUPS = new Set(["getattr", "__import__", "import_module", "require", "import"]);
+var GENERIC = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "replace", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
+var GENERIC_BARE = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
+var VALUE_METHODS = new Set(["unlink", "rename", "open"]);
+var PARENLESS = new Set(["perl", "ruby", "lua"]);
 
-// src/core/policy/skill-router.ts
-var WORD_DEPS = new Set(["next", "debug", "path", "events", "util", "utils", "test", "core", "types", "common", "shared", "open", "request", "config", "app", "api", "server", "client", "lib", "main", "index"]);
-var ORDINARY_PARTS = new Set([
-  ...WORD_DEPS,
-  "errors",
-  "sync",
-  "net",
-  "text",
-  "time",
-  "log",
+// src/core/policy/self-disable.ts
+init_harness();
+var RELOCATION_VARS2 = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
+var RELOCATION = new RegExp(RELOCATION_VARS2.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
+var STARTUP_NAMES = new Set([".zshrc", ".zprofile", ".zshenv", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".kshrc", ".mkshrc", ".cshrc", ".tcshrc", ".login", ".envrc", ".pam_environment", ".xprofile", ".xsessionrc"]);
+var SYSTEM_STARTUP = new Set(["zshrc", "zprofile", "zshenv", "zlogin", "profile", "bashrc", "bash.bashrc", "environment", "csh.cshrc", "csh.login", "launchd.conf"]);
+var SHELL_RUNNERS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "source", "."]);
+var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno", "parallel"]);
+var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
+var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
+var HARNESS_HOME = Object.fromEntries(HARNESSES.map((h) => [harnessProfile(h).bin, harnessProfile(h).relocationEnv]));
+
+// src/core/policy/bash-guard.ts
+var TOP_LEVEL = new Set([
+  "applications",
+  "bin",
+  "boot",
+  "cores",
+  "dev",
+  "etc",
+  "home",
+  "lib",
+  "lib32",
+  "lib64",
+  "libx32",
+  "library",
+  "media",
+  "mnt",
+  "network",
+  "nix",
+  "opt",
+  "private",
+  "proc",
+  "root",
+  "run",
+  "sbin",
+  "snap",
+  "srv",
   "sys",
-  "exp",
-  "tools",
-  "term",
-  "mod",
-  "image",
-  "http",
-  "json",
-  "sql",
-  "mock",
-  "assert",
-  "require",
-  "context",
-  "crypto",
-  "framework",
-  "console",
-  "kit",
-  "cli",
-  "sdk",
-  "go",
-  "node"
+  "system",
+  "tmp",
+  "users",
+  "usr",
+  "var",
+  "volumes"
 ]);
-
-// src/core/policy/switch-off.ts
-var RELOCATION_VARS = [
-  "BURACLE_HOME",
-  "BURACLE_CORTEXDB_BIN",
-  "HOME",
-  "CLAUDE_CONFIG_DIR",
-  "CODEX_HOME",
-  "XDG_CONFIG_HOME",
-  "XDG_DATA_HOME",
-  "PI_CODING_AGENT_DIR"
-];
-var NAMES2 = RELOCATION_VARS.join("|");
-var SHELL_ASSIGN = new RegExp([
-  `(?:^|[\\s;&|(\`])(?:(?:export|readonly|local)\\s+|(?:declare|typeset)\\s+(?:-\\w+\\s+)*)?(?:${NAMES2})\\+?=`,
-  `\\$\\{(?:${NAMES2}):?=`,
-  `\\bset\\s+(?:-{1,2}[A-Za-z-]+\\s+)*(?:${NAMES2})\\b`,
-  `\\bsetenv\\s+(?:${NAMES2})\\b`,
-  `\\bSETUVAR\\s+(?:--\\w+\\s+)*(?:${NAMES2}):`,
-  `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES2.replace("|HOME|", "|")})\\b`
-].join("|"));
-var POWERSHELL_ASSIGN = new RegExp([
-  `\\$env:(?:${NAMES2}|USERPROFILE)\\s*\\+?=`,
-  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES2}|USERPROFILE)\\b`,
-  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES2}|USERPROFILE)['"]`
-].join("|"), "i");
-var PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES2})\\s*</|\\bsetenv\\s+(?:${NAMES2})\\b|\\b(?:${NAMES2.replace("|HOME|", "|")})\\b`);
-var SETTINGS_WORDS = {
-  "claude-settings": new RegExp(`disableAllHooks|allowManagedHooksOnly|buracle@|disabled\\w*|"(?:${NAMES2}|BURACLE_HOOK_TIMEOUT_MS)"`, "i"),
-  "codex-config": new RegExp(`\\b(?:codex_)?hooks\\b|allow_managed_hooks_only|buracle@|\\b(?:${NAMES2})\\b`, "i"),
-  "opencode-config": /buracle|["']-[^"']*\*|["']-\*["']/i,
-  "omp-settings": /buracle|disabled\w*\s*["']?\s*:\s*\[?\s*["']?\*/i
-};
-// src/core/policy/write-guard.ts
-function escapeRe(c) {
-  return /[\\^$.*+?()[\]{}|/]/.test(c) ? "\\" + c : c;
-}
-function globBody(glob, depth = 0) {
-  let re = "";
-  for (let i = 0;i < glob.length; i++) {
-    const c = glob[i];
-    if (c === "\\" && i + 1 < glob.length) {
-      re += escapeRe(glob[i + 1]);
-      i++;
-      continue;
-    }
-    if (c === "*") {
-      if (glob[i + 1] === "*") {
-        const atStart = i === 0 || glob[i - 1] === "/";
-        if (atStart && glob[i + 2] === "/") {
-          re += "(?:.*/)?";
-          i += 2;
-          continue;
-        }
-        re += ".*";
-        i++;
-        continue;
-      }
-      re += "[^/]*";
-      continue;
-    }
-    if (c === "?") {
-      re += "[^/]";
-      continue;
-    }
-    if (c === "[") {
-      const close = glob.indexOf("]", i + 2);
-      if (close > i) {
-        let cls = glob.slice(i + 1, close).replace(/\\/g, "\\\\").replace(/\//g, "");
-        if (cls.startsWith("!"))
-          cls = "^" + cls.slice(1);
-        re += `[${cls}]`;
-        i = close;
-        continue;
-      }
-    }
-    if (c === "{" && depth < 4) {
-      const close = glob.indexOf("}", i + 1);
-      if (close > i) {
-        re += "(?:" + glob.slice(i + 1, close).split(",").map((a) => globBody(a, depth + 1)).join("|") + ")";
-        i = close;
-        continue;
-      }
-    }
-    re += escapeRe(c);
-  }
-  return re;
-}
-var globCache = new Map;
-function protectGlobToRegExp(glob) {
-  const hit = globCache.get(glob);
-  if (hit !== undefined)
-    return hit;
-  let re;
-  try {
-    re = new RegExp("^" + globBody(glob) + "$", "i");
-  } catch {
-    re = null;
-  }
-  if (globCache.size > 512)
-    globCache.clear();
-  globCache.set(glob, re);
-  return re;
-}
-
-// src/core/workspace.ts
-function pathKey(p, caseInsensitive) {
-  const out = normalizePath(isWindowsPath(p) ? p : p.replace(/\\/g, "/"));
-  return caseInsensitive ? out.toLowerCase() : out;
-}
-function isRootKey(k) {
-  return k === "/" || /^[A-Za-z]:\/?$/.test(k) || /^\\\\[^\\/]+(?:\\[^\\/]+)?$/.test(k);
-}
-function withinKey(child, parent) {
-  if (parent === "/")
-    return child.startsWith("/");
-  const p = parent.endsWith("/") ? parent.slice(0, -1) : parent;
-  return child === p || child.startsWith(`${p}/`);
-}
-function isPathWithin(child, parent, caseInsensitive) {
-  return withinKey(pathKey(child, caseInsensitive), pathKey(parent, caseInsensitive));
-}
-function wslDrive(p) {
-  return /^\/mnt\/([A-Za-z])(?:\/|$)/.exec(p)?.[1];
-}
-var GLOB_CHARS = /[*?[{]/;
-function excludeMatches(pattern, dirKey, ctx) {
-  let p = pattern.replace(/\\/g, "/");
-  if (p === "~" || p.startsWith("~/"))
-    p = ctx.home.replace(/\\/g, "/").replace(/\/+$/, "") + p.slice(1);
-  const absolute = p.startsWith("/") || /^[A-Za-z]:\//.test(p);
-  if (absolute && !GLOB_CHARS.test(p))
-    return withinKey(dirKey, pathKey(p, ctx.caseInsensitive));
-  const body = p.replace(/\/{2,}/g, "/").replace(/\/+$/, "");
-  const glob = absolute ? body : `**/${body.replace(/^(?:\.\/)+/, "")}`;
-  const self = protectGlobToRegExp(glob);
-  const inside = protectGlobToRegExp(`${glob}/**`);
-  return self?.test(dirKey) === true || inside?.test(dirKey) === true;
-}
-function indexExclusion(dir, ctx) {
-  const ci = ctx.caseInsensitive;
-  const d = pathKey(dir, ci);
-  if (isRootKey(d))
-    return "the filesystem root";
-  if (ctx.home.trim() !== "") {
-    const h = pathKey(ctx.home, ci);
-    if (!isRootKey(h)) {
-      if (d === h)
-        return "your home folder";
-      if (withinKey(h, d))
-        return "a parent of your home folder";
-    }
-  }
-  if (ctx.vault.trim() !== "" && withinKey(d, pathKey(ctx.vault, ci)))
-    return "inside the memory vault";
-  if (ctx.buracleHome.trim() !== "" && withinKey(d, pathKey(ctx.buracleHome, ci)))
-    return "inside Buracle's state folder";
-  for (const raw of ctx.exclude) {
-    const pattern = raw.trim();
-    if (pattern !== "" && excludeMatches(pattern, d, ctx))
-      return `excluded by index.exclude (${pattern})`;
-  }
-  return;
-}
-var INDEX_RETRY_MIN = [5, 15, 60, 240, 1440];
-function indexRetryDelayMs(failures, minIntervalMin) {
-  const n = Number.isFinite(failures) ? Math.max(1, Math.floor(failures)) : 1;
-  const step = INDEX_RETRY_MIN[Math.min(n, INDEX_RETRY_MIN.length) - 1] ?? 1440;
-  return Math.max(step, Math.max(0, minIntervalMin)) * 60000;
-}
-function indexState(f, minIntervalMin) {
-  if (!f.enabled)
-    return { state: "off" };
-  const r = f.record;
-  const usable = r?.ok === true || f.present === true;
-  if (f.building !== undefined && !usable)
-    return f.building.since !== undefined ? { state: "building", since: f.building.since } : { state: "building" };
-  if (r !== undefined && r.ok)
-    return { state: "ready", at: r.at };
-  if (r !== undefined) {
-    const error = r.error !== undefined && r.error.trim() !== "" ? r.error : "failed";
-    if (f.present === true)
-      return { state: "ready", error };
-    return { state: "failed", at: r.at, error, retryAt: r.at + indexRetryDelayMs(r.failures ?? 1, minIntervalMin) };
-  }
-  return f.present === true ? { state: "ready" } : { state: "none" };
-}
-var HEALTH_ORDER = ["failed", "none", "building", "ready"];
-function indexHealth(pi) {
-  const live = [pi.codegraph, pi.semble].filter((s) => s.state !== "off").map((s) => s.state);
-  if (live.length === 0)
-    return "off";
-  return HEALTH_ORDER.find((s) => live.includes(s)) ?? "ready";
-}
-function code(s) {
-  return "`" + s.replace(/`/g, "'") + "`";
-}
-var PASS = `as codegraph ${code("projectPath")} and semble ${code("repo")}`;
-var OWNS = `Indexing is Buracle's job, not the user's decision: if codegraph says a project is not indexed, run ${code("buracle index ensure --cwd <project>")} (or wait for the background run) and call it again; never stop using codegraph for the session.`;
-
-// src/core/policy/code-facts.ts
-var NODE_BUILTINS = new Set([
-  "assert",
-  "async_hooks",
-  "buffer",
-  "child_process",
-  "cluster",
-  "console",
-  "constants",
-  "crypto",
-  "dgram",
-  "diagnostics_channel",
-  "dns",
-  "domain",
-  "events",
-  "fs",
-  "http",
-  "http2",
-  "https",
-  "inspector",
-  "module",
-  "net",
-  "os",
-  "path",
-  "perf_hooks",
-  "process",
-  "punycode",
-  "querystring",
-  "readline",
-  "repl",
-  "stream",
-  "string_decoder",
-  "sys",
-  "timers",
-  "tls",
-  "trace_events",
-  "tty",
-  "url",
-  "util",
-  "v8",
-  "vm",
-  "wasi",
-  "worker_threads",
-  "zlib",
-  "bun"
+var CRITICAL_SECOND_LEVEL = new Set([
+  "/usr/bin",
+  "/usr/sbin",
+  "/usr/lib",
+  "/usr/libexec",
+  "/usr/local",
+  "/usr/share",
+  "/usr/include",
+  "/opt/homebrew",
+  "/private/etc",
+  "/private/var",
+  "/private/tmp",
+  "/var/lib",
+  "/var/db",
+  "/system/library",
+  "/system/applications",
+  "/library/apple"
 ]);
-var PY_STDLIB = new Set([
-  "__future__",
-  "abc",
-  "argparse",
-  "array",
-  "ast",
-  "asyncio",
-  "atexit",
-  "base64",
-  "bisect",
-  "builtins",
-  "bz2",
-  "calendar",
-  "cmath",
-  "codecs",
-  "collections",
-  "colorsys",
-  "concurrent",
-  "configparser",
-  "contextlib",
-  "contextvars",
-  "copy",
-  "cProfile",
-  "csv",
-  "ctypes",
-  "curses",
-  "dataclasses",
-  "datetime",
-  "decimal",
-  "difflib",
-  "dis",
-  "doctest",
-  "email",
-  "enum",
-  "errno",
-  "faulthandler",
-  "filecmp",
-  "fnmatch",
-  "fractions",
-  "ftplib",
-  "functools",
-  "gc",
-  "getopt",
-  "getpass",
-  "gettext",
-  "glob",
-  "graphlib",
-  "gzip",
-  "hashlib",
-  "heapq",
-  "hmac",
-  "html",
-  "http",
-  "imaplib",
-  "importlib",
-  "inspect",
-  "io",
-  "ipaddress",
-  "itertools",
-  "json",
-  "keyword",
-  "linecache",
-  "locale",
-  "logging",
-  "lzma",
-  "mailbox",
-  "math",
-  "mimetypes",
-  "mmap",
-  "multiprocessing",
-  "netrc",
-  "numbers",
-  "operator",
-  "os",
-  "pathlib",
-  "pdb",
-  "pickle",
-  "pkgutil",
-  "platform",
-  "plistlib",
-  "poplib",
-  "posixpath",
-  "pprint",
-  "profile",
-  "pstats",
-  "pty",
-  "pwd",
-  "queue",
-  "random",
-  "re",
-  "readline",
-  "reprlib",
-  "resource",
-  "runpy",
-  "sched",
-  "secrets",
-  "select",
-  "selectors",
-  "shelve",
-  "shlex",
-  "shutil",
-  "signal",
-  "site",
-  "smtplib",
-  "socket",
-  "socketserver",
-  "sqlite3",
-  "ssl",
-  "stat",
-  "statistics",
-  "string",
-  "stringprep",
-  "struct",
-  "subprocess",
-  "symtable",
-  "sys",
-  "sysconfig",
-  "tarfile",
-  "tempfile",
-  "termios",
-  "textwrap",
-  "threading",
-  "time",
-  "timeit",
-  "tkinter",
-  "token",
-  "tokenize",
-  "tomllib",
-  "trace",
-  "traceback",
-  "tracemalloc",
-  "tty",
-  "turtle",
-  "types",
-  "typing",
-  "unicodedata",
-  "unittest",
-  "urllib",
-  "uuid",
-  "venv",
-  "warnings",
-  "wave",
-  "weakref",
-  "webbrowser",
-  "winreg",
-  "wsgiref",
-  "xml",
-  "xmlrpc",
-  "zipapp",
-  "zipfile",
-  "zipimport",
-  "zlib",
-  "zoneinfo"
-]);
-var RUST_BUILTINS = new Set(["std", "core", "alloc", "crate", "self", "super", "proc_macro", "test"]);
+var HOME_FOLDERS = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
+var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
+var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
+var DECLARE = new Set(["export", "declare", "typeset", "local", "readonly"]);
+var GIT_GLOBAL_WITH_ARG = new Set(["-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--attr-source", "--list-cmds"]);
+var PUSH_LONG_ARG = new Set(["repo", "receive-pack", "exec", "push-option", "recurse-submodules"]);
+var FORCE_FAMILY = new Set(["force", "force-with-lease", "force-if-includes"]);
+var GIT_CONFIG_WITH_ARG = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
+var patternCache = new Map;
 
-// src/core/policy/shell-files.ts
-var WRITE_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>"]);
-var TEMP_VARS = new Set(["TMPDIR", "TMP", "TEMP", "RUNNER_TEMP", "XDG_RUNTIME_DIR"]);
-var SELF = new Set(["buracle"]);
-var CODE_FLAGS = {
-  sed: new Set(["-e", "-f", "--expression", "--file"]),
-  perl: new Set(["-e", "-E"]),
-  ruby: new Set(["-e"]),
-  awk: new Set(["-e", "-E", "-f", "--file", "--source"])
-};
-var EXEC_FLAGS = new Set(["-exec", "-execdir", "-ok", "-okdir"]);
-var PRINTERS = new Set(["cat", "head", "tail", "sed", "nl", "bat", "batcat"]);
-var COMPANIONS = new Set(["cd", "pwd", "echo", "printf", "true"]);
-var HEAD_TAIL_ARG = new Set(["-n", "--lines"]);
+// src/core/policy/consent.ts
+var GRANT_TTL_MS = 20 * 60000;
+var PENDING_TTL_MS = 30 * 60000;
+var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
+var GIT_CONFIG_WITH_ARG2 = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
+var REMOVERS = new Set(["rm", "unlink", "shred", "srm"]);
+var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duckdb", "mongosh", "mongo", "clickhouse-client", "cockroach", "sqlcmd"]);
 
-// src/core/policy/usage.ts
-var SHELL_SEARCH = new Set(["rg", "grep", "egrep", "fgrep", "rgrep", "ag", "ack", "find", "fd", "fdfind"]);
-var FILE_PRINTERS = new Set(["cat", "bat", "batcat", "less", "more", "head", "tail", "sed", "awk", "nl"]);
-
-// src/workflow/ledger.ts
+// src/adapters/shared/consent-store.ts
 init_fsx();
 init_paths();
 
-// src/adapters/opencode/runtime/routing.ts
-var compiledCache = new WeakMap;
+// src/core/plan/plan-mode.ts
+init_harness();
+var READ_ONLY_MODE = harnessTable((p) => p.plan.readOnly);
 
-// src/adapters/opencode/runtime/commands.ts
-function workflowCommandSkills(skills) {
-  return skills.filter((s) => s.userInvocable).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+// src/core/plan/notes.ts
+function brainPageArg(args) {
+  const w = args.trim().toLowerCase();
+  if (w === "")
+    return "brain";
+  return ["review", "plans", "changes", "notes"].includes(w) ? "review" : undefined;
 }
 
-// src/core/effort.ts
-var EFFORT_SCALES = {
-  claude: { levels: ["low", "medium", "high", "xhigh", "max"], top: "max", persistable: ["low", "medium", "high", "xhigh"] },
-  codex: {
-    levels: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
-    top: "max",
-    persistable: ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+// src/adapters/shared/review-notes.ts
+init_fsx();
+init_paths();
+// src/core/policy/mcp-paths.ts
+var WRITE_PATH_KEYS = new Set([
+  "path",
+  "filepath",
+  "filename",
+  "outputpath",
+  "outputfile",
+  "outpath",
+  "outfile",
+  "savepath",
+  "savefile",
+  "saveto",
+  "destination",
+  "dest",
+  "destpath",
+  "targetpath",
+  "outputdir",
+  "outputdirpath",
+  "outputdirectory",
+  "savedir",
+  "downloadpath"
+]);
+var READ_ONLY_SERVERS = new Set(["codegraph", "semble", "context7", "grep", "web-search"]);
+var READ_ONLY_TOOLS = new Set(["chrome-devtools/upload_file"]);
+
+// src/adapters/shared/realpath.ts
+init_fsx();
+
+// src/adapters/shared/repo.ts
+init_fsx();
+
+// src/adapters/shared/self-paths.ts
+init_paths();
+
+// node_modules/jsonc-parser/lib/esm/impl/scanner.js
+var CharacterCodes;
+(function(CharacterCodes) {
+  CharacterCodes[CharacterCodes["lineFeed"] = 10] = "lineFeed";
+  CharacterCodes[CharacterCodes["carriageReturn"] = 13] = "carriageReturn";
+  CharacterCodes[CharacterCodes["space"] = 32] = "space";
+  CharacterCodes[CharacterCodes["_0"] = 48] = "_0";
+  CharacterCodes[CharacterCodes["_1"] = 49] = "_1";
+  CharacterCodes[CharacterCodes["_2"] = 50] = "_2";
+  CharacterCodes[CharacterCodes["_3"] = 51] = "_3";
+  CharacterCodes[CharacterCodes["_4"] = 52] = "_4";
+  CharacterCodes[CharacterCodes["_5"] = 53] = "_5";
+  CharacterCodes[CharacterCodes["_6"] = 54] = "_6";
+  CharacterCodes[CharacterCodes["_7"] = 55] = "_7";
+  CharacterCodes[CharacterCodes["_8"] = 56] = "_8";
+  CharacterCodes[CharacterCodes["_9"] = 57] = "_9";
+  CharacterCodes[CharacterCodes["a"] = 97] = "a";
+  CharacterCodes[CharacterCodes["b"] = 98] = "b";
+  CharacterCodes[CharacterCodes["c"] = 99] = "c";
+  CharacterCodes[CharacterCodes["d"] = 100] = "d";
+  CharacterCodes[CharacterCodes["e"] = 101] = "e";
+  CharacterCodes[CharacterCodes["f"] = 102] = "f";
+  CharacterCodes[CharacterCodes["g"] = 103] = "g";
+  CharacterCodes[CharacterCodes["h"] = 104] = "h";
+  CharacterCodes[CharacterCodes["i"] = 105] = "i";
+  CharacterCodes[CharacterCodes["j"] = 106] = "j";
+  CharacterCodes[CharacterCodes["k"] = 107] = "k";
+  CharacterCodes[CharacterCodes["l"] = 108] = "l";
+  CharacterCodes[CharacterCodes["m"] = 109] = "m";
+  CharacterCodes[CharacterCodes["n"] = 110] = "n";
+  CharacterCodes[CharacterCodes["o"] = 111] = "o";
+  CharacterCodes[CharacterCodes["p"] = 112] = "p";
+  CharacterCodes[CharacterCodes["q"] = 113] = "q";
+  CharacterCodes[CharacterCodes["r"] = 114] = "r";
+  CharacterCodes[CharacterCodes["s"] = 115] = "s";
+  CharacterCodes[CharacterCodes["t"] = 116] = "t";
+  CharacterCodes[CharacterCodes["u"] = 117] = "u";
+  CharacterCodes[CharacterCodes["v"] = 118] = "v";
+  CharacterCodes[CharacterCodes["w"] = 119] = "w";
+  CharacterCodes[CharacterCodes["x"] = 120] = "x";
+  CharacterCodes[CharacterCodes["y"] = 121] = "y";
+  CharacterCodes[CharacterCodes["z"] = 122] = "z";
+  CharacterCodes[CharacterCodes["A"] = 65] = "A";
+  CharacterCodes[CharacterCodes["B"] = 66] = "B";
+  CharacterCodes[CharacterCodes["C"] = 67] = "C";
+  CharacterCodes[CharacterCodes["D"] = 68] = "D";
+  CharacterCodes[CharacterCodes["E"] = 69] = "E";
+  CharacterCodes[CharacterCodes["F"] = 70] = "F";
+  CharacterCodes[CharacterCodes["G"] = 71] = "G";
+  CharacterCodes[CharacterCodes["H"] = 72] = "H";
+  CharacterCodes[CharacterCodes["I"] = 73] = "I";
+  CharacterCodes[CharacterCodes["J"] = 74] = "J";
+  CharacterCodes[CharacterCodes["K"] = 75] = "K";
+  CharacterCodes[CharacterCodes["L"] = 76] = "L";
+  CharacterCodes[CharacterCodes["M"] = 77] = "M";
+  CharacterCodes[CharacterCodes["N"] = 78] = "N";
+  CharacterCodes[CharacterCodes["O"] = 79] = "O";
+  CharacterCodes[CharacterCodes["P"] = 80] = "P";
+  CharacterCodes[CharacterCodes["Q"] = 81] = "Q";
+  CharacterCodes[CharacterCodes["R"] = 82] = "R";
+  CharacterCodes[CharacterCodes["S"] = 83] = "S";
+  CharacterCodes[CharacterCodes["T"] = 84] = "T";
+  CharacterCodes[CharacterCodes["U"] = 85] = "U";
+  CharacterCodes[CharacterCodes["V"] = 86] = "V";
+  CharacterCodes[CharacterCodes["W"] = 87] = "W";
+  CharacterCodes[CharacterCodes["X"] = 88] = "X";
+  CharacterCodes[CharacterCodes["Y"] = 89] = "Y";
+  CharacterCodes[CharacterCodes["Z"] = 90] = "Z";
+  CharacterCodes[CharacterCodes["asterisk"] = 42] = "asterisk";
+  CharacterCodes[CharacterCodes["backslash"] = 92] = "backslash";
+  CharacterCodes[CharacterCodes["closeBrace"] = 125] = "closeBrace";
+  CharacterCodes[CharacterCodes["closeBracket"] = 93] = "closeBracket";
+  CharacterCodes[CharacterCodes["colon"] = 58] = "colon";
+  CharacterCodes[CharacterCodes["comma"] = 44] = "comma";
+  CharacterCodes[CharacterCodes["dot"] = 46] = "dot";
+  CharacterCodes[CharacterCodes["doubleQuote"] = 34] = "doubleQuote";
+  CharacterCodes[CharacterCodes["minus"] = 45] = "minus";
+  CharacterCodes[CharacterCodes["openBrace"] = 123] = "openBrace";
+  CharacterCodes[CharacterCodes["openBracket"] = 91] = "openBracket";
+  CharacterCodes[CharacterCodes["plus"] = 43] = "plus";
+  CharacterCodes[CharacterCodes["slash"] = 47] = "slash";
+  CharacterCodes[CharacterCodes["formFeed"] = 12] = "formFeed";
+  CharacterCodes[CharacterCodes["tab"] = 9] = "tab";
+})(CharacterCodes || (CharacterCodes = {}));
+
+// node_modules/jsonc-parser/lib/esm/impl/string-intern.js
+var cachedSpaces = new Array(20).fill(0).map((_, index) => {
+  return " ".repeat(index);
+});
+var maxCachedValues = 200;
+var cachedBreakLinesWithSpaces = {
+  " ": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `
+` + " ".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + " ".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `\r
+` + " ".repeat(index);
+    })
   },
-  opencode: { levels: ["low", "medium", "high", "xhigh", "max"], top: "max", persistable: ["low", "medium", "high", "xhigh", "max"] },
-  omp: {
-    levels: ["minimal", "low", "medium", "high", "xhigh", "max"],
-    top: "max",
-    persistable: ["minimal", "low", "medium", "high", "xhigh", "max", "auto"]
+  "\t": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `
+` + "\t".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + "\t".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `\r
+` + "\t".repeat(index);
+    })
   }
 };
-var LABEL2 = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
-var OMP_CLASSIFIER = "classifier";
-function effortBelowTop(h) {
-  const s = EFFORT_SCALES[h];
-  return s.levels[s.levels.indexOf(s.top) - 1] ?? s.top;
-}
-function effortConfigValues(h) {
-  return ["auto", "keep", ...EFFORT_SCALES[h].persistable.map((v) => h === "omp" && v === "auto" ? OMP_CLASSIFIER : v)];
-}
-function resolveEffort(h, value) {
-  const v = value.trim().toLowerCase();
-  if (v === "auto")
-    return { level: effortBelowTop(h) };
-  if (v === "keep")
-    return { off: true };
-  if (h === "omp" && v === OMP_CLASSIFIER)
-    return { level: "auto" };
-  const scale = EFFORT_SCALES[h];
-  if (scale.persistable.includes(v))
-    return { level: v };
-  if (h === "claude" && v === "max") {
-    return { invalid: "Claude Code does not keep 'max' in its settings (it lasts one session: /effort max); xhigh is the highest level it saves" };
-  }
-  if (h === "codex" && v === "ultra")
-    return { invalid: "'ultra' is Codex's delegation mode, not a reasoning level; use max or xhigh" };
-  if (h === "omp" && v === "off") {
-    return { invalid: "Oh My Pi's settings cannot hold 'off' (it ignores it and runs at high); minimal is the least thinking it saves" };
-  }
-  return { invalid: `'${value.trim()}' is not an effort value for ${LABEL2[h]}; use one of ${effortConfigValues(h).join(", ")}` };
-}
 
-// src/adapters/opencode/runtime/effort.ts
-function effortLevel(cfg) {
-  const value = cfg.effort?.opencode;
-  const r = resolveEffort("opencode", typeof value === "string" ? value : "auto");
-  return "level" in r ? r.level : undefined;
-}
+// node_modules/jsonc-parser/lib/esm/impl/parser.js
+var ParseOptions;
+(function(ParseOptions) {
+  ParseOptions.DEFAULT = {
+    allowTrailingComma: false
+  };
+})(ParseOptions || (ParseOptions = {}));
 
-// src/adapters/opencode/runtime/env.ts
-import { readFileSync as readFileSync4, statSync as statSync5 } from "fs";
-import os2 from "os";
-import { isAbsolute as isAbsolute3, join as join6 } from "path";
-
+// node_modules/jsonc-parser/lib/esm/main.js
+var ScanError;
+(function(ScanError) {
+  ScanError[ScanError["None"] = 0] = "None";
+  ScanError[ScanError["UnexpectedEndOfComment"] = 1] = "UnexpectedEndOfComment";
+  ScanError[ScanError["UnexpectedEndOfString"] = 2] = "UnexpectedEndOfString";
+  ScanError[ScanError["UnexpectedEndOfNumber"] = 3] = "UnexpectedEndOfNumber";
+  ScanError[ScanError["InvalidUnicode"] = 4] = "InvalidUnicode";
+  ScanError[ScanError["InvalidEscapeCharacter"] = 5] = "InvalidEscapeCharacter";
+  ScanError[ScanError["InvalidCharacter"] = 6] = "InvalidCharacter";
+})(ScanError || (ScanError = {}));
+var SyntaxKind;
+(function(SyntaxKind) {
+  SyntaxKind[SyntaxKind["OpenBraceToken"] = 1] = "OpenBraceToken";
+  SyntaxKind[SyntaxKind["CloseBraceToken"] = 2] = "CloseBraceToken";
+  SyntaxKind[SyntaxKind["OpenBracketToken"] = 3] = "OpenBracketToken";
+  SyntaxKind[SyntaxKind["CloseBracketToken"] = 4] = "CloseBracketToken";
+  SyntaxKind[SyntaxKind["CommaToken"] = 5] = "CommaToken";
+  SyntaxKind[SyntaxKind["ColonToken"] = 6] = "ColonToken";
+  SyntaxKind[SyntaxKind["NullKeyword"] = 7] = "NullKeyword";
+  SyntaxKind[SyntaxKind["TrueKeyword"] = 8] = "TrueKeyword";
+  SyntaxKind[SyntaxKind["FalseKeyword"] = 9] = "FalseKeyword";
+  SyntaxKind[SyntaxKind["StringLiteral"] = 10] = "StringLiteral";
+  SyntaxKind[SyntaxKind["NumericLiteral"] = 11] = "NumericLiteral";
+  SyntaxKind[SyntaxKind["LineCommentTrivia"] = 12] = "LineCommentTrivia";
+  SyntaxKind[SyntaxKind["BlockCommentTrivia"] = 13] = "BlockCommentTrivia";
+  SyntaxKind[SyntaxKind["LineBreakTrivia"] = 14] = "LineBreakTrivia";
+  SyntaxKind[SyntaxKind["Trivia"] = 15] = "Trivia";
+  SyntaxKind[SyntaxKind["Unknown"] = 16] = "Unknown";
+  SyntaxKind[SyntaxKind["EOF"] = 17] = "EOF";
+})(SyntaxKind || (SyntaxKind = {}));
+var ParseErrorCode;
+(function(ParseErrorCode) {
+  ParseErrorCode[ParseErrorCode["InvalidSymbol"] = 1] = "InvalidSymbol";
+  ParseErrorCode[ParseErrorCode["InvalidNumberFormat"] = 2] = "InvalidNumberFormat";
+  ParseErrorCode[ParseErrorCode["PropertyNameExpected"] = 3] = "PropertyNameExpected";
+  ParseErrorCode[ParseErrorCode["ValueExpected"] = 4] = "ValueExpected";
+  ParseErrorCode[ParseErrorCode["ColonExpected"] = 5] = "ColonExpected";
+  ParseErrorCode[ParseErrorCode["CommaExpected"] = 6] = "CommaExpected";
+  ParseErrorCode[ParseErrorCode["CloseBraceExpected"] = 7] = "CloseBraceExpected";
+  ParseErrorCode[ParseErrorCode["CloseBracketExpected"] = 8] = "CloseBracketExpected";
+  ParseErrorCode[ParseErrorCode["EndOfFileExpected"] = 9] = "EndOfFileExpected";
+  ParseErrorCode[ParseErrorCode["InvalidCommentToken"] = 10] = "InvalidCommentToken";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfComment"] = 11] = "UnexpectedEndOfComment";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfString"] = 12] = "UnexpectedEndOfString";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfNumber"] = 13] = "UnexpectedEndOfNumber";
+  ParseErrorCode[ParseErrorCode["InvalidUnicode"] = 14] = "InvalidUnicode";
+  ParseErrorCode[ParseErrorCode["InvalidEscapeCharacter"] = 15] = "InvalidEscapeCharacter";
+  ParseErrorCode[ParseErrorCode["InvalidCharacter"] = 16] = "InvalidCharacter";
+})(ParseErrorCode || (ParseErrorCode = {}));
+// src/adapters/shared/write-content.ts
+var WS = "[\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]";
+var TRIM_END = new RegExp(`${WS}+$`);
+var TRIM_START = new RegExp(`^${WS}+`);
 // src/core/config.ts
-var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
-var BOARD_MODES = ["off", "ask", "on"];
-var MUX_ON_ASK = ["mark", "focus"];
+init_harness();
+var COMPANION_SETTINGS = ["off", "auto", ...harnessesWhere((p) => p.adapterPending !== true && p.companionPending !== true)];
 function defaultConfig() {
   return {
     version: 1,
-    harnesses: {
-      claude: { enabled: true },
-      codex: { enabled: true },
-      opencode: { enabled: true },
-      omp: { enabled: true }
-    },
-    routing: { strictness: "enforce", skills: "router", reminders: true },
+    harnesses: harnessTable(() => ({ enabled: true })),
+    routing: { strictness: "enforce", reminders: true },
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
       stopGuard: true,
-      runaway: { perPlan: 30, perChain: 5 },
-      autoPause: false,
       planApproval: true,
       resultApproval: true,
       branchIsolation: true,
-      worktreeDir: ".worktrees",
       questions: true,
       reviews: { plan: true, changes: true, goal: true, companion: "off" },
       goalVerification: true,
       modelSwitch: "off",
-      nativePlanMode: "off",
-      board: { mode: "ask", maxWorkers: 6, leaseSec: 300, mux: "ask", muxOnAsk: "mark", harnesses: { claude: true, codex: true, opencode: true, omp: true } }
+      nativePlanMode: "off"
     },
-    context: { warnPct: 85, criticalPct: 95 },
-    checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
+    checkers: { enabled: true, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
     memory: {
-      ui: { port: 41777, autostart: true },
+      ui: { autostart: true },
       exclude: []
     },
-    statusline: { style: "buracle", emoji: true, monthly: "estimate" },
+    statusline: { style: "buracle", emoji: true },
     skills: { sources: [{ name: "buracle", path: "canonical/skills" }] },
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
-    effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
+    workflow: { band: true, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
-    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
-    mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } }
+    index: { exclude: [] },
+    mcp: { shared: true, off: harnessTable(() => []) }
   };
 }
 var bool = { t: "bool" };
 var str = { t: "str" };
 var nonEmpty = { t: "str", nonEmpty: true };
-var pct = { t: "int", min: 0, max: 100 };
-var count2 = (min) => ({ t: "int", min });
+var count3 = (min) => ({ t: "int", min });
 var strList = { t: "arr", of: str };
 var harnessFields = {};
 for (const h of HARNESSES)
   harnessFields[h] = { t: "obj", fields: { enabled: bool } };
-var EFFORT_VALUES = {
-  claude: ["auto", "keep", "low", "medium", "high", "xhigh"],
-  codex: ["auto", "keep", "none", "minimal", "low", "medium", "high", "xhigh", "max"],
-  opencode: ["auto", "keep", "low", "medium", "high", "xhigh", "max"],
-  omp: ["auto", "keep", "minimal", "low", "medium", "high", "xhigh", "max", "classifier"]
-};
-var effortFields = {};
-for (const h of HARNESSES)
-  effortFields[h] = { t: "enum", values: EFFORT_VALUES[h] };
 var mcpOffFields = {};
 for (const h of HARNESSES)
   mcpOffFields[h] = strList;
-var boardHarnessFields = {};
-for (const h of HARNESSES)
-  boardHarnessFields[h] = bool;
 var CONFIG_SCHEMA = {
   t: "obj",
   optional: ["repo"],
@@ -10758,7 +11928,6 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         strictness: { t: "enum", values: ["enforce", "nudge", "off"] },
-        skills: { t: "enum", values: ["router", "off"] },
         reminders: bool
       }
     },
@@ -10774,26 +11943,21 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         stopGuard: bool,
-        runaway: { t: "obj", fields: { perPlan: count2(1), perChain: count2(1) } },
-        autoPause: bool,
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
-        worktreeDir: nonEmpty,
         questions: bool,
         reviews: { t: "obj", fields: { plan: bool, changes: bool, goal: bool, companion: { t: "enum", values: COMPANION_SETTINGS } } },
         goalVerification: bool,
         modelSwitch: { t: "enum", values: ["off", "manual"] },
-        nativePlanMode: { t: "enum", values: ["off", "on"] },
-        board: { t: "obj", fields: { mode: { t: "enum", values: BOARD_MODES }, maxWorkers: count2(1), leaseSec: count2(10), mux: { t: "enum", values: BOARD_MODES }, muxOnAsk: { t: "enum", values: MUX_ON_ASK }, harnesses: { t: "obj", fields: boardHarnessFields } } }
+        nativePlanMode: { t: "enum", values: ["off", "on"] }
       }
     },
-    context: { t: "obj", fields: { warnPct: pct, criticalPct: pct } },
-    checkers: { t: "obj", fields: { enabled: bool, timeoutMs: count2(100), languages: strList } },
+    checkers: { t: "obj", fields: { enabled: bool, languages: strList } },
     memory: {
       t: "obj",
       fields: {
-        ui: { t: "obj", fields: { port: { t: "int", min: 1024, max: 65535 }, autostart: bool } },
+        ui: { t: "obj", fields: { autostart: bool } },
         exclude: strList
       }
     },
@@ -10801,8 +11965,7 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         style: { t: "enum", values: ["buracle", "full", "compact"] },
-        emoji: bool,
-        monthly: { t: "enum", values: ["estimate", "off"] }
+        emoji: bool
       }
     },
     skills: {
@@ -10814,13 +11977,12 @@ var CONFIG_SCHEMA = {
         }
       }
     },
-    update: { t: "obj", fields: { minReleaseAgeDays: count2(0) } },
+    update: { t: "obj", fields: { minReleaseAgeDays: count3(0) } },
     permissions: { t: "obj", fields: { bypass: bool, enforce: bool } },
-    effort: { t: "obj", fields: effortFields },
     agents: { t: "obj", fields: { teams: bool } },
-    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count2(0), notifyAfterSec: count2(0), codexNotices: bool } },
+    workflow: { t: "obj", fields: { band: bool, codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count2(0), exclude: strList, children: bool, maxChildren: count2(0) } },
+    index: { t: "obj", fields: { exclude: strList } },
     mcp: { t: "obj", fields: { shared: bool, off: { t: "obj", fields: mcpOffFields } } }
   }
 };
@@ -10903,10 +12065,6 @@ function check(schema, x, path, out) {
   }
 }
 function crossChecks(x, out) {
-  const ctx = x["context"];
-  if (isPlainObject(ctx) && typeof ctx["warnPct"] === "number" && typeof ctx["criticalPct"] === "number" && ctx["warnPct"] >= ctx["criticalPct"]) {
-    out.push({ path: ["context", "warnPct"], message: "must be lower than context.criticalPct" });
-  }
   const skills = x["skills"];
   const sources = isPlainObject(skills) ? skills["sources"] : undefined;
   if (Array.isArray(sources)) {
@@ -11014,101 +12172,6 @@ function setAt(x, path, value, remove) {
     cur[last] = clone(value);
   }
 }
-var CONFIG_RENAMES = [];
-var ALWAYS_ON = "the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)";
-var CONFIG_REMOVALS = [
-  { key: "vault", since: "0.5.0", why: "the memory moved from the Obsidian vault to CortexDB under ~/.buracle/brain", quietWhen: "~/Documents/Buracle" },
-  { key: "memory.qmd", since: "0.5.0", why: "CortexDB does the search", quietWhen: { enabled: false, url: "http://127.0.0.1:8181" } },
-  { key: "memory.git", since: "0.5.0", why: "the memory is no longer a git repository", quietWhen: { autoCommit: true, debounceMin: 10 } },
-  { key: "memory.reflect.model", since: "0.5.0", why: "reflect runs the model of the session's own harness", quietWhen: "haiku" },
-  { key: "memory.inject", since: "0.5.0", why: "the session-start text has a fixed budget (150 lines, 12 KiB)", quietWhen: { maxLines: 150, maxBytes: 12288 } },
-  { key: "memory.distill", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true, promote: "medium", maxRunsPerDay: 20, maxInputTokens: 8000, maxOutputTokens: 800, skip5hPct: 75, skip7dPct: 85 } },
-  { key: "memory.reflect.auto", since: "0.5.0", why: ALWAYS_ON, quietWhen: true },
-  { key: "memory.reflect.maxRunsPerDay", since: "0.5.0", why: ALWAYS_ON, quietWhen: 6 },
-  { key: "memory.reflect.maxOpsPerRun", since: "0.5.0", why: ALWAYS_ON, quietWhen: 8 },
-  { key: "memory.reflect.maxSubQueries", since: "0.5.0", why: ALWAYS_ON, quietWhen: 6 },
-  { key: "memory.reflect.maxRounds", since: "0.5.0", why: ALWAYS_ON, quietWhen: 2 },
-  { key: "memory.reflect.maxInputTokens", since: "0.5.0", why: ALWAYS_ON, quietWhen: 6000 },
-  { key: "memory.reflect.maxOutputTokens", since: "0.5.0", why: ALWAYS_ON, quietWhen: 700 },
-  { key: "memory.reflect.minIntervalMin", since: "0.5.0", why: ALWAYS_ON, quietWhen: 60 },
-  { key: "memory.verify", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
-  { key: "memory.heal", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true } },
-  { key: "memory.profile", since: "0.5.0", why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available; `memory.ui.autostart` decides whether it starts by itself", quietWhen: true },
-  { key: "memory.reflect.provider", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: "harness" },
-  { key: "memory.reflect.api", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { format: "openai", url: "", model: "", keyEnv: "", person: false } },
-  { key: "memory.llm", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { provider: "auto", api: { format: "openai", url: "", model: "", keyEnv: "", person: false } } },
-  { key: "memory.embed", since: "0.5.0", why: "the memory search is by words; there is no embedding model or endpoint to configure", quietWhen: { url: "", model: "", dim: 0, keyEnv: "" } },
-  { key: "contextMode", since: "0.6.0", why: "Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state", quietWhen: { enabled: true, capture: true } }
-];
-function quietRemoval(old, quiet) {
-  if (isPlainObject(old) && isPlainObject(quiet)) {
-    return Object.entries(old).every(([k, v]) => Object.prototype.hasOwnProperty.call(quiet, k) && quietRemoval(v, quiet[k]));
-  }
-  return deepEqual(old, quiet);
-}
-function migrateConfig(raw, renames = CONFIG_RENAMES) {
-  if (!isPlainObject(raw))
-    return { value: raw, notes: [] };
-  let value;
-  const notes = [];
-  for (const r of CONFIG_REMOVALS) {
-    const path = r.key.split(".");
-    const old = getAt(value ?? raw, path);
-    if (!old.found)
-      continue;
-    value ??= clone(raw);
-    if (!(r.quietWhen !== undefined && quietRemoval(old.value, r.quietWhen)))
-      notes.push(`${r.key} was removed in ${r.since} (${r.why}); its value is ignored (remove it from config.yaml)`);
-    removePath(value, path);
-  }
-  for (const r of renames) {
-    const from = r.from.split(".");
-    const to = r.to.split(".");
-    const old = getAt(value ?? raw, from);
-    if (!old.found || old.value === undefined || old.value === null)
-      continue;
-    value ??= clone(raw);
-    const target = getAt(value, to);
-    if (target.found && target.value !== undefined && target.value !== null) {
-      notes.push(`${r.from} was renamed to ${r.to} in ${r.since}; ${r.to} is set too, so ${r.from} is ignored (remove it from config.yaml)`);
-    } else {
-      setPath(value, to, old.value);
-      notes.push(`${r.from} was renamed to ${r.to} in ${r.since}; its value was used (rename the key in config.yaml)`);
-    }
-    removePath(value, from);
-  }
-  return { value: value ?? raw, notes };
-}
-function setPath(x, path, v) {
-  let cur = x;
-  for (const seg of path.slice(0, -1)) {
-    if (seg === "__proto__" || seg === "constructor" || seg === "prototype")
-      return;
-    const next = cur[seg];
-    if (!isPlainObject(next))
-      cur[seg] = {};
-    cur = cur[seg];
-  }
-  const last = path[path.length - 1];
-  if (last !== undefined && last !== "__proto__" && last !== "constructor" && last !== "prototype")
-    cur[last] = clone(v);
-}
-function removePath(x, path) {
-  const [head, ...rest] = path;
-  if (head === undefined || !Object.prototype.hasOwnProperty.call(x, head))
-    return;
-  if (rest.length === 0) {
-    delete x[head];
-    return;
-  }
-  const next = x[head];
-  if (!isPlainObject(next))
-    return;
-  removePath(next, rest);
-  if (Object.keys(next).length === 0)
-    delete x[head];
-}
 var RUNTIME_SNAPSHOT_VERSION = 1;
 function runtimeSnapshotConfig(raw, defaults) {
   if (!isPlainObject(raw))
@@ -11121,15 +12184,14 @@ function runtimeSnapshotConfig(raw, defaults) {
 function describeVersion(v) {
   return typeof v === "number" || typeof v === "string" ? String(v) : describe(v);
 }
-function mergeConfigLenient(base, override, renames = CONFIG_RENAMES) {
+function mergeConfigLenient(base, override) {
   if (override === undefined || override === null)
     return { config: clone(base), errors: [], warnings: [] };
   if (!isPlainObject(override)) {
     return { config: clone(base), errors: [`(root): expected a mapping, got ${describe(override)}`], warnings: [] };
   }
-  const migrated = migrateConfig(override, renames);
-  const warnings = migrated.notes;
-  const merged = deepMerge(base, migrated.value);
+  const warnings = [];
+  const merged = deepMerge(base, override);
   const errors = [];
   const note = (msg) => {
     if (!errors.includes(msg))
@@ -11171,167 +12233,414 @@ function deepEqual(a, b) {
   }
   return false;
 }
-
-// src/adapters/opencode/runtime/env.ts
-init_paths();
-var POINTER_FILE = "runtime.json";
-function absEnv2(name) {
-  const v = process.env[name];
-  return v !== undefined && v.trim() !== "" && isAbsolute3(v) ? v : undefined;
+// src/core/policy/catastrophic.ts
+var RF = ["-rf", "-fr", "-Rf", "-fR", "-rF", "-Fr", "-RF", "-FR", "-rfv", "-rvf", "-vrf", "-frv", "-fvr", "-vfr"];
+var R = ["-r", "-R", "--recursive"];
+var F = ["-f", "--force"];
+var SYSTEM = [
+  "/",
+  "/*",
+  "//",
+  "/.",
+  "/Users",
+  "/System",
+  "/Library",
+  "/Applications",
+  "/usr",
+  "/usr/local",
+  "/usr/bin",
+  "/etc",
+  "/var",
+  "/bin",
+  "/sbin",
+  "/opt",
+  "/opt/homebrew",
+  "/private",
+  "/tmp",
+  "/home",
+  "/Volumes"
+];
+var HOME_FORMS = ["~", "~/", "~/*", "$HOME", "$HOME/", "$HOME/*", "${HOME}", "${HOME}/", "${HOME}/*"];
+var HOME_FOLDERS2 = ["Documents", "Desktop", "Downloads", "Library", "Pictures", "Movies", "Music", "Applications", "Public", ".ssh", ".aws", ".gnupg", ".config", "Documents/Buracle"];
+var REMOTES = ["origin", "upstream"];
+var MAIN_NAMES = ["main", "master", "refs/heads/main", "refs/heads/master"];
+var MAIN_REFSPECS = [...MAIN_NAMES, "HEAD:main", "HEAD:master", "HEAD:refs/heads/main", "HEAD:refs/heads/master", "@:main", "@:master", "main:main", "master:master"];
+function prefixes(option, from) {
+  const out = [];
+  for (let n = from.length;n <= option.length; n++)
+    out.push(option.slice(0, n));
+  return out;
 }
-function readPointer(pluginDir) {
-  if (pluginDir === undefined)
-    return;
-  try {
-    const raw = JSON.parse(readFileSync4(join6(pluginDir, POINTER_FILE), "utf8"));
-    if (raw !== null && typeof raw === "object") {
-      const bh = raw.buracleHome;
-      if (typeof bh === "string" && isAbsolute3(bh))
-        return { buracleHome: bh };
+var FORCE = ["--force", "-f", "-fu", "-uf", "-fq", "-qf", "-fv", "-vf", ...prefixes("--force-with-lease", "--force-w")];
+var FORCE_SHORT = ["--force", "-f", "--force-with-lease"];
+var MIRROR = prefixes("--mirror", "--m");
+var DELETE = ["-d", ...prefixes("--delete", "--de")];
+var ALL = [...prefixes("--all", "--al"), ...prefixes("--branches", "--b")];
+function targetsFor(home) {
+  const out = [...SYSTEM, ...HOME_FORMS];
+  for (const f of HOME_FOLDERS2)
+    out.push(`~/${f}`, `$HOME/${f}`);
+  const h = typeof home === "string" ? home.replace(/\/+$/, "") : "";
+  if (/^\/(?:Users|home)\/[^/\s]+$/.test(h)) {
+    out.push(h, `${h}/`, `${h}/*`);
+    for (const f of HOME_FOLDERS2)
+      out.push(`${h}/${f}`);
+  }
+  return [...new Set(out)];
+}
+var DELETE_WHY = "Recursive force delete of the filesystem root, a system directory, the home directory or a home folder. Delete the specific paths you mean instead.";
+var PUSH_WHY = "Force-pushing the default branch rewrites shared history. Push a feature branch and open a pull request, or ask the user.";
+function catastrophicCommandRules(opts) {
+  const T = targetsFor(opts?.home);
+  const homeExample = T.find((t) => /^\/(?:Users|home)\/[^/]+$/.test(t));
+  const rules = [
+    {
+      id: "rm-recursive-force",
+      pattern: ["rm", RF, T],
+      justification: DELETE_WHY,
+      match: ["rm -rf /", "rm -fr ~", "rm -Rf /usr", "rm -rf ~/Documents", ...homeExample !== undefined ? [`rm -rf ${homeExample}`] : []],
+      notMatch: ["rm -rf ./dist", "rm -rf /tmp/build-cache", "rm -rf node_modules"]
+    },
+    {
+      id: "rm-recursive-force-end-of-options",
+      pattern: ["rm", RF, "--", T],
+      justification: DELETE_WHY,
+      match: ["rm -rf -- /", "rm -fr -- ~"],
+      notMatch: ["rm -rf -- ./build"]
+    },
+    {
+      id: "rm-recursive-force-no-preserve-root",
+      pattern: ["rm", RF, "--no-preserve-root", T],
+      justification: DELETE_WHY,
+      match: ["rm -rf --no-preserve-root /"],
+      notMatch: ["rm -rf --no-preserve-root ./build"]
+    },
+    {
+      id: "rm-no-preserve-root-recursive-force",
+      pattern: ["rm", "--no-preserve-root", RF, T],
+      justification: DELETE_WHY,
+      match: ["rm --no-preserve-root -rf /"],
+      notMatch: ["rm --no-preserve-root -rf ./build"]
+    },
+    {
+      id: "rm-recursive-then-force",
+      pattern: ["rm", R, F, T],
+      justification: DELETE_WHY,
+      match: ["rm -r -f /", "rm --recursive --force ~"],
+      notMatch: ["rm -r -f ./build"]
+    },
+    {
+      id: "rm-force-then-recursive",
+      pattern: ["rm", F, R, T],
+      justification: DELETE_WHY,
+      match: ["rm -f -r /", "rm --force --recursive ~/"],
+      notMatch: ["rm -f -r ./build"]
+    },
+    {
+      id: "sudo-rm-recursive",
+      pattern: ["sudo", "rm", [...RF, ...R], T],
+      justification: "Privileged recursive delete of the filesystem root, a system directory or the home directory. Never run this.",
+      match: ["sudo rm -rf /", "sudo rm -r ~"],
+      notMatch: ["sudo rm -rf /tmp/x"]
+    },
+    {
+      id: "sudo-rm-recursive-end-of-options",
+      pattern: ["sudo", "rm", RF, ["--", "--no-preserve-root"], T],
+      justification: "Privileged recursive delete of the filesystem root, a system directory or the home directory. Never run this.",
+      match: ["sudo rm -rf -- /", "sudo rm -rf --no-preserve-root /"],
+      notMatch: ["sudo rm -rf -- /tmp/x"]
+    },
+    {
+      id: "rm-git-directory",
+      pattern: ["rm", [...RF, ...R], [".git", "./.git", ".git/"]],
+      justification: "Deleting .git destroys the repository history. Use git commands (reset, restore, worktree remove) instead.",
+      match: ["rm -rf .git", "rm -r ./.git"],
+      notMatch: ["rm -rf .github", "rm -rf .gitignore"]
+    },
+    {
+      id: "git-push-force-main",
+      pattern: ["git", "push", FORCE, REMOTES, MAIN_REFSPECS],
+      justification: PUSH_WHY,
+      match: ["git push --force origin main", "git push -f upstream master", "git push --force-with-lease origin main", "git push -f origin HEAD:main", "git push --force-w origin main"],
+      notMatch: ["git push --force origin feature/x", "git push origin main"]
+    },
+    {
+      id: "git-push-main-force",
+      pattern: ["git", "push", REMOTES, MAIN_REFSPECS, FORCE],
+      justification: PUSH_WHY,
+      match: ["git push origin main --force", "git push upstream master -f", "git push origin HEAD:main --force-with-lease"],
+      notMatch: ["git push origin main --tags"]
+    },
+    {
+      id: "git-push-remote-force-main",
+      pattern: ["git", "push", REMOTES, FORCE, MAIN_REFSPECS],
+      justification: PUSH_WHY,
+      match: ["git push origin --force main", "git push origin -f HEAD:master"],
+      notMatch: ["git push origin --force feature/x"]
+    },
+    {
+      id: "git-push-plus-main",
+      pattern: ["git", "push", REMOTES, MAIN_REFSPECS.map((m) => `+${m}`)],
+      justification: 'A "+" refspec force-pushes the default branch and rewrites shared history. Push a feature branch instead.',
+      match: ["git push origin +main", "git push origin +HEAD:master", "git push origin +refs/heads/main"],
+      notMatch: ["git push origin +feature"]
+    },
+    {
+      id: "git-push-mirror",
+      pattern: ["git", "push", MIRROR],
+      justification: "`git push --mirror` overwrites and deletes every branch on the remote, main included. Push the specific branch instead.",
+      match: ["git push --mirror", "git push --mirr origin"],
+      notMatch: ["git push --tags"]
+    },
+    {
+      id: "git-push-remote-mirror",
+      pattern: ["git", "push", REMOTES, MIRROR],
+      justification: "`git push --mirror` overwrites and deletes every branch on the remote, main included. Push the specific branch instead.",
+      match: ["git push origin --mirror"],
+      notMatch: ["git push origin --tags"]
+    },
+    {
+      id: "git-push-delete-main",
+      pattern: ["git", "push", REMOTES, DELETE, MAIN_NAMES],
+      justification: "Deleting the remote default branch cannot be undone from here. Ask the user to do it.",
+      match: ["git push origin --delete main", "git push origin -d master", "git push origin --delet main"],
+      notMatch: ["git push origin --delete feature/old"]
+    },
+    {
+      id: "git-push-delete-flag-main",
+      pattern: ["git", "push", DELETE, REMOTES, MAIN_NAMES],
+      justification: "Deleting the remote default branch cannot be undone from here. Ask the user to do it.",
+      match: ["git push --delete origin main", "git push -d origin master"],
+      notMatch: ["git push --delete origin feature/old"]
+    },
+    {
+      id: "git-push-empty-source-main",
+      pattern: ["git", "push", REMOTES, MAIN_NAMES.map((m) => `:${m}`)],
+      justification: "Pushing an empty source deletes the remote default branch. Ask the user to do it.",
+      match: ["git push origin :main", "git push origin :refs/heads/master"],
+      notMatch: ["git push origin :feature/old"]
+    },
+    {
+      id: "git-push-force-all",
+      pattern: ["git", "push", ALL, FORCE_SHORT],
+      justification: "Force-pushing every branch rewrites the remote default branch too. Force-push only your feature branch.",
+      match: ["git push --all --force", "git push --branches -f"],
+      notMatch: ["git push --all"]
+    },
+    {
+      id: "git-push-force-then-all",
+      pattern: ["git", "push", FORCE_SHORT, ALL],
+      justification: "Force-pushing every branch rewrites the remote default branch too. Force-push only your feature branch.",
+      match: ["git push --force --all", "git push -f --branches"],
+      notMatch: ["git push --force origin feature/x"]
+    },
+    {
+      id: "git-push-force-wildcard",
+      pattern: ["git", "push", FORCE_SHORT, REMOTES, ["refs/heads/*", "refs/heads/*:refs/heads/*", ":", "*", "*:*"]],
+      justification: "A wildcard or matching refspec force-pushes every branch, main included. Push the specific feature branch instead.",
+      match: ["git push --force origin refs/heads/*", "git push -f origin :"],
+      notMatch: ["git push --force origin refs/heads/feature/x"]
+    },
+    {
+      id: "git-push-plus-wildcard",
+      pattern: ["git", "push", REMOTES, ["+refs/heads/*:refs/heads/*", "+refs/heads/*", "+:", "+*", "+*:*"]],
+      justification: 'A "+" wildcard or matching refspec force-pushes every branch, main included. Push the specific feature branch instead.',
+      match: ["git push origin +refs/heads/*:refs/heads/*", "git push origin +:"],
+      notMatch: ["git push origin +feature"]
+    },
+    {
+      id: "diskutil-erase",
+      pattern: ["diskutil", ["eraseDisk", "eraseVolume", "partitionDisk", "secureErase", "zeroDisk", "randomDisk", "reformat"]],
+      justification: "Erasing or repartitioning a disk destroys data. Never run this from an agent.",
+      match: ["diskutil eraseDisk APFS Untitled disk2", "diskutil zeroDisk disk3"],
+      notMatch: ["diskutil list", "diskutil info disk0"]
+    },
+    {
+      id: "diskutil-apfs-delete",
+      pattern: ["diskutil", "apfs", ["deleteContainer", "deleteVolume", "eraseVolume"]],
+      justification: "Deleting an APFS container or volume destroys its data. Never run this from an agent.",
+      match: ["diskutil apfs deleteContainer disk3"],
+      notMatch: ["diskutil apfs list"]
+    },
+    {
+      id: "make-filesystem",
+      pattern: [["mkfs", "mkfs.ext4", "mkfs.ext3", "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.fat", "mkfs.exfat", "newfs_apfs", "newfs_hfs", "newfs_msdos", "newfs_exfat"]],
+      justification: "Creating a filesystem erases the target device. Never run this from an agent.",
+      match: ["mkfs.ext4 /dev/sdb1", "newfs_apfs /dev/disk4"],
+      notMatch: ["mkdir build"]
+    },
+    {
+      id: "chmod-recursive-root-home",
+      pattern: ["chmod", ["-R", "--recursive"], ["777", "0777", "000", "0000", "a+rwx", "a-rwx", "ugo+rwx", "ugo-rwx", "666", "0666"], T],
+      justification: "Recursively changing permissions of the root or home directory breaks the system and leaks secrets. Change the specific paths you mean instead.",
+      match: ["chmod -R 777 /", "chmod -R 000 ~"],
+      notMatch: ["chmod -R 755 ./scripts"]
+    },
+    {
+      id: "power-off",
+      pattern: [["shutdown", "reboot", "halt", "poweroff"]],
+      justification: "Turning off or restarting the machine ends the user's session. Ask the user to do it.",
+      match: ["shutdown -h now", "reboot"],
+      notMatch: ["uptime"]
+    },
+    {
+      id: "sudo-power-off",
+      pattern: ["sudo", ["shutdown", "reboot", "halt", "poweroff"]],
+      justification: "Turning off or restarting the machine ends the user's session. Ask the user to do it.",
+      match: ["sudo shutdown -r now", "sudo reboot"],
+      notMatch: ["sudo ls"]
+    },
+    {
+      id: "kill-every-process",
+      pattern: ["kill", ["-9", "-KILL", "-SIGKILL", "-15", "-TERM", "-SIGTERM", "--"], "-1"],
+      justification: "Signalling pid -1 kills every process the user owns, the agent included. Kill specific process ids instead.",
+      match: ["kill -9 -1", "kill -- -1"],
+      notMatch: ["kill -9 1234"]
+    },
+    {
+      id: "kill-every-process-named-signal",
+      pattern: ["kill", "-s", ["KILL", "TERM", "9", "15"], "-1"],
+      justification: "Signalling pid -1 kills every process the user owns, the agent included. Kill specific process ids instead.",
+      match: ["kill -s KILL -1"],
+      notMatch: ["kill -s KILL 1234"]
+    },
+    {
+      id: "killall5",
+      pattern: ["killall5"],
+      justification: "killall5 signals every process on the machine. Kill specific process ids instead.",
+      match: ["killall5 -9"],
+      notMatch: ["killall node"]
+    },
+    {
+      id: "crontab-remove",
+      pattern: ["crontab", ["-r", "-ri", "-ir"]],
+      justification: "`crontab -r` deletes all of the user's cron jobs. Edit the specific entry with `crontab -e` instead.",
+      match: ["crontab -r"],
+      notMatch: ["crontab -l"]
+    },
+    {
+      id: "gh-repo-delete",
+      pattern: ["gh", "repo", "delete"],
+      justification: "Deleting a GitHub repository cannot be undone. Ask the user to do it.",
+      match: ["gh repo delete me/project --yes"],
+      notMatch: ["gh repo view"]
+    },
+    {
+      id: "keychain-delete",
+      pattern: ["security", ["delete-keychain", "delete-generic-password", "delete-internet-password", "delete-certificate", "delete-identity"]],
+      justification: "Deleting keychain items removes the user's credentials. Ask the user to do it.",
+      match: ["security delete-generic-password -s foo"],
+      notMatch: ["security find-generic-password -s foo"]
     }
-  } catch {}
-  return;
+  ];
+  return rules;
 }
-function resolveEnv(pluginDir) {
-  const home = absEnv2("HOME") ?? os2.homedir();
-  const fromEnv = absEnv2("BURACLE_HOME");
-  if (fromEnv !== undefined)
-    return { home, buracleHome: fromEnv, source: "env" };
-  const pointer = readPointer(pluginDir);
-  if (pointer !== undefined)
-    return { home, buracleHome: pointer.buracleHome, source: "pointer" };
-  return { home, buracleHome: join6(home, ".buracle"), source: "default" };
-}
-function applyEnv(resolved) {
-  const changed = [];
-  if (resolved.source === "pointer" && process.env["BURACLE_HOME"] !== resolved.buracleHome) {
-    process.env["BURACLE_HOME"] = resolved.buracleHome;
-    changed.push("BURACLE_HOME");
-  }
-  return changed;
-}
-function mtimeOf(path) {
-  try {
-    const st = statSync5(path);
-    return `${st.mtimeMs}:${st.size}`;
-  } catch {
-    return;
-  }
-}
-
-class MtimeCache {
-  file;
-  parse;
-  fallback;
-  key;
-  value;
-  constructor(file, parse, fallback) {
-    this.file = file;
-    this.parse = parse;
-    this.fallback = fallback;
-    this.value = fallback();
-  }
-  get() {
-    let path;
-    try {
-      path = this.file();
-    } catch {
-      return this.fallback();
-    }
-    const m = mtimeOf(path);
-    const key = m === undefined ? `${path}#none` : `${path}#${m}`;
-    if (key === this.key)
-      return this.value;
-    this.key = key;
-    if (m === undefined) {
-      this.value = this.fallback();
-      return this.value;
-    }
-    try {
-      this.value = this.parse(JSON.parse(readFileSync4(path, "utf8")));
-    } catch {
-      this.value = this.fallback();
-    }
-    return this.value;
-  }
-}
-function runtimeConfigCache(defaults) {
-  return new MtimeCache(() => runtimeConfigFile(), (raw) => {
-    const merged = runtimeSnapshotConfig(raw, defaults);
-    if (merged.warnings.length > 0)
-      log("warn", "opencode: runtime-config.json needs attention", { warnings: merged.warnings });
-    if (merged.errors.length > 0)
-      log("warn", "opencode: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
-    const out = { config: merged.config };
-    const snap = raw;
-    if (snap?.v === RUNTIME_SNAPSHOT_VERSION && snap.resolved !== null && typeof snap.resolved === "object" && !Array.isArray(snap.resolved))
-      out.resolved = snap.resolved;
-    return out;
-  }, () => ({ config: defaults }));
-}
-
-// src/core/memory/status.ts
-function memReasonText(reason, s) {
-  switch (reason) {
-    case "cortexdb_missing":
-      return "cortexdb missing";
-    case "brain_unreadable":
-      return "unreadable";
-    case "mcp_down":
-      return "mcp down";
-    case "captures_high":
-      return `inbox ${s.captures}`;
-    default:
-      return reason;
-  }
-}
-function memAge(ms) {
-  if (!Number.isFinite(ms))
-    return "?";
-  const m = Math.floor(Math.max(0, ms) / 60000);
-  if (m < 1)
-    return "<1m";
-  if (m < 60)
-    return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 48)
-    return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
-var HEALTH_COLOR = { ok: "green", warn: "yellow", error: "red" };
-var HEALTH_MARK = { ok: "\u2713", warn: "\u26A0", error: "\u2717" };
-function memSegmentWith(s, nowMs, style, opts) {
-  const brain = opts.emoji ? "\uD83E\uDDE0 " : "";
-  if (s === undefined || s.v !== 3) {
-    return { id: "mem", text: style === "wide" ? `${brain}brain \u2013` : "brain \u2013", color: "gray", dim: true };
-  }
-  const color = HEALTH_COLOR[s.health] ?? "gray";
-  const mark = HEALTH_MARK[s.health] ?? "?";
-  const first = s.reasons[0];
-  const reason = s.health !== "ok" && first !== undefined ? ` ${memReasonText(first, s)}` : "";
-  const at = s.last_write !== undefined ? Date.parse(s.last_write.at) : Number.NaN;
-  const age = Number.isFinite(at) ? memAge(nowMs - at) : undefined;
-  const own = s.project !== undefined ? s.counts.project : s.counts.person;
-  if (style === "compact") {
-    const parts = [String(own)];
-    if (age !== undefined)
-      parts.push(age);
-    return { id: "mem", text: `brain ${parts.join("\xB7")} ${mark}${reason}`, color };
-  }
-  const head = s.project !== undefined ? `${brain}${s.project} ${s.counts.project}+${s.counts.person}p` : `${brain}person ${s.counts.person}p`;
-  const parts = [head];
-  if (s.captures > 0)
-    parts.push(`inbox ${s.captures}`);
-  if (s.last_write !== undefined && age !== undefined)
-    parts.push(`last ${age} (${s.last_write.by})`);
-  const capturedAt = s.last_capture !== undefined ? Date.parse(s.last_capture.at) : Number.NaN;
-  if (Number.isFinite(capturedAt))
-    parts.push(`captured ${memAge(nowMs - capturedAt)}`);
-  if (s.health !== "ok")
-    parts.push(`${mark}${reason}`);
-  return { id: "mem", text: parts.join(" \xB7 "), color };
-}
-
+var CATASTROPHIC_COMMAND_RULES = catastrophicCommandRules();
+// src/core/policy/hooks-matrix.ts
+init_harness();
+init_native_events();
+init_native_events();
+var nativeOf = (pick) => harnessTable((p) => pick(p.events.map) ?? []);
+var HOOK_EVENTS = harnessTable((p) => p.events.native);
+var DENY_EVENTS = nativeOf((m) => m.preTool);
+var STOP_EVENTS = nativeOf((m) => m.stop);
+// src/core/policy/readonly-shell.ts
+var TIED_VARIABLES = new Set(["path", "cdpath", "fpath", "manpath", "mailpath", "module_path"]);
+var GIT_READ = new Set([
+  "status",
+  "diff",
+  "log",
+  "show",
+  "ls-files",
+  "ls-tree",
+  "blame",
+  "annotate",
+  "merge-base",
+  "rev-parse",
+  "rev-list",
+  "describe",
+  "shortlog",
+  "grep",
+  "cat-file",
+  "name-rev",
+  "for-each-ref",
+  "show-ref",
+  "check-ignore",
+  "count-objects",
+  "whatchanged",
+  "range-diff",
+  "cherry",
+  "show-branch",
+  "version",
+  "help"
+]);
+var SHELL_LEAD = new Set(["if", "then", "elif", "else", "do", "while", "until"]);
+var SHELL_CLOSE = new Set(["fi", "done"]);
+// src/core/policy/companion-fence.ts
+var COMPANION_MCP_SERVERS = ["codegraph", "semble", "context7"];
+var COMPANION_MCP_TOOLS = {
+  codegraph: ["codegraph_explore", "codegraph_search", "codegraph_node", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_files", "codegraph_status"],
+  semble: ["search", "find_related"],
+  context7: ["resolve-library-id", "query-docs"]
+};
+var CLAUDE_MCP = new RegExp(`^mcp__(?:plugin_${CLAUDE_PLUGIN_NAME}_)?(?:${COMPANION_MCP_SERVERS.join("|")})__.`);
+var OMP_MCP = new Set(COMPANION_MCP_SERVERS.flatMap((s) => (COMPANION_MCP_TOOLS[s] ?? []).flatMap((t) => [
+  harnessMcpToolName("omp", s, t),
+  `mcp__${mcpServerToken("omp", s)}_${mcpServerToken("omp", t)}`
+])));
+// src/core/plan/background.ts
+var LIVE = new Set(["running", "pending", "queued", "in_progress", "in-progress", "started"]);
+var WAKING = new Set(["subagent", "monitor", "workflow", "mcp task", "cloud session"]);
+var FINITE_TOOLS = new Set([
+  "tsc",
+  "jest",
+  "pytest",
+  "py.test",
+  "mypy",
+  "pyright",
+  "ruff",
+  "eslint",
+  "biome",
+  "tox",
+  "nox",
+  "phpunit",
+  "rspec",
+  "ctest",
+  "mocha",
+  "ava",
+  "playwright",
+  "cypress",
+  "golangci-lint",
+  "shellcheck",
+  "hadolint",
+  "stylelint",
+  "rubocop"
+]);
+var SUBCOMMAND_TOOLS = {
+  cargo: new Set(["test", "build", "check", "clippy", "nextest", "bench", "doc"]),
+  go: new Set(["test", "build", "vet"]),
+  swift: new Set(["build", "test"]),
+  dotnet: new Set(["build", "test"]),
+  mix: new Set(["test", "compile"]),
+  deno: new Set(["test", "check", "lint"]),
+  gradle: new Set(["test", "build", "check", "assemble", "compileJava", "verify"]),
+  gradlew: new Set(["test", "build", "check", "assemble", "compileJava", "verify"]),
+  mvn: new Set(["test", "verify", "package", "compile", "install"]),
+  mvnw: new Set(["test", "verify", "package", "compile", "install"]),
+  vitest: new Set(["run"]),
+  bazel: new Set(["test", "build"])
+};
+var PACKAGE_MANAGERS = new Set(["npm", "pnpm", "yarn", "bun"]);
+var PACKAGE_RUNNERS = new Set(["npx", "bunx", "pnpx"]);
+// src/core/checker-facts.ts
+var ESLINT_BINS = ["node_modules/.bin/eslint"];
+var RUFF_BINS = [".venv/bin/ruff", "venv/bin/ruff"];
+var CHECKER_PROBES = [...ESLINT_BINS, ...RUFF_BINS];
+var PROJECT_FILES = new Set(["package.json"]);
+// src/core/checkers.ts
+var TS_EXT = new Set(["ts", "tsx", "mts", "cts"]);
+var JS_EXT = new Set(["js", "jsx", "mjs", "cjs"]);
+var TOOLCHAIN_CHECKERS = new Set(["ruff", "shellcheck", "golangci-lint"]);
 // src/core/status/model.ts
 var WINDOW_MINUTES = { "5h": 300, "1d": 1440, "7d": 10080, "30d": 43200, "365d": 525600 };
 var PACE_BAND = 5;
@@ -11350,7 +12659,6 @@ function pace(usedPct, resetsAtIso, windowMinutes, nowMs) {
     return "under";
   return "even";
 }
-
 // src/core/status/git.ts
 function trimSlashes(p) {
   const s = p.replace(/\\/g, "/");
@@ -11426,6 +12734,67 @@ function gitFromPorcelainV2(text, gitDir, commonDir) {
   }
   return st;
 }
+// src/core/memory/status.ts
+function memReasonText(reason, s) {
+  switch (reason) {
+    case "cortexdb_missing":
+      return "cortexdb missing";
+    case "brain_unreadable":
+      return "unreadable";
+    case "mcp_down":
+      return "mcp down";
+    case "captures_high":
+      return `inbox ${s.captures}`;
+    default:
+      return reason;
+  }
+}
+function memAge(ms) {
+  if (!Number.isFinite(ms))
+    return "?";
+  const m = Math.floor(Math.max(0, ms) / 60000);
+  if (m < 1)
+    return "<1m";
+  if (m < 60)
+    return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48)
+    return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+var HEALTH_COLOR = { ok: "green", warn: "yellow", error: "red" };
+var HEALTH_MARK = { ok: "\u2713", warn: "\u26A0", error: "\u2717" };
+function memSegmentWith(s, nowMs, style, opts) {
+  const brain = opts.emoji ? "\uD83E\uDDE0 " : "";
+  if (s === undefined || s.v !== 3) {
+    return { id: "mem", text: style === "wide" ? `${brain}brain \u2013` : "brain \u2013", color: "gray", dim: true };
+  }
+  const color = HEALTH_COLOR[s.health] ?? "gray";
+  const mark = HEALTH_MARK[s.health] ?? "?";
+  const first = s.reasons[0];
+  const reason = s.health !== "ok" && first !== undefined ? ` ${memReasonText(first, s)}` : "";
+  const at = s.last_write !== undefined ? Date.parse(s.last_write.at) : Number.NaN;
+  const age = Number.isFinite(at) ? memAge(nowMs - at) : undefined;
+  const own = s.project !== undefined ? s.counts.project : s.counts.person;
+  if (style === "compact") {
+    const parts = [String(own)];
+    if (age !== undefined)
+      parts.push(age);
+    return { id: "mem", text: `brain ${parts.join("\xB7")} ${mark}${reason}`, color };
+  }
+  const head = s.project !== undefined ? `${brain}${s.project} ${s.counts.project}+${s.counts.person}p` : `${brain}person ${s.counts.person}p`;
+  const parts = [head];
+  if (s.captures > 0)
+    parts.push(`inbox ${s.captures}`);
+  if (s.last_write !== undefined && age !== undefined)
+    parts.push(`last ${age} (${s.last_write.by})`);
+  const capturedAt = s.last_capture !== undefined ? Date.parse(s.last_capture.at) : Number.NaN;
+  if (Number.isFinite(capturedAt))
+    parts.push(`captured ${memAge(nowMs - capturedAt)}`);
+  if (s.health !== "ok")
+    parts.push(`${mark}${reason}`);
+  return { id: "mem", text: parts.join(" \xB7 "), color };
+}
 
 // src/core/status/live.ts
 var FLOW_ROW_COLUMNS = 160;
@@ -11499,7 +12868,7 @@ function hooksSegmentTexts(h) {
 
 // src/core/status/render.ts
 var SEP_WIDTH = 3;
-var SEGMENT_IDS = ["model", "ctx", "windows", "month", "cost", "git", "dir", "mem", "index", "flow", "plan", "board", "upd", "hooks"];
+var SEGMENT_IDS = ["model", "ctx", "windows", "cost", "git", "dir", "mem", "index", "flow", "plan", "upd", "hooks"];
 var PRIORITY = {
   ctx: 100,
   hooks: 95,
@@ -11510,27 +12879,12 @@ var PRIORITY = {
   git: 70,
   cost: 65,
   flow: 62,
-  month: 60,
   plan: 55,
-  board: 54,
   mem: 50,
   index: 35,
   dir: 30,
   upd: 20
 };
-function boardText(b) {
-  if (b === undefined || b.total <= 0)
-    return;
-  return `board ${boardParts(b).join(" \xB7 ")}`;
-}
-function boardCandidate(bar) {
-  const text = boardText(bar.board);
-  const b = bar.board;
-  if (text === undefined || b === undefined)
-    return;
-  const color = b.waiting > 0 ? "yellow" : b.merged === b.total ? "green" : "magenta";
-  return cand("board", PRIORITY["board"] ?? 0, seg2("board", text, color), seg2("board", `board ${b.merged}/${b.total}`, color));
-}
 function seg2(id, text, color, dim) {
   const s = { id, text };
   if (color !== undefined)
@@ -11586,25 +12940,6 @@ function windowCandidate(w, nowMs) {
   const head = `${w.label} ${formatPct(w.pct)}%`;
   const priority = PRIORITY[w.label] ?? PRIORITY["window"] ?? 0;
   return cand(w.label, priority, seg2(w.label, `${head}${arrow ? ` ${arrow}` : ""}${reset}`, color), seg2(w.label, `${head}${arrow}`, color));
-}
-function monthCandidate(bar) {
-  const m = bar.month;
-  if (m === undefined)
-    return;
-  const approx = m.estimate ? "\u2248" : "";
-  const priority = PRIORITY["month"] ?? 0;
-  if (m.pct !== undefined && Number.isFinite(m.pct)) {
-    const color = m.pct >= 90 ? "red" : m.pct >= 75 ? "yellow" : undefined;
-    const head = `mo ${formatPct(m.pct)}%`;
-    return m.usd !== undefined && Number.isFinite(m.usd) ? cand("month", priority, seg2("month", `${head} ${approx}${formatUsd(m.usd)}`, color), seg2("month", head, color)) : cand("month", priority, seg2("month", head, color));
-  }
-  if (m.usd !== undefined && Number.isFinite(m.usd)) {
-    const usd = `mo ${approx}${formatUsd(m.usd)}`;
-    return m.tokens > 0 ? cand("month", priority, seg2("month", `${usd} \xB7 ${formatTokens(m.tokens)} tok`), seg2("month", usd)) : cand("month", priority, seg2("month", usd));
-  }
-  if (m.tokens > 0)
-    return cand("month", priority, seg2("month", `mo ${formatTokens(m.tokens)} tok`));
-  return;
 }
 function costCandidate(bar) {
   const c = bar.cost;
@@ -11712,8 +13047,6 @@ function candidatesFor(id, bar, layout, nowMs, facts) {
       return one(modelCandidate(bar));
     case "ctx":
       return one(ctxCandidate(bar, layout));
-    case "month":
-      return one(monthCandidate(bar));
     case "cost":
       return one(costCandidate(bar));
     case "git":
@@ -11728,8 +13061,6 @@ function candidatesFor(id, bar, layout, nowMs, facts) {
       return one(flowCandidate(bar));
     case "plan":
       return facts.flowShown ? [] : one(planCandidate(bar));
-    case "board":
-      return one(boardCandidate(bar));
     case "upd":
       return one(updCandidate(bar));
     case "hooks":
@@ -11805,7 +13136,6 @@ function rows(bar, layout, width, nowMs) {
   }
   return out;
 }
-
 // src/core/status/bar.ts
 var CONTEXT_BAR_CELLS = 8;
 var PIPE = { id: "sep", text: " | ", color: "gray", dim: true };
@@ -12009,13 +13339,6 @@ function footerParts(bar, info, nowMs, emoji) {
     const extra = idx.dim === true ? { dim: true } : {};
     out.push({ priority: 44, variants: [[seg3("index", idx.long, idx.color, extra)], [seg3("index", idx.short, idx.color, extra)]] });
   }
-  const m = bar.month;
-  if (m !== undefined) {
-    const approx = m.estimate ? "\u2248" : "";
-    const text = m.pct !== undefined && Number.isFinite(m.pct) ? `mo ${formatPct(m.pct)}%` : m.usd !== undefined && Number.isFinite(m.usd) ? `mo ${approx}${formatUsd(m.usd)}` : m.tokens > 0 ? `mo ${formatTokens(m.tokens)} tok` : "";
-    if (text !== "")
-      out.push({ priority: 40, variants: [[seg3("month", text, "gray")]] });
-  }
   if (bar.cost !== undefined && Number.isFinite(bar.cost.usd) && bar.cost.usd > 0)
     out.push({ priority: 42, variants: [[seg3("cost", formatUsd(bar.cost.usd), "gray")]] });
   if (bar.updates !== undefined && Number.isFinite(bar.updates) && bar.updates > 0)
@@ -12125,341 +13448,332 @@ function barOneLine(bar, info, layout, width, nowMs) {
     return fitLine(clean([...firstParts(bar, info, layout, nowMs), hooks], layout.emoji), w, PIPE);
   return barLines(bar, { ...info, product: undefined, harness: undefined, memoryUrl: undefined }, layout, width, nowMs)[0] ?? [];
 }
+// src/core/memory/stem.ts
+var CASE = 3;
+var POSSESSIVE = 2;
+var PLURAL = 1;
+var TR_LIST = [
+  ["ndaki", "V", CASE],
+  ["ndeki", "V", CASE],
+  ["daki", "", CASE],
+  ["deki", "", CASE],
+  ["taki", "", CASE],
+  ["teki", "", CASE],
+  ["ndan", "V", CASE],
+  ["nden", "V", CASE],
+  ["dan", "", CASE],
+  ["den", "", CASE],
+  ["tan", "", CASE],
+  ["ten", "", CASE],
+  ["nda", "V", CASE],
+  ["nde", "V", CASE],
+  ["da", "", CASE],
+  ["de", "", CASE],
+  ["ta", "", CASE],
+  ["te", "", CASE],
+  ["nin", "V", CASE],
+  ["nun", "V", CASE],
+  ["in", "C", CASE],
+  ["un", "C", CASE],
+  ["yla", "V", CASE],
+  ["yle", "V", CASE],
+  ["la", "C", CASE],
+  ["le", "C", CASE],
+  ["na", "V", CASE],
+  ["ne", "V", CASE],
+  ["ya", "V", CASE],
+  ["ye", "V", CASE],
+  ["ni", "V", CASE],
+  ["nu", "V", CASE],
+  ["yi", "V", CASE],
+  ["yu", "V", CASE],
+  ["si", "V", POSSESSIVE],
+  ["su", "V", POSSESSIVE],
+  ["i", "C", POSSESSIVE],
+  ["u", "C", POSSESSIVE],
+  ["lar", "", PLURAL],
+  ["ler", "", PLURAL]
+];
+var TR_SUFFIXES = [...TR_LIST].sort((a, b) => b[0].length - a[0].length);
 
-// src/usage/bar-info.ts
-import { existsSync as existsSync3, readFileSync as readFileSync7, statSync as statSync8 } from "fs";
-import { join as join8 } from "path";
+// src/core/memory/query.ts
+var STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "did",
+  "do",
+  "for",
+  "from",
+  "how",
+  "in",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "was",
+  "we",
+  "what",
+  "when",
+  "why",
+  "with",
+  "ve",
+  "ile",
+  "bir",
+  "bu",
+  "\u015Fu",
+  "su",
+  "da",
+  "de",
+  "mi",
+  "m\u0131",
+  "mu",
+  "m\xFC",
+  "ne",
+  "i\xE7in",
+  "icin",
+  "gibi",
+  "ama",
+  "veya",
+  "neden",
+  "nasil",
+  "nas\u0131l",
+  "daha",
+  "\xE7ok",
+  "cok"
+]);
+var SIMILARITY_STOPWORDS = new Set([
+  "been",
+  "but",
+  "can",
+  "could",
+  "does",
+  "has",
+  "have",
+  "had",
+  "if",
+  "into",
+  "its",
+  "may",
+  "might",
+  "must",
+  "per",
+  "should",
+  "so",
+  "such",
+  "than",
+  "that",
+  "then",
+  "these",
+  "this",
+  "those",
+  "use",
+  "uses",
+  "used",
+  "using",
+  "via",
+  "were",
+  "will",
+  "would",
+  "olarak",
+  "olan",
+  "ise",
+  "her",
+  "tum",
+  "en",
+  "kadar",
+  "artik"
+]);
 
-// src/core/flow/panes.ts
-function planPaneLines(v, state) {
-  const lines = v.visible ? bandText(v).map((text, i) => i === 0 ? { text, bold: true } : { text }) : [];
-  const plan = state.plan;
-  if (plan === undefined) {
-    lines.push({ text: "No plan is bound to this session.", bold: lines.length === 0 });
-    lines.push({ text: "A new plan: /plan-build <task> \xB7 an existing one: buracle plan register <path>", dim: true });
-    return lines;
-  }
-  lines.push({ text: `plan: ${plan.slug} (${plan.type})`, bold: true });
-  lines.push({ text: `status ${plan.status} \xB7 phase ${plan.phase}` });
-  lines.push({ text: `file: ${plan.path}`, dim: true });
-  if (state.interaction?.state === "paused")
-    lines.push({ text: 'paused: the stop guard lets the turn end; say "continue" to resume', color: "warning" });
-  lines.push({ text: `stop guard blocks: plan ${state.guard.blocksForPlan} \xB7 chain ${state.guard.blocksInChain}`, dim: true });
-  return lines;
+// src/core/memory/brain.ts
+var KIND_INFO = {
+  decision: { region: "plans", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  gotcha: { region: "warnings", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  procedure: { region: "skills", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  knowledge: { region: "knowledge", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  reference: { region: "discoveries", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: false },
+  preference: { region: "self", layers: ["person", "project"], agentWritable: true, generated: false, driftProne: false },
+  core: { region: "knowledge", layers: ["project"], agentWritable: true, generated: false, driftProne: true },
+  convention: { region: "self", layers: ["project"], agentWritable: false, generated: true, driftProne: false },
+  profile: { region: "self", layers: ["person"], agentWritable: false, generated: true, driftProne: false },
+  session: { region: "episodes", layers: ["project"], agentWritable: false, generated: true, driftProne: false },
+  handoff: { region: "episodes", layers: ["project"], agentWritable: false, generated: true, driftProne: false },
+  capture: { region: "episodes", layers: ["project", "person"], agentWritable: false, generated: false, driftProne: false }
+};
+var MEM_KINDS = Object.keys(KIND_INFO);
+var READ_ONLY_KINDS = ["convention", "profile"];
+var LIVE_KINDS = MEM_KINDS.filter((k) => !READ_ONLY_KINDS.includes(k));
+var WRITABLE_KINDS = MEM_KINDS.filter((k) => KIND_INFO[k].agentWritable && k !== "core");
+var SESSION_KEEP_MS = 45 * 86400000;
+var HANDOFF_KEEP_MS = 14 * 86400000;
+// src/core/memory/signals.ts
+var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
+function uw(re) {
+  return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
 }
-var HARNESS_VERSION_TTL_MS = 12 * 60 * 60000;
-function count3(x) {
-  return typeof x === "number" && Number.isFinite(x) ? x : 0;
-}
-function memoryPaneLines(status, url, brain) {
-  const lines = [];
-  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 3 ? status : undefined;
-  if (s === undefined) {
-    lines.push({ text: "No memory status yet.", bold: true });
-    lines.push({ text: "`buracle mem status` and memory writes create the status file.", dim: true });
-  } else {
-    const health = typeof s["health"] === "string" && s["health"] !== "" ? s["health"] : "?";
-    const counts = s["counts"] !== null && typeof s["counts"] === "object" ? s["counts"] : {};
-    const project = typeof s["project"] === "string" ? s["project"] : undefined;
-    lines.push({ text: `memory: ${health}`, color: health === "ok" ? "success" : health === "warn" ? "warning" : "error", bold: true });
-    lines.push({ text: `${project !== undefined ? `project ${project} ${count3(counts["project"])} \xB7 ` : ""}person ${count3(counts["person"])}` });
-    const last = s["last_capture"] !== null && typeof s["last_capture"] === "object" ? s["last_capture"]["at"] : undefined;
-    lines.push({ text: `inbox ${count3(s["captures"])} \xB7 last capture ${typeof last === "string" ? last.slice(0, 16).replace("T", " ") : "none yet"}` });
-  }
-  if (url !== undefined)
-    lines.push({ text: `web UI: ${url}  (w)`, dim: true });
-  lines.push({ text: `brain: ${brain}`, dim: true });
-  return lines;
-}
+var CATEGORY_WORDS = [
+  ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
+  ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
+  ["quality", uw(/\b(?:tests?|tdd|verify|verification|lint|typecheck|type-check|review|coverage|quality|regression|evidence)\b|\b(?:do[\u011Fg]rula|kalite|kan[\u0131i]t)/i)],
+  ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
+  ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
+];
+// src/core/receipt.ts
+var CHECK = new RegExp([
+  String.raw`\b(?:bun|npm|pnpm|yarn|deno)\s+(?:run\s+)?(?:test|check|lint|typecheck|type-check|tsc|verify|ci)\b`,
+  String.raw`\bbunx?\s+(?:test|tsc|vitest|jest|eslint|biome|prettier\s+--check)\b`,
+  String.raw`\bnpx\s+(?:tsc|vitest|jest|eslint|biome|playwright\s+test)\b`,
+  String.raw`(?:^|[;&|(]\s*|\b(?:npx|bunx|uvx|pnpx|exec|time|xargs)\s+)(?:tsc|vitest|jest|mocha|ava|eslint|biome\s+check|ruff\s+check|ruff|mypy|pyright|pytest|tox|nox|phpunit|rspec|shellcheck|golangci-lint)\b`,
+  String.raw`\bpython3?\s+-m\s+(?:pytest|unittest|mypy)\b`,
+  String.raw`\bgo\s+(?:test|vet|build)\b`,
+  String.raw`\bcargo\s+(?:test|check|clippy|build)\b`,
+  String.raw`\b(?:make|just)\s+(?:test|check|lint|verify|ci)\b`,
+  String.raw`\bgradlew?\s+(?:test|check|build)\b`,
+  String.raw`\bmvn\s+(?:test|verify)\b`,
+  String.raw`\bdotnet\s+(?:test|build)\b`,
+  String.raw`\bclaude\s+plugin\s+(?:test|validate)\b`,
+  String.raw`\bburacle\s+(?:build\s+--check|doctor|skills\s+lint|rules\s+lint|lsp\s+check)\b`,
+  String.raw`\bbun\s+src/cli/main\.ts\s+(?:build\s+--check|doctor)\b`
+].join("|"), "iu");
+// src/core/index.ts
+init_harness();
 
-// src/usage/bar-info.ts
-init_fsx();
+// src/adapters/shared/file-checks.ts
 init_paths();
 
-// src/engine/platform.ts
-import { existsSync as existsSync2, readFileSync as readFileSync5, statSync as statSync6 } from "fs";
-import { homedir } from "os";
-import { isAbsolute as isAbsolute4, join as join7 } from "path";
-function osName() {
-  const forced = process.env["BURACLE_PLATFORM"];
-  if (forced === "darwin" || forced === "linux")
-    return forced;
-  return process.platform === "darwin" ? "darwin" : "linux";
+// src/adapters/shared/checker-scan.ts
+init_paths();
+// src/adapters/shared/pipeline/stop.ts
+init_fsx();
+// src/adapters/opencode/runtime/routing.ts
+var compiledCache = new WeakMap;
+
+// src/adapters/opencode/runtime/commands.ts
+function workflowCommandSkills(skills) {
+  return skills.filter((s) => s.userInvocable).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
-var PROC_VERSION = "/proc/version";
-var wslKernel;
-function microsoftKernel(versionFile) {
+
+// src/adapters/opencode/runtime/env.ts
+import { readFileSync as readFileSync6, statSync as statSync8 } from "fs";
+import os2 from "os";
+import { isAbsolute as isAbsolute5, join as join8 } from "path";
+init_paths();
+var POINTER_FILE = "runtime.json";
+function absEnv2(name) {
+  const v = process.env[name];
+  return v !== undefined && v.trim() !== "" && isAbsolute5(v) ? v : undefined;
+}
+function readPointer(pluginDir) {
+  if (pluginDir === undefined)
+    return;
   try {
-    const v = readFileSync5(versionFile, "utf8").toLowerCase();
-    return v.includes("microsoft") || v.includes("wsl");
-  } catch {
-    return false;
-  }
-}
-function isWsl(env = process.env, versionFile = PROC_VERSION) {
-  if (osName() !== "linux")
-    return false;
-  if ((env["WSL_DISTRO_NAME"] ?? "") !== "" || (env["WSL_INTEROP"] ?? "") !== "")
-    return true;
-  if (versionFile !== PROC_VERSION)
-    return microsoftKernel(versionFile);
-  wslKernel ??= microsoftKernel(versionFile);
-  return wslKernel;
-}
-function homeDir() {
-  const h = process.env["HOME"];
-  return h !== undefined && h.trim() !== "" ? h : homedir();
-}
-function isFile(p) {
-  try {
-    return statSync6(p).isFile();
-  } catch {
-    return false;
-  }
-}
-function extraBinDirs() {
-  const home = homeDir();
-  const dirs = [join7(home, ".local", "bin"), join7(home, ".bun", "bin"), join7(home, "go", "bin"), join7(home, ".cargo", "bin")];
-  if (osName() === "darwin")
-    dirs.push("/opt/homebrew/bin", "/usr/local/bin");
-  if (osName() === "linux")
-    dirs.push("/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin");
-  return dirs;
-}
-function findExecutable(name, opts = {}) {
-  const PATH = process.env["PATH"];
-  const hit = PATH !== undefined ? Bun.which(name, { PATH }) : Bun.which(name);
-  if (hit !== null && hit !== undefined)
-    return hit;
-  for (const dir of [...opts.extra ?? [], ...extraBinDirs()]) {
-    const p = join7(dir, name);
-    if (isFile(p))
-      return p;
-  }
+    const raw = JSON.parse(readFileSync6(join8(pluginDir, POINTER_FILE), "utf8"));
+    if (raw !== null && typeof raw === "object") {
+      const bh = raw.buracleHome;
+      if (typeof bh === "string" && isAbsolute5(bh))
+        return { buracleHome: bh };
+    }
+  } catch {}
   return;
 }
-
-// src/usage/bar-info.ts
-init_shim();
-var HARNESS_LABEL = { claude: "CC", codex: "Codex", opencode: "OpenCode", omp: "OMP" };
-function isRecord(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
+function resolveEnv(pluginDir) {
+  const home = absEnv2("HOME") ?? os2.homedir();
+  const fromEnv = absEnv2("BURACLE_HOME");
+  if (fromEnv !== undefined)
+    return { home, buracleHome: fromEnv, source: "env" };
+  const pointer = readPointer(pluginDir);
+  if (pointer !== undefined)
+    return { home, buracleHome: pointer.buracleHome, source: "pointer" };
+  return { home, buracleHome: join8(home, ".buracle"), source: "default" };
 }
-function buracleVersion(repoRoot2 = repoRoot()) {
-  try {
-    const v = JSON.parse(readFileSync7(join8(repoRoot2, "package.json"), "utf8")).version;
-    return typeof v === "string" ? v : "?";
-  } catch {
-    return "?";
+function applyEnv(resolved) {
+  const changed = [];
+  if (resolved.source === "pointer" && process.env["BURACLE_HOME"] !== resolved.buracleHome) {
+    process.env["BURACLE_HOME"] = resolved.buracleHome;
+    changed.push("BURACLE_HOME");
   }
+  return changed;
 }
-function claudePlan() {
-  const file = claudeJson();
-  let mtime;
+function mtimeOf(path) {
   try {
-    mtime = statSync8(file).mtimeMs;
+    const st = statSync8(path);
+    return `${st.mtimeMs}:${st.size}`;
   } catch {
     return;
   }
-  const cacheFile = join8(buracleHome(), "cache", "claude-plan.json");
-  const cached = readJsonSafeSync(cacheFile);
-  if (cached.ok && cached.value?.mtime === mtime)
-    return cached.value.plan ?? undefined;
-  let plan;
-  try {
-    const j = JSON.parse(readFileSync7(file, "utf8"));
-    const oa = isRecord(j) && isRecord(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
-    if (oa === undefined)
-      plan = "API";
-    else {
-      const org = typeof oa["organizationType"] === "string" ? oa["organizationType"] : "";
-      const tier = `${typeof oa["organizationRateLimitTier"] === "string" ? oa["organizationRateLimitTier"] : ""} ${typeof oa["userRateLimitTier"] === "string" ? oa["userRateLimitTier"] : ""}`;
-      const mult = /(\d+)x/u.exec(tier)?.[1];
-      if (/max/iu.test(org))
-        plan = mult !== undefined && mult !== "1" ? `Max ${mult}x` : "Max";
-      else if (/pro/iu.test(org))
-        plan = "Pro";
-      else if (/team/iu.test(org))
-        plan = "Team";
-      else if (/enterprise/iu.test(org))
-        plan = "Enterprise";
-      else
-        plan = org !== "" ? org.replace(/^claude_/u, "") : undefined;
+}
+
+class MtimeCache {
+  file;
+  parse;
+  fallback;
+  key;
+  value;
+  constructor(file, parse, fallback) {
+    this.file = file;
+    this.parse = parse;
+    this.fallback = fallback;
+    this.value = fallback();
+  }
+  get() {
+    let path;
+    try {
+      path = this.file();
+    } catch {
+      return this.fallback();
     }
-  } catch {
-    plan = undefined;
+    const m = mtimeOf(path);
+    const key = m === undefined ? `${path}#none` : `${path}#${m}`;
+    if (key === this.key)
+      return this.value;
+    this.key = key;
+    if (m === undefined) {
+      this.value = this.fallback();
+      return this.value;
+    }
+    try {
+      this.value = this.parse(JSON.parse(readFileSync6(path, "utf8")));
+    } catch {
+      this.value = this.fallback();
+    }
+    return this.value;
   }
-  try {
-    atomicWriteSync(cacheFile, JSON.stringify({ mtime, plan: plan ?? null }) + `
-`);
-  } catch {}
-  return plan;
 }
-var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
-function versionCacheFile() {
-  return join8(buracleHome(), "cache", "harness-versions.json");
-}
-async function harnessVersion(h, nowMs) {
-  const cacheFile = versionCacheFile();
-  const r = readJsonSafeSync(cacheFile);
-  const all = r.ok && isRecord(r.value) ? r.value : {};
-  const hit = all[h];
-  if (hit !== undefined && typeof hit.at === "number" && nowMs - hit.at < HARNESS_VERSION_TTL_MS && nowMs >= hit.at)
-    return hit.v;
-  const bin = findExecutable(VERSION_CMD[h]);
-  if (bin === undefined)
-    return;
-  const out = await run([bin, "--version"], { timeoutMs: 1500 });
-  const v = /(\d+\.\d+\.\d+)/u.exec(`${out.stdout}
-${out.stderr}`)?.[1];
-  all[h] = v !== undefined ? { v, at: nowMs } : { at: nowMs };
-  try {
-    atomicWriteSync(cacheFile, JSON.stringify(all) + `
-`);
-  } catch {}
-  return v;
-}
-function liveMemoryUi() {
-  const r = readJsonSafeSync(memoryUiStateFile());
-  if (!r.ok || !isRecord(r.value))
-    return;
-  const v = r.value;
-  if (typeof v["pid"] !== "number" || typeof v["port"] !== "number" || typeof v["url"] !== "string")
-    return;
-  if (v["build"] !== undefined && typeof v["build"] !== "string")
-    return;
-  try {
-    process.kill(v["pid"], 0);
-  } catch (e) {
-    if (e.code !== "EPERM")
-      return;
-  }
-  return v;
-}
-function buracleArgv() {
-  const main = join8(repoRoot(), "src", "cli", "main.ts");
-  const bun = findExecutable("bun");
-  if (bun !== undefined && existsSync3(main))
-    return [bun, main];
-  return shimLaunch();
-}
-async function barInfo(h, o) {
-  const info = { product: { name: "Buracle", version: buracleVersion() } };
-  const version = o.version ?? await harnessVersion(h, o.nowMs).catch(() => {
-    return;
-  });
-  const harness = { label: HARNESS_LABEL[h] };
-  if (version !== undefined)
-    harness.version = version;
-  if (h === "claude") {
-    const plan = claudePlan();
-    if (plan !== undefined)
-      harness.plan = plan;
-  }
-  info.harness = harness;
-  const live = liveMemoryUi();
-  if (live !== undefined)
-    info.memoryUrl = live.url;
-  if (o.lines !== undefined)
-    info.lines = o.lines;
-  return info;
+function runtimeConfigCache(defaults) {
+  return new MtimeCache(() => runtimeConfigFile(), (raw) => {
+    const merged = runtimeSnapshotConfig(raw, defaults);
+    if (merged.warnings.length > 0)
+      log("warn", "opencode: runtime-config.json needs attention", { warnings: merged.warnings });
+    if (merged.errors.length > 0)
+      log("warn", "opencode: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
+    const out = { config: merged.config };
+    const snap = raw;
+    if (snap?.v === RUNTIME_SNAPSHOT_VERSION && snap.resolved !== null && typeof snap.resolved === "object" && !Array.isArray(snap.resolved))
+      out.resolved = snap.resolved;
+    return out;
+  }, () => ({ config: defaults }));
 }
 
 // src/usage/bar.ts
-import { readFileSync as readFileSync9 } from "fs";
-import { isAbsolute as isAbsolute7, join as join11, relative as relative2, resolve as resolve7, sep as sep2 } from "path";
+import { readFileSync as readFileSync7 } from "fs";
+import { isAbsolute as isAbsolute7, join as join9, relative as relative2, resolve as resolve5, sep as sep2 } from "path";
 init_fsx();
-
-// src/engine/git.ts
-init_fsx();
-import { basename as basename2, dirname as dirname4 } from "path";
-var GIT_TIMEOUT_MS = 5000;
-async function git(cwd, args) {
-  const r = await run(["git", ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS, env: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" } });
-  return r.code === 0 ? r.stdout : undefined;
-}
-async function revParse(cwd, ...args) {
-  const out = await git(cwd, ["rev-parse", ...args]);
-  return out === undefined ? undefined : out.trim();
-}
-async function remoteUrl(cwd, name = "origin") {
-  const out = await git(cwd, ["remote", "get-url", name]);
-  const u = out?.trim();
-  return u ? u : undefined;
-}
-async function commonDir(cwd) {
-  const out = await revParse(cwd, "--git-common-dir");
-  return out ? comparablePath(out, cwd) : undefined;
-}
-async function toplevel(cwd) {
-  const out = await revParse(cwd, "--show-toplevel");
-  return out ? comparablePath(out, cwd) : undefined;
-}
-function ownerRepoFromUrl(url) {
-  let s = url.trim();
-  if (s === "")
-    return;
-  s = s.replace(/[?#].*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
-  let pathPart;
-  const scp = /^[^/@:]+@[^/:]+:(.+)$/.exec(s);
-  if (scp && scp[1] !== undefined && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s))
-    pathPart = scp[1];
-  else {
-    const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)?$/i.exec(s);
-    pathPart = m ? m[1] ?? "" : s;
-  }
-  const segs = pathPart.split("/").filter((x) => x !== "" && x !== ".");
-  const repo = segs[segs.length - 1];
-  if (repo === undefined)
-    return;
-  const owner = segs.length >= 2 ? segs[segs.length - 2] : undefined;
-  return owner !== undefined ? { owner, repo } : { repo };
-}
-function slugPart(s) {
-  const folded = s.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
-  const slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
-  return slug === "" ? "project" : slug;
-}
-async function firstCommit(cwd) {
-  const out = await git(cwd, ["rev-list", "--max-parents=0", "HEAD"]);
-  if (out === undefined)
-    return;
-  return out.split(`
-`).map((l) => l.trim()).filter((l) => /^[0-9a-f]{7,40}$/.test(l)).sort()[0];
-}
-async function projectIdentity(cwd) {
-  const abs = comparablePath(cwd);
-  const common = await commonDir(abs);
-  if (common === undefined) {
-    return { slug: `${slugPart(basename2(abs))}-${sha256(abs).slice(0, 6)}`, root: abs };
-  }
-  const root = basename2(common) === ".git" ? dirname4(common) : await toplevel(abs) ?? abs;
-  const remote = await remoteUrl(abs);
-  const parsed = remote !== undefined ? ownerRepoFromUrl(remote) : undefined;
-  const name = parsed?.repo ?? basename2(root).replace(/\.git$/, "");
-  const id = { slug: slugPart(name), root, commonDir: common };
-  if (remote !== undefined)
-    id.remote = remote;
-  if (parsed?.owner !== undefined)
-    id.ownerRepo = `${parsed.owner}/${parsed.repo}`;
-  const first = await firstCommit(abs);
-  if (first !== undefined)
-    id.rootCommit = first;
-  return id;
-}
-async function projectSlug(cwd) {
-  return (await projectIdentity(cwd)).slug;
-}
-
-// src/usage/bar.ts
 init_paths();
 
 // src/engine/update/output.ts
 init_paths();
-import { isAbsolute as isAbsolute5, relative, sep } from "path";
+import { isAbsolute as isAbsolute6, relative, sep } from "path";
 function isInside(child, parent) {
   const rel = relative(parent, child);
-  return rel === "" || !rel.startsWith("..") && !isAbsolute5(rel) && rel.split(sep)[0] !== "..";
+  return rel === "" || !rel.startsWith("..") && !isAbsolute6(rel) && rel.split(sep)[0] !== "..";
 }
 function tildeFrom(home, p) {
   if (p === home)
@@ -12467,339 +13781,6 @@ function tildeFrom(home, p) {
   if (isInside(p, home))
     return `~/${relative(home, p).split(sep).join("/")}`;
   return p;
-}
-
-// src/workflow/workspace.ts
-import { existsSync as existsSync4, readdirSync as readdirSync2, readFileSync as readFileSync8, rmSync, statSync as statSync9, unlinkSync as unlinkSync3 } from "fs";
-import { dirname as dirname5, isAbsolute as isAbsolute6, join as join9, resolve as resolve5 } from "path";
-init_fsx();
-init_paths();
-var PROJECT_MARKERS = [
-  "package.json",
-  "pyproject.toml",
-  "setup.py",
-  "requirements.txt",
-  "Pipfile",
-  "go.mod",
-  "go.work",
-  "Cargo.toml",
-  "pom.xml",
-  "build.gradle",
-  "build.gradle.kts",
-  "settings.gradle",
-  "settings.gradle.kts",
-  "build.sbt",
-  "composer.json",
-  "Gemfile",
-  "deno.json",
-  "deno.jsonc",
-  "CMakeLists.txt",
-  "Makefile",
-  "mix.exs",
-  "pubspec.yaml",
-  "Package.swift",
-  "stack.yaml",
-  "tsconfig.json",
-  "pnpm-workspace.yaml",
-  "lerna.json",
-  "nx.json",
-  "turbo.json",
-  "WORKSPACE",
-  "WORKSPACE.bazel",
-  "MODULE.bazel"
-];
-var WORKSPACE_MARKERS = ["pnpm-workspace.yaml", "go.work", "settings.gradle", "settings.gradle.kts", "lerna.json", "nx.json", "turbo.json", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel"];
-var MARKER_SUFFIXES = [".sln", ".csproj", ".fsproj", ".xcodeproj", ".xcworkspace"];
-var CHILD_SCAN_MAX = 256;
-var INDEX_LOCK_STALE_MS = 2 * 60 * 60000;
-function caseInsensitivePaths() {
-  return osName() !== "linux";
-}
-function canonicalDir(dir) {
-  const abs = resolve5(dir);
-  try {
-    return realPath(abs);
-  } catch {
-    return abs;
-  }
-}
-function exclusionContext(vault, exclude) {
-  return {
-    home: canonicalDir(home()),
-    buracleHome: canonicalDir(buracleHome()),
-    vault: canonicalDir(vault),
-    exclude,
-    caseInsensitive: caseInsensitivePaths()
-  };
-}
-function markerEntries(dir) {
-  let entries;
-  try {
-    entries = readdirSync2(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  const files = new Set;
-  for (const e of entries) {
-    if (e.isFile())
-      files.add(e.name);
-    else if (e.isSymbolicLink()) {
-      try {
-        if (statSync9(join9(dir, e.name)).isFile())
-          files.add(e.name);
-      } catch {}
-    }
-  }
-  return { files, names: entries.map((e) => e.name) };
-}
-function hasMarker(dir) {
-  const e = markerEntries(dir);
-  if (e === undefined)
-    return false;
-  return PROJECT_MARKERS.some((m) => e.files.has(m)) || e.names.some((n) => MARKER_SUFFIXES.some((s) => n.endsWith(s)));
-}
-function hasWorkspaceMarker(dir) {
-  const e = markerEntries(dir);
-  return e !== undefined && WORKSPACE_MARKERS.some((m) => e.files.has(m));
-}
-function markerRoot(dir, ctx) {
-  const ci = ctx.caseInsensitive;
-  let found;
-  let cur = dir;
-  for (let depth = 0;depth < 64; depth++) {
-    const k = pathKey(cur, ci);
-    if (k === "/" || /^[A-Za-z]:\/?$/.test(k) || isPathWithin(ctx.home, cur, ci))
-      break;
-    if (found === undefined) {
-      if (hasMarker(cur))
-        found = cur;
-    } else if (hasWorkspaceMarker(cur)) {
-      found = cur;
-    }
-    const parent = dirname5(cur);
-    if (parent === cur)
-      break;
-    cur = parent;
-  }
-  return found;
-}
-function isProjectDir(dir) {
-  return existsSync4(join9(dir, ".git")) || hasMarker(dir);
-}
-function activity(dir, mtimeMs) {
-  let t = mtimeMs;
-  for (const f of [".git", join9(".git", "index"), join9(".git", "HEAD")]) {
-    try {
-      t = Math.max(t, statSync9(join9(dir, f)).mtimeMs);
-    } catch {}
-  }
-  return t;
-}
-function childProjects(dir, ctx, max) {
-  let names;
-  try {
-    names = readdirSync2(dir).sort();
-  } catch {
-    return [];
-  }
-  if (names.length > CHILD_SCAN_MAX)
-    return [];
-  const found = new Map;
-  for (const name of names) {
-    if (name.startsWith(".") || name === "node_modules")
-      continue;
-    const p = join9(dir, name);
-    let mtimeMs;
-    try {
-      const st = statSync9(p);
-      if (!st.isDirectory())
-        continue;
-      mtimeMs = st.mtimeMs;
-    } catch {
-      continue;
-    }
-    const real = canonicalDir(p);
-    if (indexExclusion(real, ctx) !== undefined)
-      continue;
-    if (!isProjectDir(p))
-      return [];
-    if (!found.has(real))
-      found.set(real, activity(p, mtimeMs));
-  }
-  return [...found.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, Math.max(0, max)).map(([p]) => p).sort();
-}
-async function gitTopLevel(dir) {
-  const top = await revParse(dir, "--show-toplevel").catch(() => {
-    return;
-  });
-  return top !== undefined && top.trim() !== "" ? canonicalDir(top.trim()) : undefined;
-}
-function workspaceOptions(cfg) {
-  return { vault: oldVaultRoot(), exclude: cfg.index.exclude, children: cfg.index.children, maxChildren: cfg.index.maxChildren };
-}
-async function resolveWorkspace(cwd, o) {
-  const dir = canonicalDir(cwd);
-  const ctx = exclusionContext(o.vault, o.exclude);
-  const here = indexExclusion(dir, ctx);
-  if (here !== undefined)
-    return { cwd: dir, children: [], excluded: here };
-  let root = await gitTopLevel(dir);
-  if (root !== undefined) {
-    const broad = indexExclusion(root, { ...ctx, exclude: [] });
-    if (broad === "your home folder" || broad === "a parent of your home folder" || broad === "the filesystem root")
-      root = undefined;
-  }
-  root ??= markerRoot(dir, ctx);
-  if (root !== undefined) {
-    const why = indexExclusion(root, ctx);
-    return why !== undefined ? { cwd: dir, children: [], excluded: why } : { cwd: dir, root, children: [] };
-  }
-  if (!o.children || o.maxChildren <= 0)
-    return { cwd: dir, children: [] };
-  return { cwd: dir, children: childProjects(dir, ctx, o.maxChildren) };
-}
-function indexTag(root) {
-  return sha256(canonicalDir(root)).slice(0, 16);
-}
-function indexRecordFile(root) {
-  return join9(indexStateDir(), `${indexTag(root)}.json`);
-}
-var CORRUPT_KEEP_MS = 14 * 86400000;
-function indexLockFile(root) {
-  return `${indexRecordFile(root)}.lock`;
-}
-function readIndexRecord(root) {
-  const r = readJsonSafeSync(indexRecordFile(root));
-  return r.ok && r.value?.v === 1 ? r.value : undefined;
-}
-function pidAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code === "EPERM";
-  }
-}
-function indexLockHolder(root, nowMs) {
-  let held;
-  try {
-    held = JSON.parse(readFileSync8(indexLockFile(root), "utf8"));
-  } catch {
-    return;
-  }
-  if (held === null || typeof held !== "object")
-    return;
-  const { pid, at } = held;
-  if (typeof pid !== "number" || typeof at !== "number" || nowMs - at > INDEX_LOCK_STALE_MS)
-    return;
-  return pidAlive(pid) ? { pid, at } : undefined;
-}
-function codegraphDataDir(root, env = process.env) {
-  const raw = (env["CODEGRAPH_DIR"] ?? "").trim();
-  if (raw !== "" && raw !== "." && !raw.includes("..") && !/[\\/]/.test(raw) && !isAbsolute6(raw))
-    return raw;
-  if (isWsl(env) && wslDrive(root) !== undefined) {
-    try {
-      if (statSync9(join9(root, ".codegraph-wsl")).isDirectory())
-        return ".codegraph-wsl";
-    } catch {}
-    return existsSync4(join9(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
-  }
-  return ".codegraph";
-}
-function codegraphIndexPresent(root) {
-  return existsSync4(join9(root, codegraphDataDir(root), "codegraph.db"));
-}
-function projectIndex(root, cfg, nowMs, building = false) {
-  const rec = readIndexRecord(root);
-  const lock = building ? { pid: process.pid, at: nowMs } : indexLockHolder(root, nowMs);
-  const run = lock !== undefined ? { since: lock.at } : undefined;
-  const tool = (enabled, record, present) => indexState({ enabled, ...record !== undefined ? { record } : {}, ...run !== undefined ? { building: run } : {}, ...present !== undefined ? { present } : {} }, cfg.minIntervalMin);
-  return {
-    codegraph: tool(cfg.codegraph, rec?.codegraph, cfg.codegraph ? codegraphIndexPresent(root) : undefined),
-    semble: tool(cfg.semble, rec?.semble, undefined)
-  };
-}
-function idleIndex(cfg) {
-  return { codegraph: cfg.codegraph ? { state: "none" } : { state: "off" }, semble: cfg.semble ? { state: "none" } : { state: "off" } };
-}
-function infoFor(target, cfg, nowMs, building = []) {
-  const info = {
-    cwd: target.cwd,
-    children: [...target.children],
-    index: target.root !== undefined ? projectIndex(target.root, cfg.index, nowMs, building.includes(target.root)) : idleIndex(cfg.index)
-  };
-  if (target.root !== undefined)
-    info.root = target.root;
-  if (target.excluded !== undefined)
-    info.excluded = target.excluded;
-  if (target.children.length > 0) {
-    const childIndex = {};
-    for (const c of target.children)
-      childIndex[c] = projectIndex(c, cfg.index, nowMs, building.includes(c));
-    info.childIndex = childIndex;
-  }
-  return info;
-}
-async function workspaceInfo(cwd, cfg, nowMs) {
-  return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
-}
-
-// src/usage/month.ts
-function monthKeyOf(ms) {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-// src/usage/telemetry.ts
-init_fsx();
-init_paths();
-import { readdirSync as readdirSync3, statSync as statSync10 } from "fs";
-import { join as join10, resolve as resolve6 } from "path";
-var WINDOWS_MAX_AGE_MS = 6 * 60 * 60000;
-function latestWindows(h, nowMs, opts = {}) {
-  const dir = sessionsDir(h);
-  let names;
-  try {
-    names = readdirSync3(dir);
-  } catch {
-    return [];
-  }
-  const files = [];
-  for (const sid of names) {
-    if (!isValidSessionId(sid))
-      continue;
-    const path = join10(dir, sid, "telemetry.json");
-    try {
-      files.push({ path, mtime: statSync10(path).mtimeMs });
-    } catch {}
-  }
-  files.sort((a, b) => b.mtime - a.mtime);
-  const maxAge = opts.maxAgeMs ?? WINDOWS_MAX_AGE_MS;
-  for (const f of files.slice(0, opts.maxRead ?? 25)) {
-    const r = readJsonSafeSync(f.path);
-    if (!r.ok || r.value === null || typeof r.value !== "object" || r.value.v !== 1 || !Array.isArray(r.value.windows))
-      continue;
-    const at = typeof r.value.windowsAt === "number" ? r.value.windowsAt : r.value.at;
-    if (!(nowMs - at <= maxAge))
-      continue;
-    const live = liveWindows(r.value.windows, nowMs);
-    if (live.length > 0)
-      return live;
-  }
-  return [];
-}
-function liveWindows(windows, nowMs) {
-  if (!Array.isArray(windows))
-    return [];
-  return windows.filter((w) => {
-    if (w === null || typeof w !== "object" || typeof w.pct !== "number" || typeof w.label !== "string")
-      return false;
-    if (w.resetsAt === undefined)
-      return true;
-    const t = Date.parse(w.resetsAt);
-    return !Number.isFinite(t) || t > nowMs;
-  });
 }
 
 // src/usage/bar.ts
@@ -12810,7 +13791,7 @@ function finite(x) {
   return typeof x === "number" && Number.isFinite(x) ? x : undefined;
 }
 var FALLBACK_LAYOUT = {
-  rows: [["model", "ctx", "windows", "month"], ["git", "mem", "index", "flow", "plan", "upd", "hooks"]],
+  rows: [["model", "ctx", "windows"], ["git", "mem", "index", "flow", "plan", "upd", "hooks"]],
   thresholds: { ctxWarn: 75, ctxCrit: 90 },
   emoji: false
 };
@@ -12857,15 +13838,15 @@ async function gitInfo(cwd, budgetMs = 300) {
   return out;
 }
 function tildePath(p, homeDir = home()) {
-  return tildeFrom(resolve7(homeDir), resolve7(p));
+  return tildeFrom(resolve5(homeDir), resolve5(p));
 }
 function dirLabel(cwd, info) {
   const abs = comparablePath(cwd);
   if (info === undefined)
     return tildePath(abs);
   const top = info.toplevel;
-  if (top !== undefined && abs !== resolve7(top)) {
-    const rel = relative2(resolve7(top), abs).split(sep2).join("/");
+  if (top !== undefined && abs !== resolve5(top)) {
+    const rel = relative2(resolve5(top), abs).split(sep2).join("/");
     if (rel !== "" && !rel.startsWith("..") && !isAbsolute7(rel))
       return info.git.worktree ? `${info.git.worktree}/${rel}` : rel;
   }
@@ -12875,10 +13856,10 @@ function dirLabel(cwd, info) {
 }
 var SLUG_TTL_MS = 60 * 60000;
 function slugCacheFile() {
-  return join11(buracleHome(), "cache", "statusline-slugs.json");
+  return join9(buracleHome(), "cache", "statusline-slugs.json");
 }
 async function cachedProjectSlug(cwd, nowMs) {
-  const key = resolve7(cwd);
+  const key = resolve5(cwd);
   const file = slugCacheFile();
   const r = readJsonSafeSync(file);
   const cache = r.ok && r.value?.v === 1 && obj(r.value.slugs) !== undefined ? r.value : { v: 1, slugs: {} };
@@ -12905,11 +13886,11 @@ function isMemoryStatus(x) {
   return s !== undefined && s["v"] === 3 && typeof s["health"] === "string" && counts !== undefined && typeof counts["project"] === "number" && typeof counts["person"] === "number" && Array.isArray(s["reasons"]);
 }
 function readMemoryStatus(slug) {
-  const dir = join11(memoryStateDir(), "status");
+  const dir = join9(memoryStateDir(), "status");
   for (const name of slug !== undefined ? [slug, "_global"] : ["_global"]) {
     if (!/^[A-Za-z0-9._-]+$/u.test(name))
       continue;
-    const r = readJsonSafeSync(join11(dir, `${name}.json`));
+    const r = readJsonSafeSync(join9(dir, `${name}.json`));
     if (r.ok && isMemoryStatus(r.value))
       return r.value;
   }
@@ -12922,11 +13903,11 @@ function planForSession(h, sid, roots) {
   if (p === undefined)
     return;
   const plan = { title: p.slug, phase: p.phase, done: 0, total: 0 };
-  const candidates = isAbsolute7(p.path) ? [p.path] : roots.map((r) => join11(r, p.path));
+  const candidates = isAbsolute7(p.path) ? [p.path] : roots.map((r) => join9(r, p.path));
   for (const file of candidates) {
     let text;
     try {
-      text = readFileSync9(file, "utf8");
+      text = readFileSync7(file, "utf8");
     } catch {
       continue;
     }
@@ -12942,7 +13923,7 @@ function planForSession(h, sid, roots) {
   return plan;
 }
 async function indexStatusFor(cwd, cfg, nowMs) {
-  return indexStatusOf(await workspaceInfo(cwd, cfg, nowMs));
+  return indexStatusOf(await workspaceInfo(cwd, indexSettings(cfg), nowMs));
 }
 function pendingUpdates(path = updatesFile()) {
   const r = readJsonSafeSync(path);
@@ -12959,24 +13940,11 @@ function pendingUpdates(path = updatesFile()) {
   }
   return;
 }
-function monthFromEntry(entry, nowMs) {
-  if (entry === undefined || entry.month_key !== monthKeyOf(nowMs))
-    return;
-  const m = { tokens: entry.month.tokens, estimate: true };
-  if (entry.month.usd !== undefined)
-    m.usd = entry.month.usd;
-  if (entry.month_pct !== undefined)
-    m.pct = entry.month_pct;
-  if (m.tokens <= 0 && m.usd === undefined && m.pct === undefined)
-    return;
-  return m;
-}
-var TELEMETRY_FRESH_MS = 60 * 60000;
 
 // src/usage/cache.ts
 import { spawn } from "child_process";
-import { closeSync as closeSync2, existsSync as existsSync5, mkdirSync as mkdirSync3, openSync as openSync2, statSync as statSync11, utimesSync, writeSync as writeSync2 } from "fs";
-import { dirname as dirname6, join as join12 } from "path";
+import { closeSync as closeSync2, existsSync as existsSync5, mkdirSync as mkdirSync3, openSync as openSync2, statSync as statSync9, utimesSync, writeSync as writeSync2 } from "fs";
+import { dirname as dirname5, join as join10 } from "path";
 
 // src/engine/config.ts
 init_fsx();
@@ -12996,8 +13964,7 @@ function isEntry(x) {
   if (x === null || typeof x !== "object")
     return false;
   const e = x;
-  const m = e["month"];
-  return typeof e["harness"] === "string" && typeof e["computed_at"] === "string" && Array.isArray(e["windows"]) && m !== undefined && m !== null && typeof m === "object" && typeof m["tokens"] === "number" && typeof e["month_key"] === "string";
+  return typeof e["harness"] === "string" && typeof e["computed_at"] === "string" && Array.isArray(e["windows"]);
 }
 function readUsageCache(path = usageFile()) {
   const r = readJsonSafeSync(path);
@@ -13015,35 +13982,33 @@ function readUsageCache(path = usageFile()) {
 function isStale(entry, nowMs, ttlMs = USAGE_TTL_MS) {
   if (entry === undefined)
     return true;
-  if (entry.month_key !== monthKeyOf(nowMs))
-    return true;
   const at = Date.parse(entry.computed_at);
   return !Number.isFinite(at) || nowMs - at > ttlMs || at - nowMs > 60000;
 }
 function lockFile() {
-  return join12(stateDir(), "usage.lock");
+  return join10(stateDir(), "usage.lock");
 }
 function spawnMarker(h) {
-  return join12(stateDir(), `usage.spawn.${h}`);
+  return join10(stateDir(), `usage.spawn.${h}`);
 }
 function defaultRefreshArgv(h) {
   const tail = ["usage", "refresh", "--harness", h, "--background"];
-  const main = join12(repoRoot(), "src", "cli", "main.ts");
+  const main = join10(repoRoot(), "src", "cli", "main.ts");
   return existsSync5(main) ? [bunExecutable(), main, ...tail] : [...shimLaunch() ?? [shimPath()], ...tail];
 }
 function spawnUsageRefresh(h, opts = {}) {
   try {
     const now = Date.now();
     try {
-      if (now - statSync11(lockFile()).mtimeMs <= LOCK_STALE_MS)
+      if (now - statSync9(lockFile()).mtimeMs <= LOCK_STALE_MS)
         return false;
     } catch {}
     const marker = spawnMarker(h);
     try {
-      if (now - statSync11(marker).mtimeMs < SPAWN_INTERVAL_MS)
+      if (now - statSync9(marker).mtimeMs < SPAWN_INTERVAL_MS)
         return false;
     } catch {}
-    mkdirSync3(dirname6(marker), { recursive: true });
+    mkdirSync3(dirname5(marker), { recursive: true });
     try {
       closeSync2(openSync2(marker, "a"));
     } catch {}
@@ -13062,11 +14027,62 @@ function spawnUsageRefresh(h, opts = {}) {
   }
 }
 
+// src/usage/telemetry.ts
+init_fsx();
+init_paths();
+import { readdirSync as readdirSync2, statSync as statSync10 } from "fs";
+import { join as join11, resolve as resolve6 } from "path";
+var WINDOWS_MAX_AGE_MS = 6 * 60 * 60000;
+function latestWindows(h, nowMs, opts = {}) {
+  const dir = sessionsDir(h);
+  let names;
+  try {
+    names = readdirSync2(dir);
+  } catch {
+    return [];
+  }
+  const files = [];
+  for (const sid of names) {
+    if (!isValidSessionId(sid))
+      continue;
+    const path = join11(dir, sid, "telemetry.json");
+    try {
+      files.push({ path, mtime: statSync10(path).mtimeMs });
+    } catch {}
+  }
+  files.sort((a, b) => b.mtime - a.mtime);
+  const maxAge = opts.maxAgeMs ?? WINDOWS_MAX_AGE_MS;
+  for (const f of files.slice(0, opts.maxRead ?? 25)) {
+    const r = readJsonSafeSync(f.path);
+    if (!r.ok || r.value === null || typeof r.value !== "object" || r.value.v !== 1 || !Array.isArray(r.value.windows))
+      continue;
+    const at = typeof r.value.windowsAt === "number" ? r.value.windowsAt : r.value.at;
+    if (!(nowMs - at <= maxAge))
+      continue;
+    const live = liveWindows(r.value.windows, nowMs);
+    if (live.length > 0)
+      return live;
+  }
+  return [];
+}
+function liveWindows(windows, nowMs) {
+  if (!Array.isArray(windows))
+    return [];
+  return windows.filter((w) => {
+    if (w === null || typeof w !== "object" || typeof w.pct !== "number" || typeof w.label !== "string")
+      return false;
+    if (w.resetsAt === undefined)
+      return true;
+    const t = Date.parse(w.resetsAt);
+    return !Number.isFinite(t) || t > nowMs;
+  });
+}
+
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync7, readFileSync as readFileSync11, rmSync as rmSync3, statSync as statSync13 } from "fs";
-import { join as join14 } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync9, rmSync as rmSync3, statSync as statSync12 } from "fs";
+import { join as join13 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
 function str2(x) {
@@ -13116,7 +14132,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   for (const f of [`${file}.1`, file]) {
     let text;
     try {
-      text = readFileSync11(f, "utf8");
+      text = readFileSync9(f, "utf8");
     } catch {
       continue;
     }
@@ -13135,12 +14151,12 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   return out;
 }
 function hookHealthCacheFile() {
-  return join14(buracleHome(), "cache", "hook-health.json");
+  return join13(buracleHome(), "cache", "hook-health.json");
 }
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
   try {
-    const c = JSON.parse(readFileSync11(file, "utf8"));
+    const c = JSON.parse(readFileSync9(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && c.summary !== undefined && typeof c.summary.failures === "number")
       return c.summary;
   } catch {}
@@ -13157,11 +14173,11 @@ function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   return summary;
 }
 function runtimeDriftCacheFile() {
-  return join14(buracleHome(), "cache", "runtime-drift.json");
+  return join13(buracleHome(), "cache", "runtime-drift.json");
 }
 function shimStamp() {
   try {
-    const s = statSync13(join14(binDir(), "buracle"));
+    const s = statSync12(join13(binDir(), "buracle"));
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "";
@@ -13171,7 +14187,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   const file = runtimeDriftCacheFile();
   const stamp = shimStamp();
   try {
-    const c = JSON.parse(readFileSync11(file, "utf8"));
+    const c = JSON.parse(readFileSync9(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && typeof c.behind === "boolean" && c.shim === stamp)
       return c.behind;
   } catch {}
@@ -13204,13 +14220,13 @@ async function statusHealth(nowMs) {
 init_paths();
 init_shim();
 import { existsSync as existsSync8 } from "fs";
-import { join as join15 } from "path";
+import { join as join14 } from "path";
 function usageRefreshArgv() {
   const tail = ["usage", "refresh", "--harness", "opencode", "--background"];
   const viaShim = shimLaunch();
   if (viaShim !== undefined)
     return [...viaShim, ...tail];
-  const main = join15(repoRoot(), "src", "cli", "main.ts");
+  const main = join14(repoRoot(), "src", "cli", "main.ts");
   const bun = typeof Bun !== "undefined" ? Bun.which("bun") : null;
   return bun !== null && existsSync8(main) ? [bun, main, ...tail] : undefined;
 }
@@ -13250,7 +14266,7 @@ function contextUsage(messages, models, boundary) {
 }
 var TTL = { git: 5000, usage: 30000, mem: 30000, plan: 1e4, updates: 60000, footer: 60000, index: 30000, hooks: 30000 };
 var INDEX_BUDGET_MS = 1000;
-async function within(work, ms) {
+async function within2(work, ms) {
   let timer;
   try {
     await Promise.race([work, new Promise((resolve) => {
@@ -13330,9 +14346,6 @@ class StatusFeeder {
           const entry = readUsageCache()?.harnesses.opencode;
           const own = latestWindows("opencode", now);
           const v = { windows: own.length > 0 ? own : liveWindows(entry?.windows, now), stale: isStale(entry, now) };
-          const month = monthFromEntry(entry, now);
-          if (month !== undefined)
-            v.month = month;
           this.usage.value = v;
           if (v.stale && this.opts.spawnRefresh !== false) {
             const argv = usageRefreshArgv();
@@ -13383,7 +14396,7 @@ class StatusFeeder {
         }, () => {
           entry.value = undefined;
         });
-        await within(read, INDEX_BUDGET_MS);
+        await within2(read, INDEX_BUDGET_MS);
       }
       if (due(this.hooks, TTL.hooks)) {
         this.hooks.at = now;
@@ -13412,9 +14425,6 @@ class StatusFeeder {
     }
     if (live.costUsd !== undefined && live.costUsd > 0)
       bar.cost = { usd: live.costUsd };
-    const month = this.usage.value?.month;
-    if (month !== undefined)
-      bar.month = month;
     const git = this.git.value;
     if (git?.git !== undefined)
       bar.git = git.git;
@@ -13432,7 +14442,7 @@ class StatusFeeder {
       bar.hooks = this.hooks.value;
     const cfg = this.config();
     if (!cfg.workflow.band) {
-      const view = this.band.view(live.sessionID, cfg.workflow.foldAfterSec);
+      const view = this.band.view(live.sessionID, FOLD_AFTER_SEC);
       if (view.visible)
         bar.flow = view;
     }
@@ -13452,17 +14462,7 @@ function statusSegments(bar, layout, width, nowMs) {
 }
 
 // src/adapters/opencode/runtime/tui-commands.ts
-import { join as join16 } from "path";
-
-// src/core/plan/notes.ts
-function brainPageArg(args) {
-  const w = args.trim().toLowerCase();
-  if (w === "")
-    return "brain";
-  return ["review", "plans", "changes", "notes"].includes(w) ? "review" : undefined;
-}
-
-// src/adapters/opencode/runtime/tui-commands.ts
+import { join as join15 } from "path";
 init_fsx();
 init_paths();
 init_shim();
@@ -13515,7 +14515,7 @@ function memoryUiUrl() {
     return;
   }
 }
-async function brain(host, input = "", name = "brain") {
+async function brain2(host, input = "", name = "brain") {
   const page = brainPageArg(input);
   if (page === undefined) {
     host.toast(`Usage: /${name} [review]`, "warning", "Buracle");
@@ -13546,13 +14546,11 @@ function statusLines(host) {
   const cfg = host.cfg();
   const about = host.about();
   const sid = host.sessionID();
-  const level = effortLevel(cfg);
   const lines = [
     `Buracle on OpenCode${about.opencode !== undefined && about.opencode !== "" ? ` ${about.opencode}` : ""}`,
     `session: ${sid ?? "-"}`,
     `permissions: ${cfg.permissions.bypass ? "no approval prompts (Buracle's guards and consent gate still deny)" : "as OpenCode is configured"}`,
-    `routing: ${cfg.routing.strictness} \xB7 skill router: ${cfg.routing.skills} \xB7 workflow band: ${cfg.workflow.band ? "on" : "off"}`,
-    `default effort: ${level ?? "OpenCode decides"} (effort.opencode ${cfg.effort.opencode})`,
+    `routing: ${cfg.routing.strictness} \xB7 workflow band: ${cfg.workflow.band ? "on" : "off"}`,
     `workflows: ${about.workflows.map((w) => `/${w}`).join(" ")}`
   ];
   const url = memoryUiUrl();
@@ -13560,7 +14558,7 @@ function statusLines(host) {
     lines.push(`memory UI: ${url}`);
   return lines;
 }
-async function status(host, input) {
+async function status3(host, input) {
   const what = ((input ?? "").trim().split(/\s+/)[0] ?? "").toLowerCase();
   const sid = host.sessionID();
   let title;
@@ -13586,7 +14584,7 @@ async function status(host, input) {
 }
 var PANE_REFRESH_MS = 2000;
 function memoryLines() {
-  const r = readJsonSafeSync(join16(memoryStateDir(), "status", "_global.json"));
+  const r = readJsonSafeSync(join15(memoryStateDir(), "status", "_global.json"));
   return memoryPaneLines(r.ok ? r.value : undefined, memoryUiUrl(), brainDir()).map((l) => l.text.replace(/ {2}\(w\)$/, ""));
 }
 function planLines(host, sid) {
@@ -13628,7 +14626,7 @@ function utilityCommands(host, names) {
       group: "Buracle",
       palette: true,
       slash: { name: names.brain, arguments: true },
-      run: guarded(`/${names.brain}`, (input) => brain(host, input ?? "", names.brain))
+      run: guarded(`/${names.brain}`, (input) => brain2(host, input ?? "", names.brain))
     },
     {
       id: "buracle.aside",
@@ -13646,7 +14644,7 @@ function utilityCommands(host, names) {
       group: "Buracle",
       palette: true,
       slash: { name: names.status, ...names.statusAliases.length > 0 ? { aliases: [...names.statusAliases] } : {}, arguments: true },
-      run: guarded(`/${names.status}`, (input) => status(host, input))
+      run: guarded(`/${names.status}`, (input) => status3(host, input))
     },
     {
       id: "buracle.ping",
@@ -13659,176 +14657,6 @@ function utilityCommands(host, names) {
     }
   ];
 }
-
-// src/core/policy/code-scan.ts
-var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
-var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
-var LOOKUPS = new Set(["getattr", "__import__", "import_module", "require", "import"]);
-var GENERIC = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "replace", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
-var GENERIC_BARE = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
-var VALUE_METHODS = new Set(["unlink", "rename", "open"]);
-var PARENLESS = new Set(["perl", "ruby", "lua"]);
-
-// src/core/policy/self-disable.ts
-var RELOCATION_VARS2 = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
-var RELOCATION = new RegExp(RELOCATION_VARS2.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
-var STARTUP_NAMES = new Set([".zshrc", ".zprofile", ".zshenv", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".kshrc", ".mkshrc", ".cshrc", ".tcshrc", ".login", ".envrc", ".pam_environment", ".xprofile", ".xsessionrc"]);
-var SYSTEM_STARTUP = new Set(["zshrc", "zprofile", "zshenv", "zlogin", "profile", "bashrc", "bash.bashrc", "environment", "csh.cshrc", "csh.login", "launchd.conf"]);
-var SHELL_RUNNERS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "source", "."]);
-var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno", "parallel"]);
-var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
-var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
-
-// src/core/policy/powershell.ts
-var KNOWN_HOME = new Set(["home", "env:userprofile", "env:home"]);
-var KEYWORDS = new Set(["if", "elseif", "else", "foreach", "for", "while", "do", "until", "switch", "try", "catch", "finally", "function", "filter", "trap", "begin", "process", "end", "param", "data", "return", "throw", "break", "continue", "exit", "class", "enum"]);
-var POWERSHELL_SIGNS = new RegExp([
-  String.raw`\$env:`,
-  String.raw`\[(?:system\.)?(?:io\.(?:file|directory)|environment|net\.webclient)\]`,
-  String.raw`(?:^|[\s;|&({])(?:remove|copy|move|rename|set|add|clear|new|out|format|stop|restart|invoke|start|initialize|get|foreach|where|tee)-[a-z]+(?=[\s;|)}]|$)`,
-  String.raw`(?:^|[\s;|&(])(?:ri|rd|del|erase|cpi|mi|rni|sc|ac|clc|ni|iex|iwr|irm|gci|saps|sl|cmd(?:\.exe)?\s+/[ck])\s`,
-  String.raw`\s-(?:recurse|force|literalpath|itemtype|destination|outfile|filepath|erroraction|whatif|argumentlist|encodedcommand)\b`,
-  String.raw`(?:^|[\s'"=(,])(?:[a-z]:|\.{1,2}|~)\\`
-].join("|"), "i");
-
-// src/core/policy/windows-paths.ts
-var TOP_LEVEL = new Set(["windows", "program files", "program files (x86)", "programdata", "users", "documents and settings", "system volume information", "recovery", "$recycle.bin", "boot", "perflogs"]);
-var CRITICAL_SECOND_LEVEL = new Set(["windows/system32", "windows/syswow64", "windows/winsxs", "users/public", "users/default", "programdata/microsoft"]);
-var HOME_FOLDERS = new Set([
-  "applications",
-  "desktop",
-  "documents",
-  "downloads",
-  "library",
-  "movies",
-  "music",
-  "pictures",
-  "public",
-  ".config",
-  ".ssh",
-  ".gnupg",
-  ".aws",
-  "appdata",
-  "onedrive",
-  "videos",
-  "favorites",
-  "contacts",
-  "links",
-  "saved games",
-  "searches"
-]);
-
-// src/core/policy/windows-shell.ts
-var COMMON_VALUES = ["erroraction", "warningaction", "informationaction", "errorvariable", "warningvariable", "informationvariable", "outvariable", "outbuffer", "pipelinevariable", "progressaction"];
-var COMMON_SWITCHES = ["verbose", "debug", "whatif", "confirm"];
-var COMMON_ALIASES = { ea: "erroraction", wa: "warningaction", ev: "errorvariable", ov: "outvariable", ob: "outbuffer", pv: "pipelinevariable", vb: "verbose", db: "debug", wi: "whatif", cf: "confirm", lp: "literalpath", pspath: "literalpath" };
-function spec(values, switches, positional, aliases = {}) {
-  return { values: [...values, ...COMMON_VALUES], switches: [...switches, ...COMMON_SWITCHES], positional, aliases: { ...COMMON_ALIASES, ...aliases } };
-}
-var PATHS = ["path", "literalpath"];
-var SPECS = {
-  "remove-item": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["recurse", "force"], ["path"]),
-  "get-childitem": spec([...PATHS, "filter", "include", "exclude", "depth", "attributes"], ["recurse", "force", "name", "file", "directory", "hidden", "followsymlink"], ["path", "filter"]),
-  "get-item": spec([...PATHS, "filter", "include", "exclude", "stream"], ["force"], ["path"]),
-  "copy-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential", "fromsession", "tosession"], ["recurse", "force", "container", "passthru"], ["path", "destination"]),
-  "move-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "destination"]),
-  "rename-item": spec([...PATHS, "newname", "credential"], ["force", "passthru"], ["path", "newname"]),
-  "set-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "add-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "clear-content": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["force"], ["path"]),
-  "out-file": spec(["filepath", "literalpath", "encoding", "inputobject", "width"], ["append", "force", "noclobber", "nonewline"], ["filepath", "encoding"], { path: "filepath" }),
-  "tee-object": spec(["filepath", "literalpath", "variable", "inputobject", "encoding"], ["append"], ["filepath"], { path: "filepath" }),
-  "new-item": spec(["path", "name", "itemtype", "value", "target", "credential"], ["force"], ["path"], { type: "itemtype" }),
-  "set-item": spec([...PATHS, "value", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "value"]),
-  "set-itemproperty": spec([...PATHS, "name", "value", "type", "filter", "include", "exclude", "credential", "inputobject"], ["force", "passthru"], ["path", "name", "value"]),
-  "new-itemproperty": spec([...PATHS, "name", "value", "propertytype", "filter", "include", "exclude", "credential"], ["force"], ["path", "name", "value"], { type: "propertytype" }),
-  "set-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "push-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "invoke-expression": spec(["command"], [], ["command"]),
-  "invoke-webrequest": spec(["uri", "outfile", "method", "body", "headers", "infile", "contenttype", "useragent", "proxy", "credential", "sessionvariable", "websession", "timeoutsec", "maximumredirection"], ["usebasicparsing", "passthru", "usedefaultcredentials", "skipcertificatecheck"], ["uri"]),
-  "start-process": spec(["filepath", "argumentlist", "workingdirectory", "verb", "credential", "redirectstandardoutput", "redirectstandarderror", "redirectstandardinput", "windowstyle"], ["wait", "passthru", "nonewwindow", "loaduserprofile", "usenewenvironment"], ["filepath", "argumentlist"], { args: "argumentlist", file: "filepath" }),
-  "stop-process": spec(["id", "name", "inputobject"], ["force", "passthru"], ["id"], { processname: "name" }),
-  "foreach-object": spec(["process", "begin", "end", "membername", "argumentlist", "inputobject", "throttlelimit", "remainingscripts"], ["parallel", "asjob"], ["process"]),
-  "invoke-command": spec(["scriptblock", "computername", "session", "argumentlist", "filepath", "credential"], ["asjob", "nonewscope"], ["scriptblock"])
-};
-var WINDOWS_SHELLS = new Set(["cmd", "powershell", "pwsh", "powershell_ise"]);
-var SHARED = new Set(["rm", "rmdir", "cp", "mv", "ls", "dir", "cd", "pushd", "popd", "kill", "tee", "ps", "start", "foreach", "where"]);
-var DISK = new Set(["format-volume", "clear-disk", "initialize-disk", "remove-partition", "clear-partition", "reset-physicaldisk"]);
-var POWER = new Set(["stop-computer", "restart-computer"]);
-
-// src/core/policy/bash-guard.ts
-var TOP_LEVEL2 = new Set([
-  "applications",
-  "bin",
-  "boot",
-  "cores",
-  "dev",
-  "etc",
-  "home",
-  "lib",
-  "lib32",
-  "lib64",
-  "libx32",
-  "library",
-  "media",
-  "mnt",
-  "network",
-  "nix",
-  "opt",
-  "private",
-  "proc",
-  "root",
-  "run",
-  "sbin",
-  "snap",
-  "srv",
-  "sys",
-  "system",
-  "tmp",
-  "users",
-  "usr",
-  "var",
-  "volumes"
-]);
-var CRITICAL_SECOND_LEVEL2 = new Set([
-  "/usr/bin",
-  "/usr/sbin",
-  "/usr/lib",
-  "/usr/libexec",
-  "/usr/local",
-  "/usr/share",
-  "/usr/include",
-  "/opt/homebrew",
-  "/private/etc",
-  "/private/var",
-  "/private/tmp",
-  "/var/lib",
-  "/var/db",
-  "/system/library",
-  "/system/applications",
-  "/library/apple"
-]);
-var HOME_FOLDERS2 = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
-var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
-var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
-var DECLARE = new Set(["export", "declare", "typeset", "local", "readonly"]);
-var GIT_GLOBAL_WITH_ARG = new Set(["-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--attr-source", "--list-cmds"]);
-var PUSH_LONG_ARG = new Set(["repo", "receive-pack", "exec", "push-option", "recurse-submodules"]);
-var FORCE_FAMILY = new Set(["force", "force-with-lease", "force-if-includes"]);
-var GIT_CONFIG_WITH_ARG = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
-var patternCache = new Map;
-
-// src/core/policy/consent.ts
-var GRANT_TTL_MS = 20 * 60000;
-var PENDING_TTL_MS = 30 * 60000;
-var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
-var GIT_CONFIG_WITH_ARG2 = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
-var REMOVERS = new Set(["rm", "unlink", "shred", "srm"]);
-var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duckdb", "mongosh", "mongo", "clickhouse-client", "cockroach", "sqlcmd"]);
-
-// src/adapters/shared/consent-store.ts
-init_fsx();
-init_paths();
 
 // src/adapters/shared/consent-dialog.ts
 var ALLOW_ONCE = "Allow once";
@@ -13844,25 +14672,25 @@ function consentAnswerOf(pick) {
 // src/adapters/opencode/runtime/consent-relay.ts
 init_fsx();
 init_paths();
-import { closeSync as closeSync3, openSync as openSync3, readdirSync as readdirSync5, rmSync as rmSync4, writeSync as writeSync3 } from "fs";
-import { join as join17 } from "path";
+import { closeSync as closeSync3, openSync as openSync3, readdirSync as readdirSync4, rmSync as rmSync4, writeSync as writeSync3 } from "fs";
+import { join as join16 } from "path";
 var RELAY_DIR = "consent-relay";
 var ASK_ID = /^[a-z0-9-]{8,64}$/;
 var RELAY_ANSWERS = ["once", "session", "refuse", "dismiss"];
 function relayDir(sid) {
-  return join17(sessionDir("opencode", sid), RELAY_DIR);
+  return join16(sessionDir("opencode", sid), RELAY_DIR);
 }
 function askFile(sid, id) {
-  return join17(relayDir(sid), `ask-${id}.json`);
+  return join16(relayDir(sid), `ask-${id}.json`);
 }
 function answerFile(sid, id) {
-  return join17(relayDir(sid), `answer-${id}.json`);
+  return join16(relayDir(sid), `answer-${id}.json`);
 }
 function valid(sid, id) {
   return isValidSessionId(sid) && (id === undefined || ASK_ID.test(id));
 }
 function anyTuiFile() {
-  return join17(stateDir(), "opencode-tui.json");
+  return join16(stateDir(), "opencode-tui.json");
 }
 function writeTuiBeat(sid, now, pid) {
   const beat = JSON.stringify({ at: now, pid }) + `
@@ -13872,7 +14700,7 @@ function writeTuiBeat(sid, now, pid) {
   if (sid === undefined || !valid(sid))
     return;
   ensureDirSync(relayDir(sid));
-  atomicWriteSync(join17(relayDir(sid), "tui.json"), beat);
+  atomicWriteSync(join16(relayDir(sid), "tui.json"), beat);
 }
 function parseAsk(raw, id) {
   if (raw === null || typeof raw !== "object")
@@ -13892,7 +14720,7 @@ function openAsks(sid) {
     return [];
   let names;
   try {
-    names = readdirSync5(relayDir(sid));
+    names = readdirSync4(relayDir(sid));
   } catch {
     return [];
   }
@@ -13985,13 +14813,13 @@ function startConsentRelay(host) {
 // src/adapters/opencode/runtime/notice-board.ts
 init_fsx();
 init_paths();
-import { join as join18 } from "path";
+import { join as join17 } from "path";
 var HARNESS2 = "opencode";
 var FIRST_SIGHT_MS = 30000;
 function boardFile(sid) {
-  return join18(sessionDir(HARNESS2, sid), "notices.json");
+  return join17(sessionDir(HARNESS2, sid), "notices.json");
 }
-function readBoard2(sid) {
+function readBoard(sid) {
   const r = readJsonSafeSync(boardFile(sid));
   if (!r.ok || r.value === null || typeof r.value !== "object" || !Array.isArray(r.value.items))
     return { v: 1, items: [] };
@@ -14003,7 +14831,7 @@ class NoticeReader {
   take(sid, now) {
     if (sid === undefined || !isValidSessionId(sid))
       return [];
-    const items = readBoard2(sid).items;
+    const items = readBoard(sid).items;
     const last = this.seen.get(sid);
     const fresh = last === undefined ? items.filter((i) => now - i.at <= FIRST_SIGHT_MS) : items.filter((i) => i.seq > last);
     const top = items.at(-1)?.seq;
@@ -14050,53 +14878,6 @@ class TuiNotices {
   }
 }
 
-// src/workflow/terminal-notify.ts
-import { closeSync as closeSync4, openSync as openSync4, writeSync as writeSync4 } from "fs";
-var ESC = "\x1B";
-function tmuxWrap(sequence) {
-  return `${ESC}Ptmux;${sequence.split(ESC).join(`${ESC}${ESC}`)}${ESC}\\`;
-}
-function writeTty(path, text) {
-  let fd;
-  try {
-    fd = openSync4(path, "w");
-    writeSync4(fd, text);
-    return true;
-  } catch {
-    return false;
-  } finally {
-    if (fd !== undefined) {
-      try {
-        closeSync4(fd);
-      } catch {}
-    }
-  }
-}
-function writeSequence(sequence, env, tty) {
-  if (env["BURACLE_NO_NOTIFY"] === "1")
-    return false;
-  const inTmux = typeof env["TMUX"] === "string" && env["TMUX"] !== "";
-  return writeTty(tty ?? env["BURACLE_TTY_PATH"] ?? "/dev/tty", inTmux ? tmuxWrap(sequence) : sequence);
-}
-
-// src/adapters/opencode/runtime/tui-terminal.ts
-var HARNESS3 = "opencode";
-var BOARD_TOAST = "A task board worker in this session waits for your answer: see its question above.";
-function emitBoardTerminal(sid, deps = {}) {
-  if (sid === undefined)
-    return false;
-  const take = deps.take ?? ((s) => takeTerminalSequence(HARNESS3, s));
-  const sequence = take(sid);
-  if (sequence === undefined)
-    return false;
-  const env = deps.env ?? process.env;
-  if (env["BURACLE_NO_NOTIFY"] === "1")
-    return true;
-  writeSequence(sequence, env, deps.tty);
-  deps.toast?.(BOARD_TOAST);
-  return true;
-}
-
 // src/adapters/opencode/runtime/tui-runtime.ts
 import * as solidJs from "solid-js";
 import * as opentuiJsx from "@opentui/solid/jsx-runtime";
@@ -14115,20 +14896,6 @@ function h(type, props, ...children) {
   else if (children.length > 1)
     p["children"] = children;
   return jsxRuntime.jsx(type, p);
-}
-
-// src/adapters/opencode/runtime/workspace.ts
-init_paths();
-import { basename as basename4, dirname as dirname8 } from "path";
-var WORKSPACE_KEY = Symbol.for("buracle.opencode.workspaces");
-function profileWarning(pluginDir, runtimeSnapshot, home) {
-  if (pluginDir === undefined || pluginDir === "")
-    return;
-  const plugins = dirname8(pluginDir);
-  const configDir = dirname8(plugins);
-  if (basename4(plugins) !== "plugins" || basename4(configDir) !== "opencode")
-    return;
-  return profileGuard("opencode", runtimeSnapshot, { HOME: home, XDG_CONFIG_HOME: dirname8(configDir) });
 }
 
 // src/adapters/opencode/runtime/tui.tsx
@@ -14189,7 +14956,7 @@ function createTuiPlugin(baked, pluginDir) {
         toast: (message, variant) => {
           ctx.ui.toast?.show({ title: "Buracle", message, variant, duration: variant === "warning" ? 1e4 : 8000 });
         },
-        band: (sid) => band.view(sid, config.get().config.workflow.foldAfterSec),
+        band: (sid) => band.view(sid, FOLD_AFTER_SEC),
         bandOn: () => config.get().config.workflow.band,
         busy: (sid) => {
           const last = ctx.data.session.message.list(sid).at(-1);
@@ -14205,11 +14972,6 @@ function createTuiPlugin(baked, pluginDir) {
         } catch {}
         try {
           notices.poll(current.sessionID);
-        } catch {}
-        try {
-          emitBoardTerminal(current.sessionID, { toast: (message) => {
-            ctx.ui.toast?.show({ title: "Buracle", message, variant: "warning", duration: 1e4 });
-          } });
         } catch {}
       };
       const timer = setInterval(() => {
@@ -14233,12 +14995,8 @@ function createTuiPlugin(baked, pluginDir) {
         const live = sid !== undefined ? { cwd, sessionID: sid } : { cwd };
         const cfg = config.get().config;
         const model = ctx.ui.model.current();
-        if (model !== undefined) {
+        if (model !== undefined)
           live.model = model;
-          const level = model.variant === undefined ? effortLevel(cfg) : undefined;
-          if (level !== undefined && (ctx.ui.model.variant?.list() ?? []).includes(level))
-            live.model = { ...model, variant: level };
-        }
         if (sid !== undefined) {
           const usage = contextUsage(ctx.data.session.message.list(sid), ctx.data.location.model.list(session?.location), session?.revert?.messageID);
           if (usage !== undefined)
@@ -14315,7 +15073,7 @@ function createTuiPlugin(baked, pluginDir) {
               const cfg = config.get().config;
               if (!cfg.workflow.band)
                 return { key: "", rows: [] };
-              const view = band.view(input.sessionID, cfg.workflow.foldAfterSec);
+              const view = band.view(input.sessionID, FOLD_AFTER_SEC);
               const out = bandLines(view, measured() ?? estimatedWidth(dims().width));
               return { key: JSON.stringify(out), rows: out };
             } catch {
@@ -14357,7 +15115,7 @@ function createTuiPlugin(baked, pluginDir) {
           else
             ctx.ui.toast?.show({ title, message, variant: "info", duration: 15000 });
         },
-        band: (sid) => band.view(sid, config.get().config.workflow.foldAfterSec),
+        band: (sid) => band.view(sid, FOLD_AFTER_SEC),
         about: () => ({ ...ctx.app?.version !== undefined ? { opencode: ctx.app.version } : {}, workflows: workflowCommandSkills(baked.skills).map((s) => s.id) }),
         pane: (title, lines) => {
           const dialog = ctx.ui.dialog;
@@ -14407,24 +15165,16 @@ function createTuiPlugin(baked, pluginDir) {
         });
         ctx.keymap?.layer(() => ({ mode: "global", commands: utilityCommands(host, utilityNames(takenNames(ctx))) }));
       } catch {}
-      const profile = setTimeout(() => {
-        try {
-          const warning = profileWarning(pluginDir, config.get(), env.home);
-          if (warning !== undefined)
-            ctx.ui.toast?.show({ title: "Buracle", message: warning, variant: "warning", duration: 20000 });
-        } catch {}
-      }, 1500);
       return () => {
         stopped = true;
         clearInterval(timer);
-        clearTimeout(profile);
         for (const off of offs)
           off();
       };
     }
   };
 }
-var tui_default = createTuiPlugin({ v: 1, contentHash: "de9ea97c9464224f225d5316a2afdabdb3a7bc3de21908756630de0743a6728e", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off", board: { mode: "ask", maxWorkers: 6, leaseSec: 300, mux: "ask", muxOnAsk: "mark", harnesses: { claude: true, codex: true, opencode: true, omp: true } } }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit" }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit" }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit" }, { id: "buracle-join", description: "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one or wait for it. The lead merges and ticks the plan. Run only when the user asks to join a board.", userInvocable: true, short: "Take and finish tasks of a shared plan board as a worker", invocation: "explicit" }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit" }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit" }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit" }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit" }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit" }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit" }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit" }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit" }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit" }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit" }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit" }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "none", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], layout: { rows: [["model", "ctx", "windows", "month", "git", "mem", "index", "flow", "plan", "board", "hooks"]], compact: [["ctx", "windows", "month", "git", "mem", "index", "flow", "hooks"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false, native: { slot: "prompt.footer.status" } }, notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }, { id: "0.7.0-one-standard", since: "0.7.0", until: "0.8.0", message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable." }, { id: "0.8.1-documents-follow-language", since: "0.8.1", until: "0.9.0", message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English." }, { id: "0.8.6-skills-own-folders", since: "0.8.6", until: "0.9.0", message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills." }, { id: "0.8.6-opencode-todos", since: "0.8.6", until: "0.9.0", message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses." }], tips: [{ id: "plan-build", text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first" }, { id: "goal-build", text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them" }, { id: "bugfix", text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix" }, { id: "requirements", text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code" }, { id: "direct-work", text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done" }, { id: "stop-words", text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan" }, { id: "worktree-flag", text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done" }, { id: "research", text: "/research <question> answers from sources it actually read: web, library docs, public code and memory" }, { id: "inspect", text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing" }, { id: "dead-code", text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan" }, { id: "project-rules", text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness" }, { id: "remember", text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share" }, { id: "why-question", text: 'Ask "why did we\u2026" or "what did we decide\u2026": the agent searches the memory before it answers' }, { id: "brain-ui", text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours" }, { id: "brain-review", text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval" }, { id: "aside", text: "/aside <question> answers a side question without derailing the running task" }, { id: "status", text: "/buracle-status shows the active plan, the running workflow and the memory at a glance" }, { id: "find-skill", text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere" }, { id: "new-skill", text: "Did a procedure twice? /new-skill turns it into a skill every harness can load" }, { id: "security-audit", text: "/security-audit gives focused security guidance, or a six-phase audit with findings and a report" }, { id: "doctor", text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes" }, { id: "update", text: "`buracle update` updates Buracle and everything it connects, each part from its own source" }, { id: "rollback", text: "`buracle rollback` undoes the newest install; values you changed by hand always stay yours" }, { id: "config", text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews" }, { id: "companion-review", text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion" }, { id: "one-standard", text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi" }, { id: "mcp-status", text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session" }, { id: "index", text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops" }, { id: "plan-audit", text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes" }, { id: "language", text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English" }] }, import.meta.dir);
+var tui_default = createTuiPlugin({ v: 1, contentHash: "3efd89594fdf8b909b995de48072c746aa4c09d3f58930ca935f9dfc25ecf9e3", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true }, qwen: { enabled: true }, pi: { enabled: true }, agy: { enabled: true } }, routing: { strictness: "enforce", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, planApproval: true, resultApproval: true, branchIsolation: true, questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, checkers: { enabled: true, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, agents: { teams: true }, workflow: { band: true, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { exclude: [] }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [], qwen: [], pi: [], agy: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp", "qwen", "pi", "agy"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode", "qwen", "pi", "agy"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp", "qwen", "pi", "agy"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp", "qwen", "pi", "agy"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp", "qwen", "pi", "agy"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp", "qwen", "pi", "agy"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp", "qwen", "pi", "agy"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp", "qwen", "pi", "agy"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit" }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit" }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit" }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit" }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit" }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit" }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit" }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit" }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit" }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit" }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit" }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit" }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit" }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "none", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], layout: { rows: [["model", "ctx", "windows", "git", "mem", "index", "flow", "plan", "hooks"]], compact: [["ctx", "windows", "git", "mem", "index", "flow", "hooks"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false, native: { slot: "prompt.footer.status" } }, notices: [{ id: "0.8.1-documents-follow-language", since: "0.8.1", until: "0.9.0", message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English." }, { id: "0.8.6-skills-own-folders", since: "0.8.6", until: "0.9.0", message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills." }, { id: "0.8.6-opencode-todos", since: "0.8.6", until: "0.9.0", message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses." }], tips: [{ id: "plan-build", text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first" }, { id: "goal-build", text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them" }, { id: "bugfix", text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix" }, { id: "requirements", text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code" }, { id: "direct-work", text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done" }, { id: "stop-words", text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan" }, { id: "worktree-flag", text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done" }, { id: "research", text: "/research <question> answers from sources it actually read: web, library docs, public code and memory" }, { id: "inspect", text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing" }, { id: "dead-code", text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan" }, { id: "project-rules", text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness" }, { id: "remember", text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share" }, { id: "why-question", text: 'Ask "why did we\u2026" or "what did we decide\u2026": the agent searches the memory before it answers' }, { id: "brain-ui", text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours" }, { id: "brain-review", text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval" }, { id: "aside", text: "/aside <question> answers a side question without derailing the running task" }, { id: "status", text: "/buracle-status shows the active plan, the running workflow and the memory at a glance" }, { id: "find-skill", text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere" }, { id: "new-skill", text: "Did a procedure twice? /new-skill turns it into a skill every harness can load" }, { id: "doctor", text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes" }, { id: "update", text: "`buracle update` updates Buracle and everything it connects, each part from its own source" }, { id: "config", text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews" }, { id: "companion-review", text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion" }, { id: "one-standard", text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi" }, { id: "mcp-status", text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session" }, { id: "index", text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops" }, { id: "plan-audit", text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes" }, { id: "language", text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English" }] }, import.meta.dir);
 export {
   createTuiPlugin,
   tui_default as default

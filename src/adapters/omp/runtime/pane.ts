@@ -1,6 +1,6 @@
 import type { StatusView } from './commands'
 import type { OmpContext } from './types'
-import { hasTui, isMain } from './util'
+import { hasTui, isMain } from '../../shared/pi-family/util'
 
 export const PANE_WIDGET_KEY = 'buracle.pane'
 export const PANE_MAX_LINES = 12

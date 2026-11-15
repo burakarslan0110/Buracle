@@ -56,7 +56,7 @@ export const scriptDeps: ScriptDeps = {
     if (!cfg.autostart) return { state: 'off' }
     const ui = await import('../../memory/ui')
     const { buracleArgv } = await import('../../usage/bar-info')
-    const r = await ui.ensureUi(buracleArgv(), { port: cfg.port })
+    const r = await ui.ensureUi(buracleArgv(), { port: paths.MEMORY_UI_PORT })
     return r === undefined ? { state: 'failed', why: 'it did not answer within 8 s; `buracle mem ui --serve` shows why' } : { state: r.started ? 'started' : 'running', url: r.url }
   },
   addPath: () => {

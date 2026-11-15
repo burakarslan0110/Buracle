@@ -1,7 +1,6 @@
-import type { BuracleConfig } from '../../../core/config'
 import type { ToolKind } from '../../../core/events'
 import type { ReceiptState } from '../../../core/receipt'
-import { emptyReceipt, longTurnText, noteChanges, noteCommand, receiptLine } from '../../../core/receipt'
+import { emptyReceipt, noteChanges, noteCommand, receiptLine } from '../../../core/receipt'
 import { opencodeReceiptChanges } from '../../shared/turn-receipt'
 import type { ToolExecuteAfter, TuiToastVariant } from './types'
 import { asRecord, num } from './util'
@@ -11,7 +10,6 @@ const MAX_TURNS = 64
 export interface TurnReceiptHost {
   now(): number
   post(sid: string, text: string, variant: TuiToastVariant): void
-  notify(title: string, message: string): void
   run(sid: string): string
   log(msg: string, data?: unknown): void
 }
@@ -61,16 +59,13 @@ export class TurnReceipts {
     if (alarm !== undefined) this.host.post(sid, `Buracle: ${alarm}`, 'warning')
   }
 
-  end(sid: string, cfg: Pick<BuracleConfig, 'workflow'>, notify = true): void {
+  end(sid: string): void {
     const t = this.turns.get(sid)
     if (t === undefined) return
     this.turns.set(sid, { receipt: emptyReceipt() })
     const summary = receiptLine(t.receipt)
     if (summary?.warn === true) this.host.post(sid, summary.line, 'warning')
     else if (summary !== undefined) this.host.log('turn receipt', { sid, line: summary.line })
-    if (t.startedAt === undefined || !notify) return
-    const text = longTurnText(this.host.now() - t.startedAt, cfg.workflow.notifyAfterSec, this.host.run(sid))
-    if (text !== undefined) this.host.notify('Buracle', text)
   }
 
   forget(sid: string): void {

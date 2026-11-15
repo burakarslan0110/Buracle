@@ -1,6 +1,7 @@
 import type { CatalogSkill } from '../catalog'
 import type { Harness } from '../events'
-import { detectSignals, isUserText } from './intents'
+import { HARNESSES, harnessProfile, harnessTable } from '../harness/index'
+import { isUserText } from './intents'
 import type { RoutingCategory, RoutingPolicy } from './routing'
 import { parseRouteRef } from './routing'
 import { fold, stripQuoted } from './text'
@@ -204,7 +205,6 @@ export interface PromptRoute {
   load: string[]
   candidates: string[]
   categories: string[]
-  memory: { recall: boolean; write: boolean; cli?: boolean }
   libs?: string[]
 }
 
@@ -225,8 +225,12 @@ const ORDINARY_PARTS = new Set([
 ])
 
 function emptyRoute(): PromptRoute {
-  return { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } }
+  return { invoked: [], load: [], candidates: [], categories: [] }
 }
+
+// `/<id>`, or `/<namespace>:<id>` with a namespace some harness uses (`buracle`, `skill`).
+const SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap(h => harnessProfile(h).skills.invoke.namespace ?? []))]
+const SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join('|')}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`)
 
 function explicitSyntax(text: string, ids: ReadonlySet<string>, invocable: ReadonlySet<string>, h: Harness): { invoked: string[], asked: string[] } {
   const invoked: string[] = []
@@ -236,19 +240,20 @@ function explicitSyntax(text: string, ids: ReadonlySet<string>, invocable: Reado
     const list = native ? invoked : asked
     if (!list.includes(id) && !invoked.includes(id)) list.push(id)
   }
+  const how = harnessProfile(h).skills.invoke
   const trimmed = text.trim()
   for (const m of trimmed.matchAll(/<command-name>\s*\/?(buracle:)?([a-z0-9-]+)\s*<\/command-name>/g)) {
-    if (m[1] !== undefined || invocable.has(m[2] ?? '')) add(m[2], h === 'claude')
+    if (m[1] !== undefined || invocable.has(m[2] ?? '')) add(m[2], how.commandTag)
   }
-  const lead = /^\/(?:(buracle|skill):)?([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed)
+  const lead = SLASH_LEAD.exec(trimmed)
   if (lead && (lead[1] !== undefined || invocable.has(lead[2] ?? ''))) {
     const ns = lead[1]
-    add(lead[2], ns === 'buracle' ? h === 'claude' : ns === 'skill' ? h === 'omp' : h !== 'codex')
+    add(lead[2], ns !== undefined ? how.namespace === ns : how.slash)
   }
   const lead$ = /^\$([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed)
-  if (lead$) add(lead$[1], h === 'codex')
-  if (h === 'codex') for (const m of trimmed.matchAll(/(?:^|\s)\$([a-z0-9][a-z0-9-]*)(?![\w-])/g)) add(m[1], true)
-  if (h === 'opencode') for (const m of trimmed.matchAll(/(?:^|\s)@([a-z0-9][a-z0-9-]*)(?![\w./-])/g)) add(m[1], true)
+  if (lead$) add(lead$[1], how.dollar)
+  if (how.dollar) for (const m of trimmed.matchAll(/(?:^|\s)\$([a-z0-9][a-z0-9-]*)(?![\w-])/g)) add(m[1], true)
+  if (how.at) for (const m of trimmed.matchAll(/(?:^|\s)@([a-z0-9][a-z0-9-]*)(?![\w./-])/g)) add(m[1], true)
   return { invoked, asked }
 }
 
@@ -329,16 +334,12 @@ export function routePrompt(text: string, t: CompiledTriggers, o: RouteOptions):
   const workflow = [...route.invoked, ...route.load].some(id => byId.get(id)?.explicit === true)
   if (!workflow) route.candidates = candidates.slice(0, ROUTE_CAPS.candidates)
 
-  const signals = detectSignals(raw)
-  route.memory = { recall: signals.recall, write: signals.write }
-  if ((signals.recall || signals.write) && !available.has('buracle-memory')) route.memory.cli = true
   const cats: Array<{ id: string, at: number, end: number, lead?: boolean }> = []
   let docs: { id: string, at: number, end: number, lead?: boolean } | undefined
   let libAt = -1
   for (const c of Array.isArray(t.categories) ? t.categories : []) {
     const first = c.servers[0]
     if (first === undefined || !available.has(first)) continue
-    if (c.id === 'memory' && (signals.recall || signals.write)) continue
     if (c.not?.test(f)) continue
     const m = c.topic?.exec(f)
     let at = m?.index ?? -1
@@ -390,22 +391,10 @@ export function utf8Bytes(s: string): number {
 }
 
 function loadHow(h: Harness, id: string, explicit: boolean, file: string | undefined): string {
-  switch (h) {
-    case 'claude':
-      if (!explicit) return `Skill tool, buracle:${id}`
-      return `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}`
-    case 'codex': return `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`
-    case 'opencode': return `skill tool, ${id}`
-    case 'omp': return `read skill://${id}`
-  }
+  return harnessProfile(h).skills.load(id, explicit, file)
 }
 
-const CANDIDATE_HOW: Record<Harness, string> = {
-  claude: 'Skill tool, buracle:<id>',
-  codex: 'read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
-  opencode: 'skill tool',
-  omp: 'read skill://<id>',
-}
+const CANDIDATE_HOW: Record<Harness, string> = harnessTable(p => p.skills.candidateHow)
 
 const CATEGORY_LABEL: Record<string, string> = {
   'library-docs': 'Library docs', 'web-search': 'Web search', 'web-fetch': 'Web pages', 'code-examples': 'Public code examples',
@@ -437,17 +426,6 @@ export function routeText(r: PromptRoute, h: Harness, policy: RoutingPolicy, opt
     lines.push({ must: true, text: opts.attached?.includes(id) === true
       ? `${asked}: its skill is attached to this message; follow it, and treat the rest of the prompt as its input.`
       : `${asked}: load it before any other step and follow it (${loadHow(h, id, explicit, file)}); the rest of the prompt is its input.` })
-  }
-  const mem = r.memory ?? { recall: false, write: false }
-  if (mem.recall) {
-    lines.push({ must: false, text: mem.cli === true
-      ? '- Earlier work: search memory first (`buracle mem search "<query>"`; the memory server is unavailable) and cite the note ids you use.'
-      : '- Earlier work: search memory first (memory_search, then memory_get on the relevant notes) and cite the note ids you use.' })
-  }
-  if (mem.write) {
-    lines.push({ must: false, text: mem.cli === true
-      ? '- The user wants this remembered: save it with `buracle mem remember -- "<text>"` (one fact per note).'
-      : '- The user wants this remembered: memory_search for an existing note, then memory_write one note per fact (or memory_update that note).' })
   }
   const cands = (r.candidates ?? []).slice(0, ROUTE_CAPS.candidates)
   if (cands.length > 0) {

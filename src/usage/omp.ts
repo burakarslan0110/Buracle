@@ -1,89 +1,14 @@
-import { statSync } from 'node:fs'
-import { basename, join } from 'node:path'
 import type { RateWindow } from '../core/status/model'
 import { windowLabel } from '../core/status/model'
-import { isValidSessionId, ompAgentDir } from '../engine/paths'
 import { run, which as whichBin } from '../engine/proc'
-import { localIso, monthDays, monthKeyOf, monthRange } from './month'
-import type { ScanFile, UsageEvent } from './scan'
-import { aggregateMonth, dailySeries, loadStore, saveStore, scanFiles, shortHash } from './scan'
+import { loadStore, saveStore } from './scan'
 import type { CollectOptions, Runner, UsageCacheEntry } from './types'
-
-export type OmpCarry = Record<string, never>
 
 export const OMP_USAGE_TTL_MS = 5 * 60_000
 const OMP_USAGE_TIMEOUT_MS = 8_000
 
-function num(x: unknown): number {
-  return typeof x === 'number' && Number.isFinite(x) && x > 0 ? x : 0
-}
-
 function obj(x: unknown): Record<string, unknown> | undefined {
   return x !== null && typeof x === 'object' && !Array.isArray(x) ? x as Record<string, unknown> : undefined
-}
-
-export function parseOmpLine(line: string, _carry: OmpCarry): UsageEvent[] | undefined {
-  if (!line.includes('"usage"')) return undefined
-  const o = JSON.parse(line) as Record<string, unknown>
-  let u: Record<string, unknown> | undefined
-  let model: unknown
-  let provider: unknown
-  let tsAlt: unknown
-  if (o['type'] === 'message') {
-    const m = obj(o['message'])
-    if (m === undefined || m['role'] !== 'assistant') return undefined
-    u = obj(m['usage'])
-    model = m['model']
-    provider = m['provider']
-    tsAlt = m['timestamp']
-  } else if (o['type'] === 'model_usage') {
-    u = obj(o['usage'])
-    model = o['model']
-    provider = o['provider']
-  } else return undefined
-  if (u === undefined || typeof model !== 'string' || model === '') return undefined
-  let ts = Date.parse(String(o['timestamp']))
-  if (!Number.isFinite(ts) && typeof tsAlt === 'number') ts = tsAlt
-  if (!Number.isFinite(ts)) return undefined
-  const ev: UsageEvent = {
-    ts,
-    model: typeof provider === 'string' && provider !== '' ? `${provider}/${model}` : model,
-    priceModel: model,
-    input: num(u['input']),
-    output: num(u['output']),
-    cacheRead: num(u['cacheRead']),
-    cacheWrite: num(u['cacheWrite']),
-  }
-  if (num(u['totalTokens']) > 0) ev.tokens = num(u['totalTokens'])
-  const cost = num(obj(u['cost'])?.['total'])
-  if (cost > 0) ev.costUsd = cost
-  if (ev.input + ev.output + ev.cacheRead + ev.cacheWrite === 0 && ev.tokens === undefined) return undefined
-  ev.key = shortHash(`${String(o['id'])}|${String(o['timestamp'])}|${model}|${num(u['totalTokens'])}`)
-  return [ev]
-}
-
-export function ompSessionOf(path: string): string | undefined {
-  const name = basename(path, '.jsonl')
-  const sid = name.slice(name.indexOf('_') + 1)
-  return name.includes('_') && isValidSessionId(sid) ? sid : undefined
-}
-
-export function ompSessionFiles(root = join(ompAgentDir(), 'sessions')): ScanFile[] {
-  const out: ScanFile[] = []
-  let paths: string[]
-  try {
-    paths = [...new Bun.Glob('**/*.jsonl').scanSync({ cwd: root, absolute: true, onlyFiles: true, followSymlinks: false })]
-  } catch {
-    return out
-  }
-  for (const path of paths) {
-    try {
-      const st = statSync(path)
-      const session = ompSessionOf(path)
-      out.push({ path, order: st.birthtimeMs > 0 ? st.birthtimeMs : st.mtimeMs, ...(session !== undefined ? { session } : {}) })
-    } catch {  }
-  }
-  return out
 }
 
 const LABEL_BY_ID: Readonly<Record<string, string>> = {
@@ -141,10 +66,8 @@ export function windowsFromOmpUsage(payload: unknown, nowMs: number): RateWindow
 const defaultRunner: Runner = (argv, opts) => run(argv, { timeoutMs: opts.timeoutMs })
 
 export async function collectOmp(opts: CollectOptions): Promise<UsageCacheEntry> {
-  const ym = opts.month ?? monthKeyOf(opts.nowMs)
   const notes: string[] = []
-  const store = loadStore<OmpCarry>('omp')
-  await scanFiles(store, { files: ompSessionFiles(), parse: parseOmpLine, initCarry: () => ({}), nowMs: opts.nowMs })
+  const store = loadStore<never>('omp')
 
   const cached = obj(store.meta['quota'])
   let payload: unknown = cached?.['payload']
@@ -165,19 +88,12 @@ export async function collectOmp(opts: CollectOptions): Promise<UsageCacheEntry>
   }
   saveStore(store)
 
-  const agg = aggregateMonth(store, ym, opts.pricing)
   const all = payload === undefined ? [] : windowsFromOmpUsage(payload, opts.nowMs)
-  const monthly = all.find(w => w.label === '30d')
   const entry: UsageCacheEntry = {
     harness: 'omp',
     computed_at: new Date(opts.nowMs).toISOString(),
     windows: all.filter(w => w.label !== '30d'),
-    month: { start: localIso(monthRange(ym).startMs), tokens: agg.tokens, byModel: agg.byModel },
-    month_key: ym,
-    days: dailySeries(store, monthDays(ym, opts.nowMs), opts.pricing),
   }
-  if (agg.usd !== undefined) entry.month.usd = agg.usd
-  if (monthly !== undefined) entry.month_pct = monthly.pct
   if (notes.length > 0) entry.notes = notes
   return entry
 }

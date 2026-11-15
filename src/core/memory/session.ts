@@ -13,6 +13,13 @@ export interface MemSessionRecord {
   startedMs: number
   branch?: string
   commitStart?: string
+  /**
+   * The changes that were already in the working tree when the session started: path (relative to the repository root)
+   * to a size:mtime fingerprint. The session's file list leaves out a path whose fingerprint is still the same.
+   */
+  baseline?: Record<string, string>
+  /** The files that differed from the session's first commit when it ended, as git listed them. */
+  files?: string[]
   status: 'active' | 'ended'
   finalizedMs?: number
   stats?: MemSessionStats
@@ -37,18 +44,13 @@ export interface MemSessionStats {
   endedMs?: number
   prompts: number
   turns: number
-  tools: number
-  commands: number
   files: number
-  tests: number
-  testFailures: number
   tokens?: number
   model?: string
   commits?: number
   filesChanged?: number
   insertions?: number
   deletions?: number
-  topTools?: Array<[string, number]>
 }
 
 export function memDiffstatCounts(stat: string | undefined): { filesChanged?: number, insertions?: number, deletions?: number } {
@@ -63,19 +65,13 @@ export function memDiffstatCounts(stat: string | undefined): { filesChanged?: nu
   return out
 }
 
-export const MEM_SESSION_TOP_TOOLS = 8
-
-export function memSessionStats(d: SpoolDigest, git?: { commits: number, diffstat?: string }): MemSessionStats {
-  const s: MemSessionStats = {
-    prompts: d.prompts, turns: d.turns, tools: d.tools, commands: d.commands, files: d.files.length,
-    tests: d.tests.runs, testFailures: d.tests.failures,
-  }
+/** `files` is the list git gave at the session end: the spool no longer records tool calls. */
+export function memSessionStats(d: SpoolDigest, files: readonly string[], git?: { commits: number, diffstat?: string }): MemSessionStats {
+  const s: MemSessionStats = { prompts: d.prompts, turns: d.turns, files: files.length }
   if (d.endedMs !== undefined) s.endedMs = d.endedMs
   if (d.tokens > 0) s.tokens = d.tokens
   if (d.model !== undefined) s.model = d.model
   if (git !== undefined) Object.assign(s, { commits: git.commits }, memDiffstatCounts(git.diffstat))
-  const top = Object.entries(d.toolCounts).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, MEM_SESSION_TOP_TOOLS)
-  if (top.length > 0) s.topTools = top
   return s
 }
 
@@ -99,17 +95,12 @@ export function memSessionAreas(files: readonly string[]): string[] {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([a]) => a)
 }
 
-export function memSessionOutcome(d: SpoolDigest | undefined, extra: { commits?: string[] } = {}): string | undefined {
-  if (d === undefined) return undefined
+export function memSessionOutcome(files: readonly string[], extra: { commits?: string[] } = {}): string | undefined {
   const parts: string[] = []
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
-  if (d.files.length > 0) {
-    const areas = memSessionAreas(d.files).slice(0, 3)
-    parts.push(`changed ${plural(d.files.length, 'file')}${areas.length > 0 ? ` (${areas.join(', ')})` : ''}`)
-  }
-  if (d.tests.runs > 0) {
-    const last = d.lastTestExit === undefined ? '' : d.lastTestExit === 0 ? ', the last one passed' : ', the last one failed'
-    parts.push(`ran tests ${d.tests.runs === 1 ? 'once' : `${d.tests.runs} times`}${last}`)
+  if (files.length > 0) {
+    const areas = memSessionAreas(files).slice(0, 3)
+    parts.push(`changed ${plural(files.length, 'file')}${areas.length > 0 ? ` (${areas.join(', ')})` : ''}`)
   }
   const commits = extra.commits?.length ?? 0
   if (commits > 0) parts.push(plural(commits, 'commit'))
@@ -121,7 +112,7 @@ export function memSessionTitle(harness: string, startedMs: number, offsetMin: n
   return t !== '' ? `${harness} session: ${t}` : `${harness} session ${memLocalDate(startedMs, offsetMin)} ${memLocalTime(startedMs, offsetMin)}`
 }
 
-export function memSessionBody(input: { startedMs: number, endedMs?: number, offsetMin: number, branch?: string }, d: SpoolDigest | undefined, extra: { commits?: string[], diffstat?: string, summary?: string } = {}): string {
+export function memSessionBody(input: { startedMs: number, endedMs?: number, offsetMin: number, branch?: string }, d: SpoolDigest | undefined, extra: { commits?: string[], diffstat?: string, summary?: string, files?: readonly string[] } = {}): string {
   const lines: string[] = []
   const summary = extra.summary ?? d?.finalMessage
   if (summary !== undefined && summary.trim() !== '') lines.push('Summary:', summary.trim())
@@ -133,20 +124,12 @@ export function memSessionBody(input: { startedMs: number, endedMs?: number, off
   const end = input.endedMs ?? d?.endedMs
   if (end !== undefined) log.push(`- Time: ${memLocalDate(input.startedMs, input.offsetMin)} ${memLocalTime(input.startedMs, input.offsetMin)}-${memLocalTime(end, input.offsetMin)} (${duration(end - input.startedMs)})`)
   if (input.branch !== undefined) log.push(`- Branch: ${input.branch}`)
-  if (d !== undefined) {
-    if (d.files.length > 0) {
-      const shown = d.files.slice(-25).map(f => `\`${f.replace(/`/g, "'")}\``).join(', ')
-      log.push(`- Files touched (${d.files.length}): ${shown}${d.files.length > 25 ? ', ...' : ''}`)
-    }
-    if (d.commands > 0) {
-      const tests = d.tests.runs > 0 ? `; test runs: ${d.tests.runs}${d.tests.failures > 0 ? ` (${d.tests.failures} failed)` : ''}` : ''
-      log.push(`- Commands: ${d.commands}${tests}`)
-    }
-    if (d.failures.length > 0) {
-      log.push(`- Failed commands: ${d.failures.slice(-5).map(f => `\`${memClip(memOneLine(f.cmd), 80).replace(/`/g, "'")}\` (exit ${f.exit})`).join(', ')}`)
-    }
-    if (d.turns > 0 || d.prompts > 0) log.push(`- Turns: ${Math.max(d.turns, d.prompts)}${d.tools > 0 ? `; tool calls: ${d.tools}` : ''}`)
+  const files = extra.files ?? []
+  if (files.length > 0) {
+    const shown = files.slice(-25).map(f => `\`${f.replace(/`/g, "'")}\``).join(', ')
+    log.push(`- Files touched (${files.length}): ${shown}${files.length > 25 ? ', ...' : ''}`)
   }
+  if (d !== undefined && (d.turns > 0 || d.prompts > 0)) log.push(`- Turns: ${Math.max(d.turns, d.prompts)}`)
   if (extra.commits !== undefined && extra.commits.length > 0) {
     log.push(`- Commits (${extra.commits.length}): ${extra.commits.slice(0, 10).map(c => memClip(memOneLine(c), 90)).join('; ')}`)
   }

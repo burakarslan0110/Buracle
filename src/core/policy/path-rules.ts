@@ -27,7 +27,7 @@ export function pathRuleIndex(rules: ReadonlyArray<{ id: string, scope: string, 
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
-const ABSOLUTE = /^(?:\/|[A-Za-z]:\/)/
+const ABSOLUTE = /^\//
 
 function slashes(p: string): string {
   return p.replace(/\\/g, '/')
@@ -62,7 +62,7 @@ export function projectRelative(file: string, base: { root?: string, cwd?: strin
     const rel = under(f, dir, ci)
     if (rel !== undefined) return withoutDot(rel)
   }
-  return f.replace(/^[A-Za-z]:/, '').replace(/^\/+/, '')
+  return f.replace(/^\/+/, '')
 }
 
 export function matchPathRules(relPath: string, rules: readonly PathRuleIndex[]): string[] {

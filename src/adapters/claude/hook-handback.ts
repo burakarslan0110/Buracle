@@ -42,7 +42,7 @@ export function handedBack(sid: string, agentId: string | undefined): boolean {
 }
 
 export function handbackNote(agent: string, problems: readonly string[]): string {
-  return `Buracle H19 (review.gate): your report as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}), so it was not delivered. ` +
+  return `Buracle H19: your report as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}), so it was not delivered. ` +
     `Call ${HANDBACK_TOOL} again with a message that is exactly one JSON object following the output schema in your instructions, with no text or code fence around it.`
 }
 

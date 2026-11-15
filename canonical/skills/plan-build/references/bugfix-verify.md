@@ -6,11 +6,11 @@ As in [verify.md](verify.md): every code fix, review findings included, lands be
 
 ## BV0. Setup
 
-Same as [verify.md](verify.md) V0: status COMPLETE, phase `verify`, `buracle flow phase verify`, re-read the plan, `buracle review-scope --json` (with `--slug <slug>` in a worktree run), resolve any `warning`, run `buracle plan audit --json` and explain every changed file. Track BV1 to BV9 in {{todo}}.
+Same as [verify.md](verify.md) V0: status COMPLETE, phase `verify`, `buracle flow phase verify`, re-read the plan, `buracle review-scope --json` (with `--slug <slug>` in a worktree run), resolve any `warning`, run `buracle plan audit --json` and explain every changed file. Track BV1 to BV9 in your todo tool.
 
 ## BV1. Launch the changes review
 
-Launch {{agent:changes-review}} with {{spawn_agent}} as in [verify.md](verify.md) V1, and add `focus: the fix at <root-cause path:line> and the Unchanged behaviors of the behavior contract`, with the `## RED Evidence` lines in `evidence`. Bugfixes always get a review: `plan.reviews.changes` does not apply here. Record it with `buracle plan review start` and, after BV4, `buracle plan review done` as in [verify.md](verify.md) V1 and V3. Continue with BV2 and BV3 while it runs.
+Launch the `changes-review` agent with your subagent tool as in [verify.md](verify.md) V1, and add `focus: the fix at <root-cause path:line> and the Unchanged behaviors of the behavior contract`, with the `## RED Evidence` lines in `evidence`. Bugfixes always get a review: `plan.reviews.changes` does not apply here. Record it with `buracle plan review start` and, after BV4, `buracle plan review done` as in [verify.md](verify.md) V1 and V3. Continue with BV2 and BV3 while it runs.
 
 ## BV2. Prove the fix is real
 

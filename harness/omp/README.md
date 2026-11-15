@@ -18,8 +18,6 @@ and `src/adapters/omp/`; do not edit it by hand. Change the sources and run `bur
     consent (H20). While `permissions.enforce` is on, a changed value is written back on the next install
     or sync (with a warning; uninstall restores the value it replaced), and `buracle doctor omp` reports it.
   - `tools.xdev: false`: MCP tools are top-level tools the model sees, not `xd://` devices it must look up.
-  - `defaultThinkingLevel` from config `effort.omp` (`auto` writes `xhigh`, `keep` writes nothing). A level
-    you set yourself is kept. A `:level` suffix on `modelRoles.default` overrides it (`buracle doctor omp` says so).
   - `memory.backend: off` and `enabledProviders: []`.
 - `~/.omp/agent/AGENTS.md`: a short managed block that points to the plugin (the rules ship in the plugin).
 
@@ -33,8 +31,8 @@ Skills are not in this package: `buracle install` links the shared neutral rende
   (H06, H07), the stop guard and the turn-end routing check (H08, H11, H23), intents and the prompt router
   (H10, H22), the memory index, capability card and workspace lines (H13, H15, H21), session capture and the
   finalizer (H14), maintenance (H16), the profile guard (H17), telemetry and the status texts (H18:
-  `buracle.budget`, `buracle.mem`, and the status band below the editor), the review-report check of the
-  review agents (H19), workflow tracking (H25) and profile signals (H26). When a handler fails, the tool call
+  `buracle.mem`, and the status band below the editor), the review-report check of the
+  review agents (H19), workflow tracking (H25) and profile signals. When a handler fails, the tool call
   is allowed and the error goes to the log; only the H01 and H02 guards fail closed.
 - The running workflow shows above the editor (widget `buracle.flow`, `workflow.band`): its phases, progress
   and current step.
@@ -42,8 +40,8 @@ Skills are not in this package: `buracle install` links the shared neutral rende
   `/remember <text>` (a note in the memory inbox), `/brain` (starts and opens the Buracle Console) and
   `/buracle-ping` (answers `buracle: pong`); `/aside <question>` asks a read-only side question (one side
   turn of the model, never added to the session, like omp's own `/btw`).
-- `rules/`: always-on rules, and path rules injected when matching files are edited (TTSR): `buracle-backend.md`, `buracle-blazor.md`, `buracle-browser-automation.md`, `buracle-core.md`, `buracle-dotnet.md`, `buracle-explain.md`, `buracle-frontend.md`, `buracle-go.md`, `buracle-memory.md`, `buracle-mobile.md`, `buracle-python.md`, `buracle-tooling.md`, `buracle-typescript.md`.
-- `commands/`: one workflow command per user-invocable skill: `/ab-test`, `/bugfix`, `/buracle-join`, `/dead-code`, `/find-skill`, `/goal-build`, `/inspect`, `/new-skill`, `/plan-build`, `/project-rules`, `/requirements`, `/research`, `/security-audit`.
+- `rules/`: always-on rules, and path rules injected when matching files are edited (TTSR): `buracle-backend.md`, `buracle-blazor.md`, `buracle-core.md`, `buracle-dotnet.md`, `buracle-explain.md`, `buracle-frontend.md`, `buracle-go.md`, `buracle-memory.md`, `buracle-python.md`, `buracle-tooling.md`, `buracle-typescript.md`.
+- `commands/`: one workflow command per user-invocable skill: `/ab-test`, `/bugfix`, `/dead-code`, `/find-skill`, `/goal-build`, `/inspect`, `/new-skill`, `/plan-build`, `/project-rules`, `/requirements`, `/research`.
 - `agents/`: read-only review agents `changes-review`, `goal-build-review`, `plan-build-review`.
 - `.mcp.json`: pinned MCP servers `buracle-memory`, `codegraph`, `context7`, `grep`, `semble`, `web-fetch`, `web-search`. `chrome-devtools` is left out because omp drops browser MCP servers while its built-in browser is on.
 

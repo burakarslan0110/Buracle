@@ -1,3 +1,4 @@
+import { harnessesWhere, harnessProfile, type Harness } from '../../core/harness/index'
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { isFailClosedReason } from '../hook-fail'
@@ -172,17 +173,27 @@ function copyRuntime(plan: RuntimePlan, dest: string): string {
   return sha256(parts.join(''))
 }
 
-function probePayload(harness: 'claude' | 'codex', command: string): string {
-  const base = { session_id: 'buracle-runtime-probe', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, cwd: paths.home(), permission_mode: 'bypassPermissions' }
+// The harnesses whose hooks are `buracle hook <harness> <event>` processes: the ones a probe can run.
+const COMMAND_HOOK_HARNESSES: readonly Harness[] = harnessesWhere(p => p.runtime === 'command' && p.adapterPending !== true)
+
+function probePayload(harness: Harness, command: string): string {
+  // The harness's primary shell tool: the first entry of its profile that is a shell.
+  const shell = Object.entries(harnessProfile(harness).tools.kinds).find(([, kind]) => kind === 'bash')?.[0] ?? 'Bash'
+  // `conversationId` and `toolCall` are the camelCase spelling of the same call, for the hosts (AGY) that send that one.
+  const base = {
+    session_id: 'buracle-runtime-probe', hook_event_name: 'PreToolUse', tool_name: shell, tool_input: { command }, cwd: paths.home(), permission_mode: 'bypassPermissions',
+    conversationId: 'buracle-runtime-probe', hookEventName: 'PreToolUse', toolCall: { id: 'probe', name: shell, args: { CommandLine: command } },
+  }
   return JSON.stringify(harness === 'codex' ? { ...base, turn_id: 't0', transcript_path: null, model: 'probe', tool_use_id: 'probe' } : base)
 }
 
-const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1', BURACLE_HOOK_TIMEOUT_MS: undefined }
+const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_HOOK_TIMEOUT_MS: undefined }
 
 function decisionOf(stdout: string): { decision?: unknown, reason?: unknown } {
   try {
-    const o = JSON.parse(stdout) as { hookSpecificOutput?: { permissionDecision?: unknown, permissionDecisionReason?: unknown } }
-    return { decision: o.hookSpecificOutput?.permissionDecision, reason: o.hookSpecificOutput?.permissionDecisionReason }
+    const o = JSON.parse(stdout) as { decision?: unknown, reason?: unknown, hookSpecificOutput?: { permissionDecision?: unknown, permissionDecisionReason?: unknown } }
+    // The answer is Claude's shape, or the flat `{decision, reason}` of the hosts (AGY) that deny that way.
+    return { decision: o.hookSpecificOutput?.permissionDecision ?? o.decision, reason: o.hookSpecificOutput?.permissionDecisionReason ?? o.reason }
   } catch { return {} }
 }
 
@@ -191,7 +202,7 @@ export async function verifyRuntime(main: string, bun: string, timeoutMs = 30_00
   const first = (s: string) => (s.trim().split('\n')[0] ?? '').slice(0, 200)
   const v = await run([bun, main, '--version'], { timeoutMs, cwd: paths.home(), env: PROBE_ENV })
   if (v.code !== 0 || !/^buracle \S+/.test(v.stdout.trim())) problems.push(`\`buracle --version\` failed (exit ${v.code}${v.stderr.trim() !== '' ? `: ${first(v.stderr)}` : ''})`)
-  for (const h of ['claude', 'codex'] as const) {
+  for (const h of COMMAND_HOOK_HARNESSES) {
     const deny = await run([bun, main, 'hook', h, 'PreToolUse'], { stdin: probePayload(h, 'rm -rf ~'), timeoutMs, cwd: paths.home(), env: PROBE_ENV })
     const d = decisionOf(deny.stdout)
     if (d.decision !== 'deny') problems.push(`the ${h} PreToolUse hook did not deny \`rm -rf ~\` (exit ${deny.code}${deny.timedOut ? ', timed out' : ''}${deny.stderr.trim() !== '' ? `: ${first(deny.stderr)}` : ''})`)
@@ -200,7 +211,7 @@ export async function verifyRuntime(main: string, bun: string, timeoutMs = 30_00
     const a = decisionOf(allow.stdout)
     if (allow.code !== 0 || a.decision === 'deny') problems.push(`the ${h} PreToolUse hook did not let \`ls\` through (exit ${allow.code}${a.reason !== undefined ? `: ${String(a.reason).slice(0, 300)}` : ''})`)
   }
-  for (const h of ['claude', 'codex'] as const) {
+  for (const h of COMMAND_HOOK_HARNESSES) {
     try { rmSync(paths.sessionDir(h, 'buracle-runtime-probe'), { recursive: true, force: true }) } catch {  }
   }
   return problems

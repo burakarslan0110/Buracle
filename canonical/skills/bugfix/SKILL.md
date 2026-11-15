@@ -18,7 +18,7 @@ short-description: Reproduce, root-cause, RED test, fix at the source, prove it 
 
 # Bugfix
 
-Own one defect from report to proven fix without a plan file. Use {{skill:plan-build}} instead when the user wants a reviewed plan and an approval gate before code, and {{skill:goal-build}} for new behavior.
+Own one defect from report to proven fix without a plan file. Use the `plan-build` skill instead when the user wants a reviewed plan and an approval gate before code, and the `goal-build` skill for new behavior.
 
 No plan is registered, so no stop guard holds this run open: you keep it going yourself until *Done means* is satisfied or a real blocker stops you.
 
@@ -35,7 +35,7 @@ No plan is registered, so no stop guard holds this run open: you keep it going y
 
 ## Lanes
 
-Lanes follow the *Parallel agents* rule; each is a read-only agent you launch with {{spawn_agent}}. RED, the fix and the proof stay in your session, because one variable changes at a time.
+Lanes follow the *Parallel agents* rule; each is a read-only agent you launch with your subagent tool. RED, the fix and the proof stay in your session, because one variable changes at a time.
 
 | Phase | Lanes | Each lane returns | Then you |
 |---|---|---|---|
@@ -44,8 +44,8 @@ Lanes follow the *Parallel agents* rule; each is a read-only agent you launch wi
 
 ## Setup
 
-1. {{todo}}: Investigate · RED · Fix · Prove · Quality gate · Finish. Start the progress record: `buracle flow start bugfix --title "<symptom>"` (see *Progress*).
-2. Where to work. Strip `--worktree`, `--new-branch` or `--current-branch` from the bug text; a flag is the answer. Without one, read `buracle config get plan` once (assume the shipped defaults when it fails). If `branchIsolation` is `true` and `questions` is not `false`, ask once with {{ask_user}}, recommending by risk (a one-line fix on a clean tree: current branch; a fix that touches several modules or a dirty tree: worktree). Isolation off and no flag: work on the current branch without asking. Questions off (`plan.questions: false`): take the recommendation by risk without asking and name it in the report. `<slug>` is two to four English kebab-case words from the symptom, in ASCII whatever language the user writes in.
+1. Your todo tool: Investigate · RED · Fix · Prove · Quality gate · Finish. Start the progress record: `buracle flow start bugfix --title "<symptom>"` (see *Progress*).
+2. Where to work. Strip `--worktree`, `--new-branch` or `--current-branch` from the bug text; a flag is the answer. Without one, read `buracle config get plan` once (assume the shipped defaults when it fails). If `branchIsolation` is `true` and `questions` is not `false`, ask once with your structured-question tool, recommending by risk (a one-line fix on a clean tree: current branch; a fix that touches several modules or a dirty tree: worktree). Isolation off and no flag: work on the current branch without asking. Questions off (`plan.questions: false`): take the recommendation by risk without asking and name it in the report. `<slug>` is two to four English kebab-case words from the symptom, in ASCII whatever language the user writes in.
    - **Current branch:** nothing to set up.
    - **New branch:** `buracle worktree branch <slug> --prefix bugfix --json` before editing. It switches to `bugfix/<slug>` (or `-2` and so on when that name is taken) from the current HEAD and records the base, so the review diffs only this fix. Uncommitted changes come along; mention them in the report. Use the branch it prints from here on, in the commit and the report.
    - **Worktree, squash-merged once the fix is proven:** `buracle worktree create <slug> --prefix bugfix --json`, then make every edit and run every command under the `path` it prints. Its warning that no plan was marked, or that the session's plan was left untouched, is expected: bugfix has no plan file. The merge happens in Finish.
@@ -100,7 +100,7 @@ src/billing/total.ts:27 — sumItems loops while i < items.length - 1, so the la
 
 ## Talking to the user
 
-Reply in the language the user writes in. Ask only where to work (Setup), for missing reproduction details, an environment blocker, a fix that needs a product decision, and the end question in Finish. `plan.questions: false` drops only the where-to-work question; the others stop the run on a real blocker or a decision that is the user's, so they stay. Use {{ask_user}} with 2 to 4 concrete options, your recommendation first; if it is unavailable, ask in plain text with numbered options and end the turn.
+Reply in the language the user writes in. Ask only where to work (Setup), for missing reproduction details, an environment blocker, a fix that needs a product decision, and the end question in Finish. `plan.questions: false` drops only the where-to-work question; the others stop the run on a real blocker or a decision that is the user's, so they stay. Use your structured-question tool with 2 to 4 concrete options, your recommendation first; if it is unavailable, ask in plain text with numbered options and end the turn.
 
 Go by the meaning of the reply, in whatever language it comes:
 
@@ -128,9 +128,7 @@ Never ask whether to continue between phases; just continue.
 | Long test, build or log output | the shell with the output narrowed, keeping every failure and error with its full message | none |
 
 Use codegraph whenever the path leaves the code you have already read; skip it while the defect is confined to one function you fully understand. An empty search result is not proof of absence. If a server is down, use the fallback and say so in the report.
-<!-- harness:omp -->
-omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp's built-in browser tool.
-<!-- /harness -->
+Where the harness has a built-in browser tool and no chrome-devtools server, use that tool wherever this skill says chrome-devtools.
 
 ## When things go wrong
 

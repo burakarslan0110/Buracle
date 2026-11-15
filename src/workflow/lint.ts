@@ -1,3 +1,4 @@
+import { HARNESSES, type Harness } from '../core/harness/index'
 import { existsSync } from 'node:fs'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { checkMention, findMentions } from './cli-contract'
@@ -117,7 +118,7 @@ export function checkPlaceholders(file: string, scan: MarkdownScan, targets: Pla
   return out
 }
 
-export const HARNESS_NAMES = ['claude', 'codex', 'opencode', 'omp'] as const
+export const HARNESS_NAMES: readonly Harness[] = HARNESSES
 
 export function checkHarnessBlocks(file: string, scan: MarkdownScan, allowed: boolean, where: string): LintFinding[] {
   const out: LintFinding[] = []

@@ -14,15 +14,6 @@ export function brainBackupDir(id: string): string {
   return join(brainBackupsDir(), id)
 }
 
-// What Buracle 0.5 left: one CortexDB file per layer. `buracle mem migrate` folds them into brain.db and moves them aside.
-export function legacyPersonDbFile(): string { return join(brainDir(), 'person.db') }
-export function legacyProjectsDir(): string { return join(brainDir(), 'projects') }
-export function legacyAbsorbedDir(): string { return join(brainDir(), 'absorbed') }
-export function legacyBrainDir(): string { return join(brainDir(), 'legacy-0.5') }
-export function legacyStateDir(): string { return join(memStateDir(), 'legacy-0.5') }
-export function legacyProfileDir(): string { return join(memStateDir(), 'profile') }
-export function preMigrateDir(stamp: string): string { return join(brainBackupsDir(), `pre-migrate-${stamp}`) }
-
 export function memStateDir(): string { return paths.memoryStateDir() }
 export function spoolDir(): string { return join(memStateDir(), 'spool') }
 export function spoolDoneDir(): string { return join(spoolDir(), 'done') }
@@ -32,7 +23,6 @@ export function statusFile(slug?: string): string {
   return join(statusDir(), `${slug ?? '_global'}.json`)
 }
 export function eventsFile(): string { return join(memStateDir(), 'events.jsonl') }
-export function vaultImportFile(): string { return join(memStateDir(), 'vault-import.json') }
 export function projectsFile(): string { return join(memStateDir(), 'projects.json') }
 export function locksDir(): string { return join(memStateDir(), 'locks') }
 /** The lock of one bucket (`person` or `project:<slug>`): projects do not wait for each other. */
@@ -40,8 +30,6 @@ export function brainLockFile(bucket: string): string {
   if (bucket !== 'person' && !(bucket.startsWith('project:') && memIsSlug(bucket.slice('project:'.length)))) throw new Error(`not a bucket: ${JSON.stringify(bucket)}`)
   return join(locksDir(), `brain-${bucket.replace(':', '-')}.lock`)
 }
-export function migrationFile(): string { return join(memStateDir(), 'migration.json') }
-export function migrationLockFile(): string { return join(locksDir(), 'migrate.lock') }
 export function brainHoldFile(db: string): string { return join(locksDir(), `restore-${sha256(db).slice(0, 16)}.lock`) }
 export function cortexChildrenDir(): string { return join(memStateDir(), 'cortex') }
 export function cortexChildFile(db: string, pid: number): string { return join(cortexChildrenDir(), `${sha256(db).slice(0, 16)}-${pid}.json`) }

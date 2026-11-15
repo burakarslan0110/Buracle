@@ -16,7 +16,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -52,7 +55,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -77,7 +83,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -101,7 +110,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -118,7 +130,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "monitor",
         "critical": false,
@@ -145,7 +160,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": true,
@@ -171,7 +189,10 @@
         "harnesses": [
           "claude",
           "codex",
-          "opencode"
+          "opencode",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "latest",
         "critical": false,
@@ -192,7 +213,10 @@
           "claude",
           "codex",
           "opencode",
-          "omp"
+          "omp",
+          "qwen",
+          "pi",
+          "agy"
         ],
         "pin": "hard",
         "critical": true,
@@ -228,28 +252,6 @@
           "language-server"
         ]
       }
-    }
-  },
-  "plugins": {
-    "claude": {
-      "marketplaces": [
-        {
-          "id": "claude-plugins-official",
-          "source": "anthropics/claude-plugins-official"
-        }
-      ],
-      "plugins": [],
-      "retired": [
-        "pyright-lsp@claude-plugins-official",
-        "typescript-lsp@claude-plugins-official",
-        "gopls-lsp@claude-plugins-official"
-      ]
-    },
-    "omp": {
-      "plugins": []
-    },
-    "opencode": {
-      "plugins": []
     }
   },
   "tools": {
@@ -1033,30 +1035,12 @@
       "dir": "skills/buracle",
       "frontmatter": {
         "name": "buracle",
-        "description": "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
-        "when_to_use": "Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; notifying the user; checking rate-limit headroom; diagnosing Buracle.",
+        "description": "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
+        "when_to_use": "Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; checking rate-limit headroom; diagnosing Buracle.",
         "invocation": "implicit",
         "user-invocable": false,
         "mcp": [],
         "short-description": "When and how to call the buracle helper CLI"
-      }
-    },
-    {
-      "id": "buracle-join",
-      "dir": "skills/buracle-join",
-      "frontmatter": {
-        "name": "buracle-join",
-        "description": "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one or wait for it. The lead merges and ticks the plan. Run only when the user asks to join a board.",
-        "when_to_use": "The user invokes /buracle-join <slug> ($buracle-join <slug> in Codex) in a terminal of the same repository, or accepts Buracle's offer at session start that a board has tasks ready for a worker.",
-        "invocation": "explicit",
-        "argument-hint": "<slug> [--task <n>]",
-        "mcp": [
-          "semble",
-          "codegraph",
-          "context7",
-          "buracle-memory"
-        ],
-        "short-description": "Take and finish tasks of a shared plan board as a worker"
       }
     },
     {
@@ -1245,22 +1229,6 @@
         ],
         "short-description": "Cited, MCP-backed research across web, library docs, public code and memory"
       }
-    },
-    {
-      "id": "security-audit",
-      "dir": "skills/security-audit",
-      "frontmatter": {
-        "name": "security-audit",
-        "description": "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.",
-        "when_to_use": "\"security audit\", \"audit this codebase\", \"pen test\", \"find vulnerabilities\", \"security review\", or a question about a trust boundary, authentication, injection, secrets or the supply chain.",
-        "invocation": "implicit",
-        "argument-hint": "[<path or scope>] [quick|standard|deep] [output to <dir>]",
-        "mcp": [
-          "semble",
-          "codegraph"
-        ],
-        "short-description": "Cloudflare's security-audit skill, Buracle's default security review"
-      }
     }
   ],
   "agents": [
@@ -1410,30 +1378,6 @@
       }
     },
     {
-      "id": "browser-automation",
-      "scope": "paths",
-      "file": "rules/paths/browser-automation.md",
-      "frontmatter": {
-        "paths": [
-          "**/*.tsx",
-          "**/*.jsx",
-          "**/*.vue",
-          "**/*.svelte",
-          "**/*.astro",
-          "**/*.html",
-          "**/*.css",
-          "**/*.scss",
-          "**/*.razor",
-          "**/e2e/**",
-          "**/playwright/**",
-          "**/cypress/**",
-          "**/__tests__/**",
-          "**/playwright.config.*",
-          "**/cypress.config.*"
-        ]
-      }
-    },
-    {
       "id": "dotnet",
       "scope": "paths",
       "file": "rules/paths/dotnet.md",
@@ -1484,28 +1428,6 @@
       }
     },
     {
-      "id": "mobile",
-      "scope": "paths",
-      "file": "rules/paths/mobile.md",
-      "frontmatter": {
-        "paths": [
-          "**/capacitor.config.*",
-          "**/ionic.config.json",
-          "**/android/app/build.gradle*",
-          "**/android/app/src/main/AndroidManifest.xml",
-          "**/*.xcodeproj/project.pbxproj",
-          "**/*.xcworkspace/contents.xcworkspacedata",
-          "**/Podfile",
-          "**/pubspec.yaml",
-          "**/react-native.config.*",
-          "**/metro.config.*",
-          "**/expo.json",
-          "**/eas.json",
-          "**/app.config.{js,ts}"
-        ]
-      }
-    },
-    {
       "id": "python",
       "scope": "paths",
       "file": "rules/paths/python.md",
@@ -1541,24 +1463,6 @@
     }
   ],
   "notices": [
-    {
-      "id": "0.5.0-project-assets",
-      "since": "0.5.0",
-      "until": "0.6.0",
-      "message": "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change."
-    },
-    {
-      "id": "0.5.0-smaller-cli",
-      "since": "0.5.0",
-      "until": "0.6.0",
-      "message": "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use."
-    },
-    {
-      "id": "0.7.0-one-standard",
-      "since": "0.7.0",
-      "until": "0.8.0",
-      "message": "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable."
-    },
     {
       "id": "0.8.1-documents-follow-language",
       "since": "0.8.1",

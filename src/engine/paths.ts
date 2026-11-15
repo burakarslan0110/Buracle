@@ -70,6 +70,32 @@ export function ompHome(): string {
   return join(home(), '.omp')
 }
 
+export function qwenHome(): string {
+  return absEnv('QWEN_HOME') ?? join(home(), '.qwen')
+}
+
+/** Pi's folder. Pi and omp both read PI_CODING_AGENT_DIR, so when it is set `piAgentDir()` and `ompAgentDir()` are one folder (see `agentDirShared`). */
+export function piAgentDir(): string {
+  return absEnv('PI_CODING_AGENT_DIR') ?? join(home(), '.pi', 'agent')
+}
+
+/** The folder PI_CODING_AGENT_DIR sends both Pi and omp to; undefined while each reads its own default folder. */
+export function agentDirShared(): string | undefined {
+  return absEnv('PI_CODING_AGENT_DIR')
+}
+
+/** AGY CLI's global customization root (skills/, plugins/, hooks.json, mcp_config.json). */
+export function agyDir(): string {
+  return join(home(), '.gemini', 'config')
+}
+
+const CONFIG_DIRS: Readonly<Record<Harness, () => string>> = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir, qwen: qwenHome, pi: piAgentDir, agy: agyDir }
+
+/** A harness's config folder (the `configDir` of its profile). */
+export function harnessConfigDir(h: Harness): string {
+  return CONFIG_DIRS[h]()
+}
+
 export function localBinDir(): string {
   return join(home(), '.local', 'bin')
 }
@@ -200,6 +226,9 @@ export function mcpCacheFile(id: string): string { return join(mcpCacheDir(), `$
 export function mcpLogFile(id: string): string { return join(logsDir(), `mcp-${id}.log`) }
 /** The longest socket path used as is: macOS allows 103 bytes, Linux 107. */
 export const MCP_SOCKET_PATH_MAX = 100
+
+/** The local port of the Buracle Console (127.0.0.1 only); when it is taken, the next free one is used. */
+export const MEMORY_UI_PORT = 41777
 /**
  * The directory for sockets whose path under `mcpRunDir()` would be too long: short and per user and Buracle
  * home. `/tmp`, not `$TMPDIR`: the macOS `$TMPDIR` alone takes about 50 of the 103 bytes.

@@ -1,8 +1,9 @@
 ---
 name: new-skill
-description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never."
-when_to_use: "A multi-step procedure was done more than once or took real effort and will recur; an existing skill misfires, has grown too long or misses a step (\"turn this into a skill\", \"create a new skill\", \"update the skill\")."
+description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never. The user starts it with /new-skill (Codex: $new-skill). When to use: A multi-step procedure was done more than once or took real effort and will recur; an existing skill misfires, has grown too long or misses a step (\"turn this into a skill\", \"create a new skill\", \"update the skill\")."
 argument-hint: "<skill id or the procedure to capture>"
+metadata:
+  short-description: "Capture a repeatable procedure as a canonical Buracle skill"
 ---
 
 # New skill
@@ -15,8 +16,8 @@ faster, safer or more consistent than working it out from scratch each time.
 | What you have | Where it goes |
 |---|---|
 | A multi-step procedure started by an intent ("cut a release", "rotate the keys") | A skill: continue here |
-| A constraint for every task, or for certain files | A rule: global ones in Buracle's `canonical/rules/`; project ones via `/project-rules` |
-| A fact, a decision or a trap | A memory (`/buracle:memory`) |
+| A constraint for every task, or for certain files | A rule: global ones in Buracle's `canonical/rules/`; project ones via the `project-rules` skill |
+| A fact, a decision or a trap | A memory (the `memory` skill) |
 | A one-off task | Nothing |
 
 If an existing skill already covers most of it, extend that skill. Two skills with overlapping
@@ -26,16 +27,18 @@ descriptions both trigger less reliably.
 
 | Scope | Location | Wording |
 |---|---|---|
-| Global, part of Buracle | `<buracle repo>/canonical/skills/<id>/`; the repo path is `repo:` in `~/.buracle/config.yaml` | Canonical format with placeholders |
-| Global, the user's own skills repo | The `path` (or the checkout of the `git` URL) of an entry under `skills.sources` in `~/.buracle/config.yaml` | Canonical format with placeholders |
-| One project only | `<project>/.agents/skills/<id>/` | Plain neutral wording and **no placeholders**: nothing renders project skills, so a placeholder would reach the model verbatim |
+| Global, part of Buracle | `<buracle repo>/canonical/skills/<id>/`; the repo path is `repo:` in `~/.buracle/config.yaml` | Canonical frontmatter, harness-neutral body |
+| Global, the user's own skills repo | The `path` (or the checkout of the `git` URL) of an entry under `skills.sources` in `~/.buracle/config.yaml` | Canonical frontmatter, harness-neutral body |
+| One project only | `<project>/.agents/skills/<id>/` | Portable frontmatter, harness-neutral body |
+
+Every harness reads the same copy of a skill, so its text is written once, in wording that holds in all of them.
 
 `buracle skills list --json` shows the existing ids and the source each one comes from. If the
-scope is unclear, ask with `AskUserQuestion`: every project, or this project only.
+scope is unclear, ask with your structured-question tool: every project, or this project only.
 
 ## 3. Phases
 
-Track the phases with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any).
+Track the phases with your todo tool.
 
 **Progress.** Buracle shows the run live, in the workflow band above the prompt and in the status
 line. Start it with `buracle flow start new-skill --title "<skill id>"`, mark each phase below with
@@ -45,7 +48,7 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
 
 1. **Capture** (`buracle flow phase capture`). If you just did the procedure in this session, take it
    from there: the commands that worked, their order, what failed and how you fixed it, how you proved
-   the result. Otherwise ask at most three questions with `AskUserQuestion`: when should it fire (example
+   the result. Otherwise ask at most three questions with your structured-question tool: when should it fire (example
    requests, including some in the user's language), what does "done" look like, and what must never
    happen. Then a quick memory pass: `memory_search` for `procedure` and `gotcha` memories on the topic;
    they become steps and pitfalls.
@@ -55,7 +58,7 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
    `unmanaged` (a folder placed by hand in `~/.agents/skills` or `~/.claude/skills`), each with the
    harnesses that see it. A `claude-only` skill that already covers the procedure is a migration,
    not a new skill: `buracle project sync --adopt` links it for Codex and changes no tracked file;
-   `--adopt --move` moves the folder into `.agents/skills`, so ask with `AskUserQuestion` first. Ask
+   `--adopt --move` moves the folder into `.agents/skills`, so ask with your structured-question tool first. Ask
    `semble` (`search`) for scripts or helpers the repository already has, so the skill calls them
    instead of re-implementing them.
 3. **Design** (`buracle flow phase design`). Settle before writing:
@@ -64,8 +67,8 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
      `implicit` for utilities the agent should pick up by itself;
    - inputs, numbered phases with gates, the evidence that proves "done", failure handling;
    - the MCP servers it needs, by id from `canonical/mcp.yaml`: `context7`, `codegraph`,
-     `semble`, `web-search`, `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`;
-   - the buracle CLI calls it makes: only documented subcommands (`/buracle:buracle`);
+     `semble`, `web-search`, `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`, `lsp`;
+   - the buracle CLI calls it makes: only documented subcommands (the `buracle` skill);
    - which steps are deterministic or fragile enough to deserve a script.
 4. **Write** (`buracle flow phase write`). For a skill in the Buracle repo, scaffold with
    `buracle skills new <id>` and check the path it prints. Otherwise create the folder by hand. Fill
@@ -80,12 +83,11 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
      can act on. State outcomes and constraints, and leave the agent room to choose how. Aim for
      2,000 words or fewer; move long procedures into `references/<topic>.md` and link them by
      relative path.
-   - **Neutral tool wording.** Refer to harness tools only through Buracle's placeholders: the
-     names `ask_user`, `todo`, `spawn_agent`, `skill:<id>` and `agent:<id>`, each wrapped in double
-     curly braces (two `{` before the name, two `}` after it). Never write a harness tool name.
-     Each adapter expands the placeholders for its harness. Harness-only blocks (an HTML comment
-     opening `harness:` plus the harness name, closed by `/harness`) are for behavior that truly
-     differs; the exact syntax is in [references/template.md](references/template.md).
+   - **Neutral tool wording.** Every harness reads the same text, so never write a harness's tool
+     name: say "your structured-question tool", "your todo tool", "your subagent tool", "the
+     `<id>` skill", "the `<id>` agent". A fact that truly differs per harness is one sentence or a
+     short labelled list in the same text. No render placeholders (double curly braces) and no
+     harness-only blocks: the lint rejects both.
    - **Name the tool** for every external step: the MCP server or the exact command, never "use an
      appropriate tool".
    - **Scripts:** Bun TypeScript without npm dependencies; `--help`; JSON output; exit codes
@@ -96,19 +98,18 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
    expected MCP call, CLI call or file). Every case must be able to fail without the skill.
 6. **Lint** (`buracle flow phase lint`). Run `buracle skills lint --json` and fix every finding for
    this skill until it exits 0. A project skill is linted by its path,
-   `buracle skills lint .agents/skills/<id> --json`, which also enforces the portable profile (no
-   placeholders, no harness blocks). Either way, walk [references/checklist.md](references/checklist.md).
+   `buracle skills lint .agents/skills/<id> --json`, which also enforces the portable frontmatter.
+   Either way, walk [references/checklist.md](references/checklist.md).
 7. **Test** (`buracle flow phase test`). Quick check: read the description against each eval prompt.
-   Would you pick this skill? Real check: measure triggering and behavior with `/ab-test`
+   Would you pick this skill? Real check: measure triggering and behavior with the `ab-test` skill
    (old against new description, or without against with the skill).
-8. **Publish** (`buracle flow phase publish`). Ask with `AskUserQuestion`: commit and sync now, or leave
+8. **Publish** (`buracle flow phase publish`). Ask with your structured-question tool: commit and sync now, or leave
    it to the user. Then run or
    print the steps for the home:
    - **Buracle repo:** `git add canonical/skills/<id>`, then
      `git commit -m "skill(<id>): <what it does>"`, then `buracle install` (it builds and installs into
-     every installed harness). Claude Code picks it up after `/reload-plugins` or a restart; Codex,
-     OpenCode and omp see it in new sessions through their own skills folders
-     (`~/.codex/skills`, `~/.config/opencode/skills`, `~/.omp/agent/skills`).
+     every installed harness). Claude Code picks it up after `/reload-plugins` or a restart; the
+     harnesses that read `~/.agents/skills` see it in new sessions.
    - **Personal skills repo:** commit and push there, then `buracle update --check` and
      `buracle update --yes`; the update fast-forwards the checkout, lints, builds and installs the
      skill into every harness.
@@ -126,7 +127,7 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
   `implicit` lets the model pick up a workflow with side effects by itself.
 - Scale the test to the change: a wording-only edit needs lint; a description, `when_to_use` or
   trigger change needs the trigger cases with
-  `/ab-test`; a change of phases or outputs needs its behavior cases.
+  the `ab-test` skill; a change of phases or outputs needs its behavior cases.
 - A skill that misfires: find the symptom in the iteration signals of
   [references/checklist.md](references/checklist.md) before you rewrite it.
 

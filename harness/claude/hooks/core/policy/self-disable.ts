@@ -1,4 +1,4 @@
-import { isWindowsPath, normalizePath } from '../events'
+import { HARNESSES, harnessProfile } from '../harness/index'
 import type { ShellWord } from './shell'
 import { DYN, HOME, commandName, parseShell, simpleCommands } from './shell'
 
@@ -49,7 +49,7 @@ const SYSTEM_STARTUP = new Set(['zshrc', 'zprofile', 'zshenv', 'zlogin', 'profil
 
 export function isStartupFile(path: string): boolean {
   if (typeof path !== 'string' || path === '' || path.includes(DYN)) return false
-  const p = (isWindowsPath(path) ? normalizePath(path) : path).replace(/\/+$/, '')
+  const p = path.replace(/\/+$/, '')
   const segs = p.split('/').filter(s => s !== '')
   const base = (segs[segs.length - 1] ?? '').toLowerCase()
   if (STARTUP_NAMES.has(base)) return true
@@ -57,8 +57,8 @@ export function isStartupFile(path: string): boolean {
   const inEtc = dirs[0] === 'etc' || (dirs[0] === 'private' && dirs[1] === 'etc')
   if (inEtc && p.startsWith('/') && (SYSTEM_STARTUP.has(base) || dirs.includes('profile.d') || dirs.includes('zsh'))) return true
   if (dirs.includes('environment.d')) return true
-  if (/profile\.ps1$/.test(base) && dirs.some(d => d === 'powershell' || d === 'windowspowershell')) return true
-  return /\.(?:zsh|sh|bash|fish|ksh)$/.test(base) && (p.startsWith(`${HOME}/.`) || /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.[^./]/i.test(p))
+  if (/profile\.ps1$/.test(base) && dirs.includes('powershell')) return true
+  return /\.(?:zsh|sh|bash|fish|ksh)$/.test(base) && (p.startsWith(`${HOME}/.`) || /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.[^./]/i.test(p))
 }
 
 const GUARDED_KEYS: readonly string[][] = [['guards'], ['permissions'], ['harnesses'], ['routing'], ['plan', 'stopguard'], ['plan', 'runaway'], ['plan', 'planapproval'], ['plan', 'resultapproval'], ['plan', 'reviews'], ['plan', 'goalverification'], ['repo']]
@@ -202,7 +202,6 @@ function buracleSwitch(args: readonly string[]): string | undefined {
   const pos = args.filter(a => !a.startsWith('-'))
   const command = pos[0]
   if (command === 'uninstall') return args.includes('--dry-run') ? undefined : 'it removes Buracle and its guard hooks from every harness'
-  if (command === 'rollback') return args.includes('--list') ? undefined : 'it undoes the install that registered the guard hooks'
   if (command === 'config' && (pos[1] === 'set' || pos[1] === 'unset')) {
     const key = pos[2]
     if (key === undefined) return undefined
@@ -251,9 +250,8 @@ function optionValues(args: readonly string[], ...names: string[]): string[] {
   return out
 }
 
-const HARNESS_HOME: Readonly<Record<string, readonly string[]>> = {
-  claude: ['CLAUDE_CONFIG_DIR'], codex: ['CODEX_HOME'], opencode: ['XDG_CONFIG_HOME', 'OPENCODE_CONFIG_DIR'], omp: ['PI_CODING_AGENT_DIR'],
-}
+// Each harness's command → the variables that make it start from another setup.
+const HARNESS_HOME: Readonly<Record<string, readonly string[]>> = Object.fromEntries(HARNESSES.map(h => [harnessProfile(h).bin, harnessProfile(h).relocationEnv]))
 
 function onlyInfo(args: readonly string[]): boolean {
   return args.length > 0 && args.every(a => ['--version', '-v', '-V', '--help', '-h', 'help', 'version'].includes(a))
@@ -297,7 +295,6 @@ function persistentEnv(name: string, words: readonly ShellWord[]): string | unde
   const reason = 'it sets a variable that relocates Buracle or the harness settings for every later session, which can run them without the guard hooks'
   if (name === 'launchctl' && pos[0] === 'setenv' && named(pos[1])) return reason
   if (name === 'set' && args.some(a => a === '--universal' || /^-[A-Za-z]*U/.test(a)) && named(pos[0])) return reason
-  if (name === 'setx' && named(pos[0])) return reason
   if (name === 'systemctl' && pos[0] === 'set-environment' && pos.slice(1).some(named)) return reason
   return undefined
 }
