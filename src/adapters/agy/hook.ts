@@ -1,61 +1,18 @@
 import { join } from 'node:path'
-import * as core from '../../core/index'
-import type { StopInput, ToolCall } from '../../core/events'
+import type { ToolCall } from '../../core/events'
 import { classifyTool } from '../../core/events'
-import { catalogMcp } from '../../core/catalog'
-import { mcpUnavailable } from '../../core/policy/routing'
-import { indexSettings } from '../../core/workspace'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
-import { log } from '../../engine/log'
-import { isValidSessionId } from '../../engine/paths'
-import { loadLedger } from '../../workflow/ledger'
-import { refreshWorkspaceInfo } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
-import { isObj, parsePayload, QUIET, str, out, type HookOutcome } from '../shared/claude-dialect'
-import { projectDeps } from '../shared/project-deps'
-import { guardedContents, claudeChanges, type FileChange } from '../shared/write-content'
-import { uiSessionHooks } from '../shared/ui-session'
 import {
-  clipBytes, CONTEXT_BUDGET_BYTES, fitParts, mcpHealth, postTool, preTool, prompt as promptEvent, readWorkspace, sessionStart, spool, stop as stopEvent,
-  type MemoryFns, type PipelineDeps,
-} from '../shared/pipeline/index'
-import { availableServers, capabilityCardText, promptRouting } from '../shared/routing'
+  afterTool, commandDeps, guardTool, knownServers, promptContext, runFrame, startContext, stopReason, type FrameSpec,
+} from '../shared/command-host/index'
+import { isObj, QUIET, str, out, type HookOutcome } from '../shared/claude-dialect'
+import { claudeChanges, type FileChange } from '../shared/write-content'
+import { clipBytes, CONTEXT_BUDGET_BYTES, fitParts, type PipelineDeps } from '../shared/pipeline/index'
 
 const H = 'agy' as const
-const EDIT_BUDGET_MS = 28_000
 /** What a PostToolUse or PreToolUse note may keep waiting for the next model call. */
 const PENDING_MAX = 6
-
-async function step<T>(what: string, fallback: T, fn: () => T | Promise<T>): Promise<T> {
-  try { return await fn() } catch (e) { log('warn', `agy hook: ${what} failed`, { error: e }); return fallback }
-}
-
-const MEMORY: Readonly<Record<keyof MemoryFns, () => Promise<unknown>>> = {
-  appendSpool: () => import('../../memory/spool'), spawnFinalizer: () => import('../../memory/finalize'), sessionStart: () => import('../../memory/finalize'),
-  promptSeen: () => import('../../memory/finalize'), contextText: () => import('../../memory/context'), writeHandoff: () => import('../../memory/handoff'),
-  latestHandoff: () => import('../../memory/handoff'),
-}
-
-/** What the shared pipeline needs from AGY CLI: the step log, the lazily imported memory modules and the workspace lookups. */
-function deps(ctx: AdapterContext): PipelineDeps {
-  return {
-    harness: H, ctx, core, ui: uiSessionHooks, step, env: process.env, hostEnv: process.env,
-    workspace: {
-      async prepareWorkspace(cwd, c, nowMs) { return (await import('../shared/workspace-start')).prepareWorkspace(cwd, indexSettings(c.config), nowMs) },
-      async workspaceInfo(cwd, c, nowMs) { return (await import('../../workflow/workspace')).workspaceInfo(cwd, indexSettings(c.config), nowMs) },
-      refreshWorkspace: (info, c, nowMs) => refreshWorkspaceInfo(info, indexSettings(c.config), nowMs),
-    },
-    async memory(name) {
-      try {
-        const fn = ((await MEMORY[name]()) as Record<string, unknown>)[name]
-        return (typeof fn === 'function' ? fn : undefined) as MemoryFns[typeof name] | undefined
-      } catch (e) {
-        log('debug', `agy hook: optional module for memory ${name} is not available`, { error: e })
-        return undefined
-      }
-    },
-  }
-}
 
 // ---- The AGY dialect: camelCase payloads, and answers that are not Claude Code's -------------------------------------
 
@@ -91,7 +48,7 @@ function decodeCall(p: Record<string, unknown>, sid: string, ctx: AdapterContext
   if (command !== undefined) input['command'] = command
   if (target !== undefined) input['file_path'] = target
   const cwd = (tool === 'run_command' ? arg('Cwd') : undefined) ?? str(p['cwd']) ?? str((p['workspacePaths'] as unknown[] | undefined)?.[0]) ?? ''
-  const servers = catalogMcp(ctx.canonical.mcp, H).map(m => m.id)
+  const servers = knownServers(ctx, H)
   let cls = classifyTool(H, tool, input, cwd, servers)
   if (cls.kind === 'other' && target !== undefined && arg('CodeContent') !== undefined) cls = classifyTool(H, 'write_to_file', input, cwd, servers)
   else if (cls.kind === 'other' && target !== undefined && (arg('TargetContent') !== undefined || args['ReplacementChunks'] !== undefined)) cls = classifyTool(H, 'replace_file_content', input, cwd, servers)
@@ -138,33 +95,32 @@ function later(ctx: AdapterContext, sid: string, notes: readonly string[]): void
 
 // ---- The events -------------------------------------------------------------------------------------------------------
 
+const wsPath = (p: Record<string, unknown>): string | undefined => str((p['workspacePaths'] as unknown[] | undefined)?.[0])
+
 export async function handleAgyHook(event: string, stdin: string, ctx: AdapterContext): Promise<HookOutcome> {
-  const p = parsePayload(stdin)
-  if (p === undefined) { log('warn', 'agy hook: stdin is not a JSON object', { event }); return QUIET }
-  const sid = p['conversationId']
-  const now = Date.now()
-  // A conversation id the engine cannot use as a folder name: only the guards run, on a fixed id of their own.
-  if (!isValidSessionId(sid)) return event === 'PreToolUse' ? preToolUse(p, 'buracle-no-session', ctx, now, true) : QUIET
-  if (process.env['BURACLE_MEMORY_RUNNER'] === '1' && (event === 'SessionStart' || event === 'PreInvocation')) return out({})
-  const cwd = str(p['cwd']) ?? str((p['workspacePaths'] as unknown[] | undefined)?.[0]) ?? process.cwd()
-  switch (event) {
-    case 'SessionStart': return sessionStartHook(p, sid, cwd, ctx, now)
-    case 'PreInvocation': return preInvocation(p, sid, cwd, ctx, now)
-    case 'PreToolUse': return preToolUse(p, sid, ctx, now, false)
-    case 'PostToolUse': return postToolUse(p, sid, cwd, ctx, now)
-    case 'Stop': return stopHook(p, sid, cwd, ctx, now)
-    default: return QUIET
+  const d = commandDeps(H, H, ctx)
+  const spec: FrameSpec = {
+    harness: H, label: H, quiet: out({}), sessionIdOf: p => p['conversationId'], cwdOf: p => str(p['cwd']) ?? wsPath(p) ?? process.cwd(),
+    // The memory runner's own child gets an empty answer at the two events that load context.
+    runnerSkips: ['SessionStart', 'PreInvocation'],
+    guards: (p, sid) => preToolUse(d, p, sid, true),
+    event: (ev, p, sid, cwd, now) => run(d, ev, p, sid, cwd, now),
   }
+  return runFrame(spec, event, stdin)
 }
 
-async function sessionStartHook(p: Record<string, unknown>, sid: string, cwd: string, ctx: AdapterContext, now: number): Promise<HookOutcome> {
-  const model = str(p['modelName'])
-  const r = await sessionStart({ harness: H, sessionId: sid, cwd, source: 'startup', subagent: false, now, ...(model !== undefined ? { model } : {}) }, {
-    ...deps(ctx),
-    capabilityCard: () => capabilityCardText(ctx, H, mcpHealth(ctx, H, now, { sid })),
-    profileNote: finding => `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`,
-  })
-  return injectOut(r.context)
+async function run(d: PipelineDeps, event: string, p: Record<string, unknown>, sid: string, cwd: string, now: number): Promise<HookOutcome> {
+  switch (event) {
+    case 'SessionStart': {
+      const model = str(p['modelName'])
+      return injectOut(await startContext(d, { sid, cwd, source: 'startup', now, ...(model !== undefined ? { model } : {}) }))
+    }
+    case 'PreInvocation': return preInvocation(d, p, sid, cwd, now)
+    case 'PreToolUse': return preToolUse(d, p, sid, false)
+    case 'PostToolUse': return postToolUse(d, p, sid, cwd, now)
+    case 'Stop': return stopHook(d, p, sid, cwd, now)
+    default: return QUIET
+  }
 }
 
 /**
@@ -173,57 +129,33 @@ async function sessionStartHook(p: Record<string, unknown>, sid: string, cwd: st
  * from the one this conversation last saw, so a message sent twice in a row is the one case it misses. Notes left by
  * the tool events go out once, with the first model call after them.
  */
-async function preInvocation(p: Record<string, unknown>, sid: string, cwd: string, ctx: AdapterContext, now: number): Promise<HookOutcome> {
+async function preInvocation(d: PipelineDeps, p: Record<string, unknown>, sid: string, cwd: string, now: number): Promise<HookOutcome> {
   const text = str(p['lastUserInput']) ?? ''
-  const state = readTurn(ctx, sid)
+  const state = readTurn(d.ctx, sid)
   const parts: string[] = []
   if (text !== '' && text !== state.prompt) {
-    const r = await promptEvent({ harness: H, sessionId: sid, cwd, text, userText: true, now }, {
-      ...deps(ctx),
-      routePrompt: async () => {
-        const health = mcpHealth(ctx, H, now, { sid })
-        const root = readWorkspace(ctx, H, sid)?.root
-        const found = root !== undefined ? projectDeps(root) : []
-        return promptRouting(ctx, H, text, { ledger: loadLedger(H, sid), available: availableServers(ctx, H, health), ...(found.length > 0 ? { deps: found } : {}), skillsDir: join(ctx.paths.harnessConfigDir(H), 'skills') })
-      },
-      readOnly: () => false,
-      contextWarning: () => undefined,
-    })
-    parts.push(...r.context)
+    parts.push(...await promptContext(d, { sid, cwd, text, userText: true, now, skillsDir: join(d.ctx.paths.harnessConfigDir(H), 'skills'), readOnly: false }))
   }
   parts.push(...state.pending)
-  if (text !== state.prompt || state.pending.length > 0) writeTurn(ctx, sid, { ...(text !== '' ? { prompt: text } : {}), pending: [] })
+  if (text !== state.prompt || state.pending.length > 0) writeTurn(d.ctx, sid, { ...(text !== '' ? { prompt: text } : {}), pending: [] })
   return injectOut(parts)
 }
 
-async function preToolUse(p: Record<string, unknown>, sid: string, ctx: AdapterContext, now: number, guardsOnly: boolean): Promise<HookOutcome> {
-  const call = decodeCall(p, sid, ctx)
+async function preToolUse(d: PipelineDeps, p: Record<string, unknown>, sid: string, guardsOnly: boolean): Promise<HookOutcome> {
+  const call = decodeCall(p, sid, d.ctx)
   if (guardsOnly && call.kind === 'other') return out({})
   if (call.kind === 'bash' && call.command === undefined) return out({})
-  const write = call.kind === 'edit' || call.kind === 'write'
-  const known = catalogMcp(ctx.canonical.mcp, H).map(m => m.id)
-  const r = await preTool({ call, now, subagent: false, guardsOnly, usage: true, ...(write ? { edits: call.paths } : {}) }, {
-    ...deps(ctx),
-    writeTargets: c => (write ? { paths: c.paths, contents: guard => guardedContents(changesOf(c), c.paths, guard.home, guard.realpath !== undefined ? { realpath: guard.realpath } : {}) } : undefined),
-    nativeOff: () => [],
-    usage: (c, health) => ({ call: c, ledgerId: sid, available: known.filter(id => !mcpUnavailable(health[id])) }),
-  })
+  const r = await guardTool(d, { call, now: Date.now(), subagent: false, guardsOnly, changes: changesOf })
   if (r.action === 'deny') return denyOut(r.reason)
-  later(ctx, sid, r.context)
+  later(d.ctx, sid, r.context)
   return out({})
 }
 
-async function postToolUse(p: Record<string, unknown>, sid: string, cwd: string, ctx: AdapterContext, now: number): Promise<HookOutcome> {
-  const call = decodeCall(p, sid, ctx)
-  const edit = call.kind === 'edit' || call.kind === 'write'
+async function postToolUse(d: PipelineDeps, p: Record<string, unknown>, sid: string, cwd: string, now: number): Promise<HookOutcome> {
+  const call = decodeCall(p, sid, d.ctx)
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
-  const ok = str(p['error']) === undefined
-  const r = await postTool({
-    sessionId: sid, cwd, now, subagent: false, entries: [], answered: call.kind === 'ask_user' && ok,
-    ...(edit ? { edit: { ok, paths: call.paths, added: {}, removed: () => ({}) } } : {}),
-    ...(server !== undefined && server !== 'unclassified' ? { mcp: { server: () => server, ok } } : {}),
-  }, { ...deps(ctx), fileChecks: { now: () => Date.now(), run: (await import('../../engine/proc')).run }, editBudgetMs: EDIT_BUDGET_MS })
-  later(ctx, sid, r.context)
+  const context = await afterTool(d, { sid, cwd, now, subagent: false, call, ok: str(p['error']) === undefined, ...(server !== undefined && server !== 'unclassified' ? { mcpServer: server } : {}) })
+  later(d.ctx, sid, context)
   return out({})
 }
 
@@ -231,13 +163,9 @@ async function postToolUse(p: Record<string, unknown>, sid: string, cwd: string,
  * Stop fires at the end of every turn. The guard runs for a normal end (`NO_TOOL_CALL`) only: a cancelled or failed
  * turn is not one the model may be pushed to continue. AGY sends no assistant text, so the turn is recorded without it.
  */
-async function stopHook(p: Record<string, unknown>, sid: string, cwd: string, ctx: AdapterContext, now: number): Promise<HookOutcome> {
+async function stopHook(d: PipelineDeps, p: Record<string, unknown>, sid: string, cwd: string, now: number): Promise<HookOutcome> {
   const reason = str(p['terminationReason'])
   if (reason !== undefined && reason !== 'NO_TOOL_CALL') return out({})
-  const d = deps(ctx)
-  await spool(d, sid, [{ ts: now, ev: 'turn' }])
-  const input: StopInput = { harness: H, sessionId: sid, cwd, now, hookActive: p['continuationActive'] === true, subagent: false }
-  if (p['fullyIdle'] === false) input.backgroundWait = true
-  const r = await stopEvent(input, { ...d, readOnly: () => false })
-  return r.decision.action === 'block' ? blockOut(r.decision.reason) : out({})
+  const why = await stopReason(d, { sid, cwd, now, hookActive: p['continuationActive'] === true, backgroundWait: p['fullyIdle'] === false, readOnly: false, spoolTurn: true })
+  return why !== undefined ? blockOut(why) : out({})
 }
