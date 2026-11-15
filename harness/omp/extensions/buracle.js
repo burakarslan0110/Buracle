@@ -898,7 +898,6 @@ var init_pi = __esm(() => {
     bin: "pi",
     proc: { base: /^pi$/ },
     runtime: "inprocess",
-    adapterPending: true,
     editBudgetMs: 20000,
     configDir: { key: "piAgentDir", env: "PI_CODING_AGENT_DIR", under: ".pi/agent" },
     relocationEnv: ["PI_CODING_AGENT_DIR"],
@@ -33993,7 +33992,7 @@ function removedTextOf(kind, input, files, targets) {
   return out;
 }
 
-// src/adapters/omp/runtime/util.ts
+// src/adapters/shared/pi-family/util.ts
 init_paths();
 function sessionOf(ctx) {
   try {
@@ -34422,7 +34421,7 @@ function recordDialogGrant(h, sid, kind, answer, now, uses = 1) {
   recordUserGrants(h, sid, [grant], now);
 }
 
-// src/adapters/omp/runtime/consent-ask.ts
+// src/adapters/shared/pi-family/consent-ask.ts
 async function judgeWithConsent(ctx, host) {
   let r = await host.judge();
   for (let asked = 0;asked < 8; asked++) {
@@ -34459,9 +34458,9 @@ async function askConsent(ctx, need) {
   return;
 }
 
-// src/adapters/omp/runtime/consent-held.ts
-function heldConsentNeed(sid, command) {
-  const p = readConsentState("omp", sid).pending;
+// src/adapters/shared/pi-family/consent-held.ts
+function heldConsentNeed(harness, sid, command) {
+  const p = readConsentState(harness, sid).pending;
   if (p !== undefined && (p.targets ?? []).includes(commandTarget(command)))
     return { kind: p.kind, summary: p.summary, command: p.command };
   return consentNeeded(command);
@@ -35239,9 +35238,8 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
   }
 }
 
-// src/adapters/omp/runtime/config.ts
-import { existsSync as existsSync10, readFileSync as readFileSync17, statSync as statSync16 } from "fs";
-import { join as join24 } from "path";
+// src/adapters/shared/pi-family/config.ts
+import { readFileSync as readFileSync17, statSync as statSync16 } from "fs";
 init_paths();
 var configCache;
 var healthCache;
@@ -35260,11 +35258,6 @@ function stat(path) {
     return;
   }
 }
-function ompConfigPath(agentDir) {
-  const yml = join24(agentDir, "config.yml");
-  const yaml = join24(agentDir, "config.yaml");
-  return !existsSync10(yml) && existsSync10(yaml) ? yaml : yml;
-}
 function fromDefaults(defaults) {
   return { config: defaults, vault: oldVaultRoot(), shim: shimPath(), source: "defaults" };
 }
@@ -35275,11 +35268,11 @@ function parseRuntimeConfig(text, defaults) {
   const snap = raw;
   const merged = runtimeSnapshotConfig(raw, defaults);
   if (merged.warnings.length > 0)
-    warnOnce(`rc-warnings:${merged.warnings.join("|")}`, "omp: runtime-config.json needs attention", { warnings: merged.warnings });
+    warnOnce(`rc-warnings:${merged.warnings.join("|")}`, "pi-family: runtime-config.json needs attention", { warnings: merged.warnings });
   if (snap.v !== RUNTIME_SNAPSHOT_VERSION)
     return fromDefaults(merged.config);
   if (merged.errors.length > 0)
-    warnOnce(`rc-errors:${merged.errors.join("|")}`, "omp: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
+    warnOnce(`rc-errors:${merged.errors.join("|")}`, "pi-family: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
   const resolved = snap.resolved !== null && typeof snap.resolved === "object" ? snap.resolved : {};
   const repo = typeof resolved["repoRoot"] === "string" && resolved["repoRoot"] !== "" ? resolved["repoRoot"] : merged.config.repo;
   const live = { config: merged.config, vault: oldVaultRoot(), shim: shimPath(), source: "runtime-config" };
@@ -35301,7 +35294,7 @@ function liveConfig(defaults) {
   try {
     value = parseRuntimeConfig(readFileSync17(file, "utf8"), defaults);
   } catch (e) {
-    warnOnce(`rc-parse:${file}:${st.mtimeMs}`, "omp: runtime-config.json unreadable; using canonical defaults", { error: e instanceof Error ? e.message : String(e) });
+    warnOnce(`rc-parse:${file}:${st.mtimeMs}`, "pi-family: runtime-config.json unreadable; using canonical defaults", { error: e instanceof Error ? e.message : String(e) });
     value = fromDefaults(defaults);
   }
   configCache = { path: file, mtimeMs: st.mtimeMs, size: st.size, value };
@@ -35335,13 +35328,22 @@ function mcpHealth2(nowMs = Date.now()) {
   try {
     value = JSON.parse(readFileSync17(file, "utf8"));
   } catch (e) {
-    warnOnce(`health:${file}:${st.mtimeMs}`, "omp: health.json unreadable; MCP health unknown", { error: e instanceof Error ? e.message : String(e) });
+    warnOnce(`health:${file}:${st.mtimeMs}`, "pi-family: health.json unreadable; MCP health unknown", { error: e instanceof Error ? e.message : String(e) });
   }
   healthCache = { path: file, mtimeMs: st.mtimeMs, size: st.size, value };
   return parseHealth(value, nowMs);
 }
 
-// src/adapters/omp/runtime/memory.ts
+// src/adapters/omp/runtime/config.ts
+import { existsSync as existsSync10 } from "fs";
+import { join as join24 } from "path";
+function ompConfigPath(agentDir) {
+  const yml = join24(agentDir, "config.yml");
+  const yaml = join24(agentDir, "config.yaml");
+  return !existsSync10(yml) && existsSync10(yaml) ? yaml : yml;
+}
+
+// src/adapters/shared/pi-family/memory.ts
 init_paths();
 import { readFileSync as readFileSync20, statSync as statSync22 } from "fs";
 import { join as join32 } from "path";
@@ -36098,21 +36100,23 @@ function startUiSoon(opts = {}) {
   }
 }
 
-// src/adapters/omp/runtime/memory.ts
-var ompUiBridge = {
-  started(sid) {
-    sessionOpened("omp", sid);
-    const build = uiBuildId();
-    startUiSoon(build !== undefined ? { build } : {});
-  },
-  seen(sid) {
-    if (sessionSeen("omp", sid) === "revived")
-      startUiSoon();
-  },
-  ended(sid) {
-    sessionClosed("omp", sid);
-  }
-};
+// src/adapters/shared/pi-family/memory.ts
+function uiBridgeFor(harness) {
+  return {
+    started(sid) {
+      sessionOpened(harness, sid);
+      const build = uiBuildId();
+      startUiSoon(build !== undefined ? { build } : {});
+    },
+    seen(sid) {
+      if (sessionSeen(harness, sid) === "revived")
+        startUiSoon();
+    },
+    ended(sid) {
+      sessionClosed(harness, sid);
+    }
+  };
+}
 function isFile4(p) {
   try {
     return statSync22(p).isFile();
@@ -36134,11 +36138,12 @@ function spawnDetached2(argv, env = {}) {
     p.unref();
     return true;
   } catch (e) {
-    log("warn", "omp: detached spawn failed", { argv: argv.slice(0, 3), error: e instanceof Error ? e.message : String(e) });
+    log("warn", "pi-family: detached spawn failed", { argv: argv.slice(0, 3), error: e instanceof Error ? e.message : String(e) });
     return false;
   }
 }
 function createMemoryBridge(opts) {
+  const h = opts.harness;
   const append = opts.append ?? appendSpool;
   const spawn = opts.spawnDetached ?? spawnDetached2;
   const exec = opts.run ?? ((argv, o) => run(argv, o));
@@ -36152,21 +36157,21 @@ function createMemoryBridge(opts) {
   const detached = (args, env) => {
     const cli = opts.cli();
     if (cli === undefined) {
-      once("cli", "omp: the buracle CLI was not found; memory capture runs without it");
+      once("cli", "pi-family: the buracle CLI was not found; memory capture runs without it");
       return;
     }
     spawn([...cli, ...args], env);
   };
-  const recordStart = opts.recordStart ?? ((sid, cwd) => sessionStart2("omp", sid, cwd));
+  const recordStart = opts.recordStart ?? ((sid, cwd) => sessionStart2(h, sid, cwd));
   const touch = opts.touch ?? ((sid) => {
-    promptSeen("omp", sid);
+    promptSeen(h, sid);
   });
-  const ui = opts.ui ?? ompUiBridge;
+  const ui = opts.ui ?? uiBridgeFor(h);
   const uiCall = (what, sid) => {
     try {
       ui[what](sid);
     } catch (e) {
-      once(`ui-${what}`, `omp: memory ui ${what} failed`, { error: e instanceof Error ? e.message : String(e) });
+      once(`ui-${what}`, `pi-family: memory ui ${what} failed`, { error: e instanceof Error ? e.message : String(e) });
     }
   };
   return {
@@ -36175,35 +36180,35 @@ function createMemoryBridge(opts) {
       if (entries.length === 0)
         return;
       try {
-        append("omp", sid, entries);
+        append(h, sid, entries);
       } catch (e) {
-        once("spool", "omp: appendSpool failed", { error: e instanceof Error ? e.message : String(e) });
+        once("spool", "pi-family: appendSpool failed", { error: e instanceof Error ? e.message : String(e) });
       }
     },
     promptSeen(sid) {
       try {
         touch(sid);
       } catch (e) {
-        once("touch", "omp: the session record was not touched", { error: e instanceof Error ? e.message : String(e) });
+        once("touch", "pi-family: the session record was not touched", { error: e instanceof Error ? e.message : String(e) });
       }
     },
     async sessionStart(sid, cwd) {
       try {
         await recordStart(sid, cwd);
       } catch (e) {
-        once("start", "omp: the session was not recorded", { error: e instanceof Error ? e.message : String(e) });
+        once("start", "pi-family: the session was not recorded", { error: e instanceof Error ? e.message : String(e) });
       }
     },
     async spawnFinalizer(sid) {
-      detached(["mem", "finalize", "--harness", "omp", "--session", sid], { BURACLE_FINALIZER: "1" });
+      detached(["mem", "finalize", "--harness", h, "--session", sid], { BURACLE_FINALIZER: "1" });
     },
     async contextText(cwd) {
       const cli = opts.cli();
       if (cli === undefined)
         return;
-      const r = await exec([...cli, "mem", "context", "--harness", "omp", "--cwd", cwd, "--json"], { timeoutMs: 1e4 });
+      const r = await exec([...cli, "mem", "context", "--harness", h, "--cwd", cwd, "--json"], { timeoutMs: 1e4 });
       if (r.code !== 0) {
-        once(`context:${r.code}`, "omp: `buracle mem context` failed; the session starts without memory text", { code: r.code, stderr: r.stderr.slice(0, 300) });
+        once(`context:${r.code}`, "pi-family: `buracle mem context` failed; the session starts without memory text", { code: r.code, stderr: r.stderr.slice(0, 300) });
         return;
       }
       try {
@@ -36217,12 +36222,12 @@ function createMemoryBridge(opts) {
       const cli = opts.cli();
       if (cli === undefined)
         return;
-      const args = [...cli, "mem", "handoff", "--harness", "omp", "--session", sid, "--cwd", cwd, "--slug", note.slug, "--trigger", "compaction", "--json"];
+      const args = [...cli, "mem", "handoff", "--harness", h, "--session", sid, "--cwd", cwd, "--slug", note.slug, "--trigger", "compaction", "--json"];
       if (note.branch !== undefined)
         args.push("--branch", note.branch);
       const r = await exec(args, { timeoutMs: 8000, stdin: note.markdown });
       if (r.code !== 0) {
-        once(`handoff:${r.code}`, "omp: `buracle mem handoff` failed", { code: r.code, stderr: r.stderr.slice(0, 300) });
+        once(`handoff:${r.code}`, "pi-family: `buracle mem handoff` failed", { code: r.code, stderr: r.stderr.slice(0, 300) });
         return;
       }
       try {
@@ -36254,6 +36259,12 @@ function readMemoryStatus(slug) {
     } catch {}
   }
   return;
+}
+
+// src/adapters/omp/runtime/memory.ts
+var ompUiBridge = uiBridgeFor("omp");
+function createMemoryBridge2(opts) {
+  return createMemoryBridge({ harness: "omp", ...opts });
 }
 
 // src/adapters/omp/runtime/plan-capture.ts
@@ -36509,8 +36520,7 @@ function projectDeps(root) {
   return [...out];
 }
 
-// src/adapters/omp/runtime/routing.ts
-var H = "omp";
+// src/adapters/shared/pi-family/routing.ts
 function mergeRoutes(routes, compiled) {
   const [first] = routes;
   if (first !== undefined && routes.length === 1)
@@ -36531,10 +36541,6 @@ function mergeRoutes(routes, compiled) {
 function availableServers(mcp, health) {
   return mcp.map((s) => s.id).filter((id) => !mcpUnavailable(health[id]));
 }
-function isDeviceWrite(toolName, input) {
-  const p = input["path"];
-  return toolName === "write" && typeof p === "string" && /^xd:\/\//i.test(p.trim());
-}
 function sessionHealth(health, ledger, lsid) {
   return lsid === undefined ? health : sessionMcpHealth(health, ledger.load(lsid));
 }
@@ -36543,7 +36549,7 @@ function routerData(skills, routing, strictness) {
   return { compiled: compileTriggers(skills, policy), policy };
 }
 function promptRouting(prompt, data, o) {
-  const opts = { harness: H, loaded: o.loaded, available: o.available };
+  const opts = { harness: o.harness, loaded: o.loaded, available: o.available };
   if (o.deps !== undefined)
     opts.deps = o.deps;
   let route = routePrompt(prompt, data.compiled, opts);
@@ -36551,7 +36557,7 @@ function promptRouting(prompt, data, o) {
     const { libs: _libs, ...rest } = route;
     route = { ...rest, categories: [] };
   }
-  const text = routeText(route, H, data.policy, { triggers: data.compiled });
+  const text = routeText(route, o.harness, data.policy, { triggers: data.compiled });
   return text !== undefined ? { route, text } : { route };
 }
 function createDepsReader() {
@@ -36561,6 +36567,15 @@ function createDepsReader() {
     const deps = projectDeps(root);
     return deps.length > 0 ? deps : undefined;
   };
+}
+
+// src/adapters/omp/runtime/routing.ts
+function isDeviceWrite(toolName, input) {
+  const p = input["path"];
+  return toolName === "write" && typeof p === "string" && /^xd:\/\//i.test(p.trim());
+}
+function promptRouting2(prompt, data, o) {
+  return promptRouting(prompt, data, { harness: "omp", ...o });
 }
 
 // src/adapters/omp/statusline.ts
@@ -36704,7 +36719,7 @@ function defaultDeps() {
       start: (sid, input, now) => recordFlowStart("omp", sid, input, now),
       view: (sid, now, foldAfterSec) => flowViewFor("omp", sid, now, foldAfterSec)
     },
-    memory: createMemoryBridge({ cli }),
+    memory: createMemoryBridge2({ cli }),
     plans: ompPlanStore(),
     captureEnabled: () => process.env["BURACLE_NO_CAPTURE"] !== "1",
     buracleRepo: (cwd, configured) => buracleRepoFor2(cwd, [configured !== undefined ? expandHome3(configured) : undefined]),
@@ -36942,7 +36957,7 @@ class FlowWidget {
   }
 }
 
-// src/adapters/omp/runtime/host.ts
+// src/adapters/shared/pi-family/host.ts
 init_paths();
 var MEMORY_CONTEXT_WAIT_MS = 4000;
 var HANDOFF_WAIT_MS = 9000;
@@ -38365,6 +38380,8 @@ function createStatusTexts(host) {
 
 // src/adapters/omp/runtime/stop.ts
 init_paths();
+
+// src/adapters/shared/pi-family/stop.ts
 function stopReason(hook, reason) {
   return GUARD_MARKERS.some((m) => reason.startsWith(m)) ? reason : `Buracle ${hook}: ${reason}`;
 }
@@ -38372,6 +38389,8 @@ function runawayNotice(why, plan) {
   const what = why === "runaway-plan" ? "the plan-wide limit of stop-guard continuations" : "the limit of consecutive stop-guard continuations";
   return `Buracle: the turn ended although the plan ${plan} is not finished, because ${what} was reached. Check the work, then continue or run \`buracle plan pause\`.`;
 }
+
+// src/adapters/omp/runtime/stop.ts
 var READ_ONLY_NOTICE = "Buracle: Oh My Pi is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode to continue the plan.";
 function planModeOn(ctx) {
   try {
@@ -38510,7 +38529,7 @@ function openTodosOf(event) {
 }
 
 // src/adapters/omp/runtime/extension.ts
-var H2 = "omp";
+var H = "omp";
 var WORKSPACE_WAIT_MS = 3000;
 var PROJECT_WAIT_MS = 2000;
 var START_WAIT_MS = 1000;
@@ -38602,7 +38621,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
     const ui = uiHooks(deps.memory);
     const actx = (lc) => adapterContext(data, lc, () => deps.home());
     const pipe = (sid, lc = liveOrDefaults()) => ({
-      harness: H2,
+      harness: H,
       ctx: actx(lc),
       core: coreFns,
       step,
@@ -38615,7 +38634,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
           let late = false;
           work.then((info) => {
             if (late)
-              guarded("H21 workspace", () => saveWorkspace(c, H2, sid, info));
+              guarded("H21 workspace", () => saveWorkspace(c, H, sid, info));
           }, () => {
             return;
           });
@@ -38744,11 +38763,11 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const cwd = ctx.cwd;
       const input = event.input !== null && typeof event.input === "object" ? event.input : {};
       const home = guarded("home", () => deps.home());
-      const cls = classifyTool(H2, event.toolName, input, cwd, data.mcpIds, { homeTilde: home });
+      const cls = classifyTool(H, event.toolName, input, cwd, data.mcpIds, { homeTilde: home });
       const targets = cls.kind === "edit" || cls.kind === "patch" ? guarded("edit targets", () => editTargets2(input, cwd, deps.readText, home)) : undefined;
       const callPaths = toolPaths(cls.paths, targets);
       const device = isDeviceWrite(event.toolName, input);
-      const plain = { harness: H2, sessionId: sid ?? "", cwd, tool: event.toolName, input, ...cls, paths: callPaths };
+      const plain = { harness: H, sessionId: sid ?? "", cwd, tool: event.toolName, input, ...cls, paths: callPaths };
       const call = device ? deviceCall(plain) : plain;
       const lsid = spoolSid(ctx);
       const d = pipe(sid ?? "", lc);
@@ -38796,7 +38815,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       if (decision.action === "deny") {
         if (decision.hook === "H20" && sid !== undefined && call.command !== undefined && typeof event.toolCallId === "string") {
           const command = call.command;
-          const need = guarded("H20 need", () => heldConsentNeed(sid, command));
+          const need = guarded("H20 need", () => heldConsentNeed(H, sid, command));
           if (need !== undefined) {
             consentHolds.set(event.toolCallId, need);
             if (consentHolds.size > 64)
@@ -38862,7 +38881,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const input = event.input !== null && typeof event.input === "object" ? event.input : {};
       const home = guarded("home", () => deps.home());
       const now = deps.now();
-      const cls = classifyTool(H2, event.toolName, input, ctx.cwd, data.mcpIds, { homeTilde: home });
+      const cls = classifyTool(H, event.toolName, input, ctx.cwd, data.mcpIds, { homeTilde: home });
       const device = isDeviceWrite(event.toolName, input);
       const targets = cls.kind === "edit" || cls.kind === "patch" ? guarded("edit targets", () => editTargets2(input, ctx.cwd, deps.readText, home)) : undefined;
       const files = toolPaths(cls.paths, targets);
@@ -38880,7 +38899,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
           memo(sid).todos = todos;
       }
       if (!event.isError) {
-        const skill = guarded("H24 skillOf", () => skillOf({ tool: event.toolName, input, kind: cls.kind, ...cls.command !== undefined ? { command: cls.command } : {} }, H2));
+        const skill = guarded("H24 skillOf", () => skillOf({ tool: event.toolName, input, kind: cls.kind, ...cls.command !== undefined ? { command: cls.command } : {} }, H));
         if (skill !== undefined)
           guarded("skill load", () => skillLoaded(skill, ctx));
         else if (cls.kind === "bash" && (cls.command ?? "").includes("buracle") || WRITE_KINDS.has(cls.kind))
@@ -38940,10 +38959,10 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const strictness = lc.config.routing.strictness;
       const ledger = deps.ledger.load(sid);
       const o = { loaded: Object.keys(ledger.skills), available: availableNow(sid), strictness };
-      const pd = deps.projectDeps(readWorkspace(actx(lc), H2, sid)?.root);
+      const pd = deps.projectDeps(readWorkspace(actx(lc), H, sid)?.root);
       if (pd !== undefined)
         o.deps = pd;
-      return promptRouting(text, routerFor(strictness), o);
+      return promptRouting2(text, routerFor(strictness), o);
     };
     const literalSkillAsk = (text) => text.replace(/^\/skill:/, "/buracle:");
     const deliver = (sid, prompt) => {
@@ -38965,7 +38984,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       if (routes.length > 0) {
         const merged = mergeRoutes(routes, router.compiled);
         guarded("H24 ledger turn", () => deps.ledger.update(sid, (l) => ledgerPrompt(l, merged, now)));
-        routed = guarded("H22 routeText", () => routeText(merged, H2, router.policy, { triggers: router.compiled }));
+        routed = guarded("H22 routeText", () => routeText(merged, H, router.policy, { triggers: router.compiled }));
       }
       const parts = [...new Set([...batch.flatMap((p) => p.before), ...routed !== undefined ? [routed] : [], ...batch.flatMap((p) => p.after)])];
       const lines = fitParts(parts, PROMPT_CONTEXT_MAX_CHARS);
@@ -38988,7 +39007,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const wf = !model ? undefined : wfExpanded !== undefined ? { ...wfExpanded, via: "command" } : literalSkill ? undefined : guarded("H25 workflow", () => workflowOfInput(text, data.commands));
       let routed;
       let warning;
-      const r = await prompt({ harness: H2, sessionId: sid, cwd: ctx.cwd, text, now, ...model ? {} : { userText: false } }, {
+      const r = await prompt({ harness: H, sessionId: sid, cwd: ctx.cwd, text, now, ...model ? {} : { userText: false } }, {
         ...pipe(sid, lc),
         routePrompt: async () => {
           if (text === "")
@@ -39059,7 +39078,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
     const card = (ctx) => {
       const health = healthFor(spoolSid(ctx), ctx.cwd);
       const policy = { ...data.routing, strictness: liveOrDefaults().config.routing.strictness };
-      return deps.policy.capabilityCard({ policy, mcp: data.mcp.filter((s) => !mcpUnavailable(health[s.id])), plugins: data.plugins, harness: H2 });
+      return deps.policy.capabilityCard({ policy, mcp: data.mcp.filter((s) => !mcpUnavailable(health[s.id])), plugins: data.plugins, harness: H });
     };
     const scheduleMaint = (ctx) => {
       if (maintScheduled || typeof ctx.setTimeout !== "function")
@@ -39073,7 +39092,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       }, deps.timings.maintDelayMs);
     };
     const endSession = async (sid) => {
-      await sessionEnd({ harness: H2, sessionId: sid, now: deps.now() }, pipe(sid));
+      await sessionEnd({ harness: H, sessionId: sid, now: deps.now() }, pipe(sid));
     };
     const openSession = (sid, ctx, source, previous) => {
       const m = memo(sid);
@@ -39089,7 +39108,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
           ready();
           return fn(...a);
         };
-        const r = await sessionStart({ harness: H2, sessionId: sid, cwd: ctx.cwd, source, now: deps.now() }, {
+        const r = await sessionStart({ harness: H, sessionId: sid, cwd: ctx.cwd, source, now: deps.now() }, {
           ...d,
           ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
           capabilityCard: () => card(ctx),
@@ -39218,7 +39237,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const previous = currentSid !== undefined && currentSid !== sid ? currentSid : undefined;
       currentSid = sid;
       deps.setEnv("BURACLE_SESSION_ID", sid);
-      deps.setEnv("BURACLE_HARNESS", H2);
+      deps.setEnv("BURACLE_HARNESS", H);
       const resumed = guarded("resumed session", () => resumedSession(ev, event, ctx, (f) => deps.isFile(f))) === true;
       if (resumed)
         guarded("resume hint", () => receipts.resumed(sid, ctx, live().config));

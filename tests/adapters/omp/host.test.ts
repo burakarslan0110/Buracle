@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { adapterContext, memoryFns, pipelineCore, uiHooks } from '../../../src/adapters/omp/runtime/host'
+import { adapterContext, memoryFns, pipelineCore, uiHooks } from '../../../src/adapters/shared/pi-family/host'
 import { deviceCall } from '../../../src/adapters/omp/runtime/write-check'
 import { defaultConfig } from '../../../src/core/config'
 import type { ToolCall } from '../../../src/core/events'

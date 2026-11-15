@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { liveConfig, mcpHealth, parseHealth, parseRuntimeConfig } from '../../../src/adapters/omp/runtime/config'
+import { liveConfig, mcpHealth, parseHealth, parseRuntimeConfig } from '../../../src/adapters/shared/pi-family/config'
 import { defaultDeps } from '../../../src/adapters/omp/runtime/extension'
 import { buracleCli, capText, createMemoryBridge, readMemoryStatus } from '../../../src/adapters/omp/runtime/memory'
 import { defaultConfig } from '../../../src/core/config'

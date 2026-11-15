@@ -1,7 +1,7 @@
 import type { ContextBand, ContextBands } from '../../../core/status/context'
 import { contextWatch } from '../../../core/status/context'
 import type { OmpContext, OmpExtensionAPI, OmpTurnEndEvent } from './types'
-import { hasTui, strAt } from './util'
+import { hasTui, strAt } from '../../shared/pi-family/util'
 
 export const CONTEXT_WARNING_TYPE = 'buracle.context-warning'
 export const NOTICE_MESSAGE_TYPE = 'buracle.notice'

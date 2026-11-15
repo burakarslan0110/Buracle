@@ -1,7 +1,19 @@
-import type { OmpContext, OmpMessage } from './types'
 import { isValidSessionId } from '../../../engine/paths'
 
-export function sessionOf(ctx: OmpContext | undefined): string | undefined {
+// Small helpers of the Pi-family runtimes (Oh My Pi and Pi): both hosts hand an extension the same kind of context, so
+// the helpers ask only for the fields they read.
+
+export interface FamilyContext {
+  mode?: string
+  hasUI?: boolean
+  sessionManager?: { getSessionId?(): string }
+  /** Oh My Pi tells a subagent from the main agent here; Pi has no subagents and leaves it out. */
+  agent?: { kind?: string }
+}
+
+export interface FamilyMessage { content?: unknown }
+
+export function sessionOf(ctx: FamilyContext | undefined): string | undefined {
   try {
     const id = ctx?.sessionManager?.getSessionId?.()
     return isValidSessionId(id) ? id : undefined
@@ -10,12 +22,12 @@ export function sessionOf(ctx: OmpContext | undefined): string | undefined {
   }
 }
 
-export function isMain(ctx: OmpContext | undefined): boolean {
+export function isMain(ctx: FamilyContext | undefined): boolean {
   const kind = ctx?.agent?.kind
   return kind === undefined || kind === 'main'
 }
 
-export function hasTui(ctx: OmpContext | undefined): boolean {
+export function hasTui(ctx: FamilyContext | undefined): boolean {
   return ctx !== undefined && ctx.mode === 'tui' && ctx.hasUI !== false
 }
 
@@ -25,7 +37,7 @@ export function withDeadline<T>(work: Promise<T>, ms: number, fallback: T): Prom
   return Promise.race([work, late]).finally(() => { if (timer !== undefined) clearTimeout(timer) })
 }
 
-export function messageText(msg: OmpMessage | undefined): string {
+export function messageText(msg: FamilyMessage | undefined | null): string {
   if (msg === undefined || msg === null) return ''
   const c = msg.content
   if (typeof c === 'string') return c

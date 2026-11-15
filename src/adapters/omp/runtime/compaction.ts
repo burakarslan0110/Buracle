@@ -3,7 +3,7 @@ import { compactRestore, preCompact, type PipelineDeps } from '../../shared/pipe
 import type { ExtensionDeps } from './deps'
 import type { SpoolEntry } from './memory'
 import type { OmpCompactEvent, OmpCompactingEvent, OmpCompactingResult, OmpContext, OmpExtensionAPI } from './types'
-import { clip, isMain, sessionOf } from './util'
+import { clip, isMain, sessionOf } from '../../shared/pi-family/util'
 
 export const COMPACT_RESTORE_TYPE = 'buracle.compact-restore'
 

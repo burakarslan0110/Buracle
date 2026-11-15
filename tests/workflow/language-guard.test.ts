@@ -37,6 +37,7 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'harness/claude/hooks/generated/catalog.ts': { why: 'canonical data with the trigger phrases' },
   'harness/hook-data.json': { why: 'canonical data for the Claude and Codex command hooks, with the trigger phrases' },
   'src/adapters/omp/runtime/generated-data.ts': { why: 'canonical data baked into the omp bundle' },
+  'src/adapters/pi/runtime/generated-data.ts': { why: 'canonical data baked into the Pi bundle' },
   'src/adapters/opencode/runtime/server.ts': { why: 'canonical data baked into the OpenCode bundle', only: /contentHash: "/ },
   'src/adapters/opencode/runtime/tui.tsx': { why: 'canonical data baked into the OpenCode TUI bundle', only: /contentHash: "/ },
   // The ab-test fixture of PRD 2026-11-04 R9: Turkish prompts and plans in the format before the standard are the
@@ -150,7 +151,7 @@ describe('language guard (R1): what Buracle ships is English', () => {
     const r = scan(join(REPO, 'harness'), REPO)
     expect(r.files).toBeGreaterThanOrEqual(200)
     expect(r.hits).toEqual([])
-    for (const bundle of ['harness/opencode/plugins/buracle/index.js', 'harness/opencode/plugins/buracle/tui.js', 'harness/omp/extensions/buracle.js']) {
+    for (const bundle of ['harness/opencode/plugins/buracle/index.js', 'harness/opencode/plugins/buracle/tui.js', 'harness/omp/extensions/buracle.js', 'harness/pi/extensions/buracle.js']) {
       const modules = readFileSync(join(REPO, bundle), 'utf8').split('\n').filter(l => /^\/\/ src\//.test(l))
       expect({ bundle, split: modules.length >= 50 }).toEqual({ bundle, split: true })
     }

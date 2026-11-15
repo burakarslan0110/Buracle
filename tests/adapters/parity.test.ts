@@ -38,12 +38,16 @@ import { FIXTURES as USAGE_FIXTURES, NOW as USAGE_NOW, installFixture as install
 const REPO = paths.repoRoot()
 
 // A host whose adapter is still pending has no build to compare: tests/adapters/shared/new-harness-groundwork.test.ts covers those.
+// Pi is held to the pillars (hooks, MCP servers); the matrix of extras below (panes, status lines, plan mode, rules,
+// review agents) describes the four hosts that ship them, and Pi ships none of them in this phase (task 6.2).
 type Harness = Exclude<AnyHarness, 'qwen' | 'pi' | 'agy'>
-const HARNESSES = ALL_HARNESSES.filter((h): h is Harness => harnessProfile(h).adapterPending !== true)
+type Pillar = Harness | 'pi'
+const HARNESSES = ALL_HARNESSES.filter((h): h is Harness => h !== 'pi' && harnessProfile(h).adapterPending !== true)
+const PILLARS: readonly Pillar[] = ALL_HARNESSES.filter((h): h is Pillar => h !== 'qwen' && h !== 'agy' && harnessProfile(h).adapterPending !== true)
 const LIMITS_IN_SCOPE = HOST_LIMITS.filter(l => harnessProfile(l.harness).adapterPending !== true)
 
 type Files = ReadonlyMap<string, string>
-interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; agentsSkills: Files }
+interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; pi: Files; agentsSkills: Files }
 
 let builtOnce: Promise<Built> | undefined
 
@@ -53,8 +57,9 @@ function built(): Promise<Built> {
     const ctx = buildContext(REPO, canonical)
     const files: Partial<Record<Harness, Files>> = {}
     for (const a of allAdapters().filter(x => HARNESSES.includes(x.harness as Harness))) files[a.harness as Harness] = new Map((await inCheckout(REPO, () => a.build(ctx))).map(f => [f.path, f.content]))
+    const pi = new Map((await inCheckout(REPO, () => allAdapters().find(x => x.harness === 'pi')!.build(ctx))).map(f => [f.path, f.content]))
     const agentsSkills = new Map(buildAgentsSkills(ctx).map(f => [f.path, f.content]))
-    return { canonical, files: files as Record<Harness, Files>, agentsSkills }
+    return { canonical, files: files as Record<Harness, Files>, pi, agentsSkills }
   })()
   return builtOnce
 }
@@ -90,8 +95,8 @@ function anything(): unknown {
   return new Proxy(fn, { get: (_t, p) => (p === 'then' || typeof p === 'symbol' ? undefined : anything()) })
 }
 
-async function ompRegistrations(code: string, dir: string): Promise<Registered> {
-  const entry = join(dir, 'omp-buracle.js')
+async function ompRegistrations(code: string, dir: string, name = 'omp-buracle.js'): Promise<Registered> {
+  const entry = join(dir, name)
   writeFileSync(entry, code)
   const mod = await import(entry) as { default: (pi: unknown) => void }
   const out: Registered = { events: new Set(), commands: new Set() }
@@ -246,6 +251,7 @@ async function openCodeTuiRegistrations(code: string, dir: string): Promise<{ sl
 interface Surfaces {
   built: Built
   omp: Registered
+  pi: Registered
   openCodeServer: Registered & { handles(event: string): boolean }
   openCodeTui: { slash: Set<string>, slots: string[] }
 }
@@ -256,9 +262,11 @@ function surfaces(): Promise<Surfaces> {
   surfacesOnce ??= withSandbox(async ({ root }) => {
     const b = await built()
     const omp = await ompRegistrations(file(b.files.omp, 'extensions/buracle.js'), root)
+    // Pi's extension takes the same `pi.on(...)` surface, so the same stand-in records it.
+    const pi = await ompRegistrations(file(b.pi, 'extensions/buracle.js'), root, 'pi-buracle.js')
     const openCodeServer = await openCodeServerRegistrations(file(b.files.opencode, 'plugins/buracle/index.js'), root)
     const openCodeTui = await openCodeTuiRegistrations(file(b.files.opencode, 'plugins/buracle/tui.js'), root)
-    return { built: b, omp, openCodeServer, openCodeTui }
+    return { built: b, omp, pi, openCodeServer, openCodeTui }
   })
   return surfacesOnce
 }
@@ -357,8 +365,9 @@ describe('parity: the utility commands (PLAN §2.3)', () => {
   })
 })
 
-function mcpServers(h: Harness, files: Files): string[] {
+function mcpServers(h: Pillar, files: Files): string[] {
   switch (h) {
+    case 'pi': return Object.keys((JSON.parse(file(files, 'mcp.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}).sort()
     case 'claude':
     case 'omp': {
       const servers = (JSON.parse(file(files, '.mcp.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}
@@ -411,15 +420,16 @@ describe('parity: language servers (PARITY-6)', () => {
 
 describe('parity: MCP servers', () => {
   test('each harness gets exactly the servers canonical/mcp.yaml assigns to it', async () => {
-    const { canonical, files } = await built()
+    const { canonical, files, pi } = await built()
     const all = Object.keys(canonical.mcp.servers).sort()
-    for (const h of HARNESSES) {
+    const of = (h: Pillar): Files => (h === 'pi' ? pi : files[h])
+    for (const h of PILLARS) {
       const want = all.filter(id => canonical.mcp.servers[id]?.harnesses.includes(h))
-      expect({ h, servers: mcpServers(h, files[h]) }).toEqual({ h, servers: want })
+      expect({ h, servers: mcpServers(h, of(h)) }).toEqual({ h, servers: want })
     }
-    const sets = HARNESSES.map(h => mcpServers(h, files[h]))
+    const sets = PILLARS.map(h => mcpServers(h, of(h)))
     const common = all.filter(id => sets.every(s => s.includes(id)))
-    expect(all.filter(id => !common.includes(id))).toEqual(all.filter(id => HARNESSES.some(h => canonical.mcp.servers[id]?.harnesses.includes(h) !== true)))
+    expect(all.filter(id => !common.includes(id))).toEqual(all.filter(id => PILLARS.some(h => canonical.mcp.servers[id]?.harnesses.includes(h) !== true)))
   })
 })
 
@@ -431,8 +441,9 @@ function bindingEvents(b: HookBinding): string[] {
   return [b.event, ...(b.also ?? []).map(a => a.event), ...hookFallbacks(b).map(f => (f.event.startsWith('classic.') ? f.event : `classic.${f.event}`))]
 }
 
-function servedBy(h: Harness, s: Surfaces): (event: string) => boolean {
+function servedBy(h: Pillar, s: Surfaces): (event: string) => boolean {
   switch (h) {
+    case 'pi': return e => s.pi.events.has(e)
     case 'claude': {
       const classic = new Set(Object.keys((JSON.parse(file(s.built.files.claude, 'hooks/hooks.json')) as { hooks?: Record<string, unknown> }).hooks ?? {}))
       const mod = claudeModEvents(file(s.built.files.claude, 'hooks/register.tsx'))
@@ -448,7 +459,7 @@ function servedBy(h: Harness, s: Surfaces): (event: string) => boolean {
 }
 
 describe('parity: every hook of canonical/hooks.yaml is served or unsupported with a reason, on every harness', () => {
-  for (const h of HARNESSES) {
+  for (const h of PILLARS) {
     test(h, async () => {
       const s = await surfaces()
       const served = servedBy(h, s)
@@ -469,6 +480,7 @@ describe('parity: every hook of canonical/hooks.yaml is served or unsupported wi
   test('the stand-ins really observe the plugins (a broken recorder would pass everything)', async () => {
     const s = await surfaces()
     expect(s.omp.events.has('tool_call')).toBe(true)
+    expect(s.pi.events.has('agent_before_settle')).toBe(true)
     expect(s.omp.commands.has('remember')).toBe(true)
     expect(s.openCodeServer.events.has('tool.execute.before')).toBe(true)
     expect(s.openCodeServer.handles('session.deleted')).toBe(true)
