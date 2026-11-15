@@ -2,26 +2,13 @@ import { harnessProfile } from '../../core/harness/index'
 import * as core from '../../core/index'
 import { log } from '../../engine/log'
 import type { AdapterContext } from '../registry'
-import { contextJson, type MemoryFns, type PipelineDeps } from '../shared/pipeline/index'
+import { type MemoryFns, type PipelineDeps } from '../shared/pipeline/index'
+import { contextOut, isObj, out, QUIET, str, type HookOutcome } from '../shared/claude-dialect'
 import type { HookDeps, MemoryModule } from './hook'
 
-export interface HookOutcome { stdout: string; exitCode: number }
-
-export const QUIET: HookOutcome = { stdout: '', exitCode: 0 }
+export { contextOut, isObj, out, QUIET, str, type HookOutcome }
 export const H = 'claude' as const
 export const FALLBACK_SPOOL_SUFFIX = harnessProfile('claude').spoolSuffix as string
-
-export function out(obj: unknown): HookOutcome {
-  return { stdout: JSON.stringify(obj) + '\n', exitCode: 0 }
-}
-
-export function str(x: unknown): string | undefined {
-  return typeof x === 'string' && x !== '' ? x : undefined
-}
-
-export function isObj(x: unknown): x is Record<string, unknown> {
-  return x !== null && typeof x === 'object' && !Array.isArray(x)
-}
 
 export function isSubagent(p: Record<string, unknown>): boolean {
   return str(p['agent_id']) !== undefined
@@ -29,11 +16,6 @@ export function isSubagent(p: Record<string, unknown>): boolean {
 
 export async function step<T>(what: string, fallback: T, fn: () => T | Promise<T>): Promise<T> {
   try { return await fn() } catch (e) { log('warn', `claude hook: ${what} failed`, { error: e }); return fallback }
-}
-
-export function contextOut(event: string, parts: readonly string[], systemMessage?: string): HookOutcome {
-  const o = contextJson(event, parts, systemMessage)
-  return o === undefined ? QUIET : out(o)
 }
 
 const MEMORY_MODULE: Readonly<Record<keyof MemoryFns, MemoryModule>> = {
