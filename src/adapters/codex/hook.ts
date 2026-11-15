@@ -6,14 +6,13 @@ import type { Harness, ToolCall } from '../../core/events'
 import type { SessionState, StopGuardResult } from '../../core/plan/state'
 import type { McpHealth } from '../../core/policy/routing'
 import type { HookHealth } from '../../core/status/model'
-import { indexSettings, type WorkspaceInfo } from '../../core/workspace'
+import type { WorkspaceInfo } from '../../core/workspace'
 import type { AdapterContext } from '../registry'
 import { log } from '../../engine/log'
 import { run as runProcess, type RunOptions, type RunResult } from '../../engine/proc'
 import { reviewSubjects, writeTelemetry } from '../../workflow/session-store'
 import { recordFlowStart } from '../../workflow/flow'
 import { loadLedger } from '../../workflow/ledger'
-import { refreshWorkspaceInfo } from '../../workflow/workspace'
 import type { SpoolEntry } from '../../core/memory/spool'
 import type { AssetsSpawner } from '../shared/project-assets'
 import {
@@ -44,6 +43,7 @@ import { patchReceiptChanges } from '../shared/turn-receipt'
 import { commandRan, filesChanged, flowNotice, hooksNotice, joinNotices, turnEnded, turnStarted, withSystemMessage } from './turn-notices'
 import { isSubagentPayload, recordSubagentAlias, subagentLedgerId } from './subagents'
 import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
+import { workspaceReaders } from '../shared/command-host/index'
 import { CONTEXT_BUDGET_BYTES, clipBytes } from '../shared/pipeline/index'
 
 export { fileCheckNotes } from '../shared/file-checks'
@@ -107,15 +107,7 @@ export function defaultDeps(): CodexHookDeps {
   let memo: Promise<MemoryFns> | undefined
   return {
     core, memory: () => (memo ??= loadMemoryFns()), now: () => Date.now(), run: runProcess, env: () => process.env,
-    async prepareWorkspace(cwd, ctx, nowMs) {
-      return (await import('../shared/workspace-start')).prepareWorkspace(cwd, indexSettings(ctx.config), nowMs)
-    },
-    async workspaceInfo(cwd, ctx, nowMs) {
-      return (await import('../../workflow/workspace')).workspaceInfo(cwd, indexSettings(ctx.config), nowMs)
-    },
-    refreshWorkspace(info, ctx, nowMs) {
-      return refreshWorkspaceInfo(info, indexSettings(ctx.config), nowMs)
-    },
+    ...workspaceReaders,
     projectDeps: readProjectDeps,
     async lspEdits(files, opts) {
       return (await import('../../engine/toolchain/lsp-edits')).editDiagnostics(files, opts)
