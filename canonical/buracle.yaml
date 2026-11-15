@@ -2,7 +2,6 @@ version: 1
 
 routing:
   strictness: enforce
-  skills: router
   reminders: true
 
 guards:

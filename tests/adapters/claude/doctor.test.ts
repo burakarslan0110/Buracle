@@ -327,9 +327,6 @@ describe('permission mode, code indexes and the prompt router', () => {
     const found = routerFinding(withCanonical(join(REPO, 'canonical')))
     expect(found.level).toBe('ok')
     expect(found.detail).toMatch(/^\d+ MCP categories with triggers; skills load from an exact invocation only$/)
-    const off = withCanonical(join(REPO, 'canonical'))
-    off.config.routing.skills = 'off'
-    expect(routerFinding(off)).toMatchObject({ level: 'ok', detail: expect.stringContaining('routing.skills is off') })
     expect(routerFinding(withCanonical(join(import.meta.dir, 'fixtures', 'canonical-mini')))).toMatchObject({ level: 'warn', detail: expect.stringContaining('skill-triggers.yaml was not loaded') })
     expect(routerFinding(ctx())).toMatchObject({ level: 'warn', detail: expect.stringContaining('could not be loaded') })
   })

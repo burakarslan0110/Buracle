@@ -89,7 +89,6 @@ export function routeUserPrompt(input: PromptRouteInput, baked: BakedData, cfg: 
   if (command !== undefined && !input.attached.includes(command)) {
     route = { ...route, invoked: route.invoked.filter(id => id !== command), load: [command] }
   }
-  if (cfg.routing.skills === 'off') route = { ...route, load: command !== undefined ? route.load.filter(id => id === command) : [], candidates: [] }
   const invoked = uniq([...route.invoked, ...input.attached])
   const attach = route.load.filter(id => input.known?.has(id) === true && !invoked.includes(id))
   const stored: PromptRoute = { ...route, invoked: uniq([...invoked, ...attach]), load: route.load.filter(id => !attach.includes(id)) }

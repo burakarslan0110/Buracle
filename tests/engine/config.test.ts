@@ -69,6 +69,14 @@ describe('loadConfig', () => {
     expect(r.config).toEqual({ ...defaultConfig(), routing: { ...defaultConfig().routing, strictness: 'nudge' }, checkers: { enabled: true, languages: ['go'] }, index: { exclude: ['vendor'] } })
   }))
 
+  test('routing.skills, a removed key, still loads from an old config.yaml: reported and ignored, the rest of routing applies', () => withSandbox(({ buracleHome }) => {
+    writeUserConfig(buracleHome, 'routing:\n  strictness: nudge\n  skills: off\n')
+    const r = loadConfigSync()
+    expect(r.errors).toEqual([`${join(buracleHome, 'config.yaml')}: routing.skills: unknown key (ignored; misspelled, renamed or removed? \`buracle config get\` prints the valid keys)`])
+    expect(r.config).toEqual({ ...defaultConfig(), routing: { ...defaultConfig().routing, strictness: 'nudge' } })
+    expect('skills' in r.config.routing).toBe(false)
+  }))
+
   test('unparsable YAML is reported, never treated as empty overrides',() => withSandbox(({ buracleHome }) => {
     writeUserConfig(buracleHome, 'routing: [unclosed\n')
     const r = loadConfigSync()

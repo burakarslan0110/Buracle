@@ -353,11 +353,9 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
     })
   })
 
-  test('routing.skills off names no skill; Buracle continuations, harness texts and subagent prompts are never routed', async () => {
+  test('an exact skill invocation is routed; Buracle continuations, harness texts and subagent prompts never are', async () => {
     await withSandbox(async () => {
-      const off = defaultConfig()
-      off.routing.skills = 'off'
-      expect(context((await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(off), deps())).stdout)).not.toContain('plan-build')
+      expect(context((await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(), deps())).stdout)).toContain('plan-build')
       expect(loadLedger('claude', SID).turn).toBe(1)
       for (const extra of [{ prompt: 'Buracle routing check: the user asked for plan-build and it was not loaded.' }, { prompt: '<task-notification>build done</task-notification>' }, { prompt: 'use the plan-build workflow', agent_id: 'a1' }]) {
         const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', extra), ctx(), deps())

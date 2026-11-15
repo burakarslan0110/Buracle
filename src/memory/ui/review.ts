@@ -159,7 +159,7 @@ function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessi
   const rel = t.doc.rel
   const name = rel.slice(rel.lastIndexOf('/') + 1).replace(/\.md$/, '')
   const meta = metaForPlan(facts.commonDir, t.doc.path)
-  const changes = meta !== undefined && meta.lane !== true && existsSync(meta.path) ? checkoutId(meta.path) : checkoutId(facts.top)
+  const changes = meta !== undefined && existsSync(meta.path) ? checkoutId(meta.path) : checkoutId(facts.top)
   const mark = marks.get(t.doc.path)
   const doc: ReviewDoc = {
     id: docId(t.doc.path), path: t.doc.path, rel, dir: rel.split('/')[1] ?? '', kind: docKind(rel, info.type), title: info.title ?? name, modified, ...counts(t), changes,

@@ -31,8 +31,7 @@ sync runs idempotent steps in the current repository:
               skills are linted afterwards (findings never block).
   --move      with --adopt: move each Claude-only folder into .agents/skills and link it back,
               and replace identical Claude copies with links. A tracked folder becomes a
-              symlink, which teammates without Buracle and Windows checkouts without symlinks
-              do not follow; ask before you use it.
+              symlink, which teammates without Buracle do not follow; ask before you use it.
   --dry-run   with --adopt: report what would change and write nothing.
   --auto      the session-start step (hook H28): only link .agents/skills into .claude/skills
               and update .git/info/exclude, under the repository lock (skipped when another

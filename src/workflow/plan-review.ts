@@ -4,7 +4,7 @@ import { isAbsolute, join, relative } from 'node:path'
 import type { BuracleConfig } from '../core/config'
 import type { SessionState } from '../core/plan/state'
 import {
-  REVIEW_AGENT_OF, REVIEW_FILES_MAX, REVIEW_ROLES, REVIEW_VERDICTS, companionOf, fileListText, laneReviewCleared, laneReviewStarted, planReviews, reviewCollected, reviewFreshness,
+  REVIEW_AGENT_OF, REVIEW_FILES_MAX, REVIEW_ROLES, REVIEW_VERDICTS, companionOf, fileListText, planReviews, reviewCollected, reviewFreshness,
   reviewLabel, reviewOf, reviewStarted, reviewSubjectText, type ReviewRecord, type ReviewRole, type ReviewVerdict,
 } from '../core/plan/reviews'
 import { loadConfigSync } from '../engine/config'
@@ -167,18 +167,7 @@ export function reviewsView(state: SessionState): Array<Record<string, unknown>>
   return planReviews(state).map(recordView)
 }
 
-export interface LaneOwner { lane: string, lead: ResolvedSession }
-
-function mirror(owner: LaneOwner | undefined, edit: (st: SessionState, lane: string) => SessionState): void {
-  if (owner === undefined) return
-  try { updateState(owner.lead.harness, owner.lead.sessionId, st => edit(st, owner.lane)) } catch {  }
-}
-
-export function clearLaneReviews(owner: LaneOwner | undefined): void {
-  mirror(owner, (st, lane) => laneReviewCleared(st, lane))
-}
-
-export async function planReview(action: string | undefined, o: { role?: string, handle?: string, provider?: string, verdict?: string, slug?: string }, ctx: WorkflowCtx, s: ResolvedSession, owner?: LaneOwner): Promise<CmdResult> {
+export async function planReview(action: string | undefined, o: { role?: string, handle?: string, provider?: string, verdict?: string, slug?: string }, ctx: WorkflowCtx, s: ResolvedSession): Promise<CmdResult> {
   if (action !== 'start' && action !== 'done' && action !== 'status') return fail('usage', `buracle plan review <start|done|status>${action !== undefined ? `: unknown action '${action}'` : ''}`)
   const state = loadState(s.harness, s.sessionId)
   const p = state.plan
@@ -199,7 +188,6 @@ export async function planReview(action: string | undefined, o: { role?: string,
   if (action === 'start') {
     const how = { ...(o.handle !== undefined ? { handle: o.handle } : {}), ...(o.provider !== undefined ? { provider: o.provider } : {}) }
     const next = updateState(s.harness, s.sessionId, st => (st.plan?.path === p.path ? reviewStarted(st, { role, ...how }, ctx.now) : st))
-    mirror(owner, (st, lane) => laneReviewStarted(st, { lane, role, ...how }, ctx.now))
     const rec = reviewOf(next, role)
     return ok({ ok: true, review: rec !== undefined ? recordView(rec) : null }, [
       `Recorded: ${rec !== undefined ? reviewLabel(rec) : REVIEW_AGENT_OF[role]} is running.`,
@@ -219,7 +207,6 @@ export async function planReview(action: string | undefined, o: { role?: string,
   if (anchor === undefined) return fail('no_anchor', role === 'changes' ? 'could not read the diff to anchor the review (buracle review-scope fails here); fix that first' : `could not read the plan file ${p.path}`)
   const a = anchor
   const next = updateState(s.harness, s.sessionId, st => (st.plan?.path === p.path ? reviewCollected(st, { role, verdict, ...a }, ctx.now) : st))
-  mirror(owner, (st, lane) => laneReviewCleared(st, lane, role))
   const rec = reviewOf(next, role)
   return ok({ ok: true, review: rec !== undefined ? recordView(rec) : null }, [
     `Recorded: ${REVIEW_AGENT_OF[role]} collected (${verdict})${a.files !== undefined ? ` over ${a.files.length} changed file(s)` : ''}.`,

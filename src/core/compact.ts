@@ -4,7 +4,7 @@ import { emptyState } from './plan/state'
 import { renderYamlBlock } from './frontmatter'
 import { memIsoLocal, memLocalDate, memLocalParts, memNoteHarness } from './memory/note'
 import { slugify } from './memory/text'
-import { laneReviewLabel, laneReviewsInFlight, reviewLabel, reviewsInFlight } from './plan/reviews'
+import { reviewLabel, reviewsInFlight } from './plan/reviews'
 
 export const COMPACT_MARKER = 'Buracle — keep through compaction:'
 
@@ -25,9 +25,8 @@ function reviewsLine(state: SessionState): string | undefined {
   const running = activePlan(state) !== undefined ? reviewsInFlight(state) : []
   const own = running.filter(r => r.companion !== true).map(reviewLabel)
   const second = running.filter(r => r.companion === true).map(reviewLabel)
-  const lanes = laneReviewsInFlight(state).map(laneReviewLabel)
   const out: string[] = []
-  if (own.length + lanes.length > 0) out.push(`Reviewers launched in the background and not collected yet: ${[...own, ...lanes].join('; ')}. Collect each report (wait for it, or read it through the agent tool that launched it) instead of launching a new one; \`buracle plan review done --role <role> --verdict <verdict>\`${lanes.length > 0 ? ' (plus `--lane <slug>` for a lane\'s reviewer)' : ''} records it.`)
+  if (own.length > 0) out.push(`Reviewers launched in the background and not collected yet: ${own.join('; ')}. Collect each report (wait for it, or read it through the agent tool that launched it) instead of launching a new one; \`buracle plan review done --role <role> --verdict <verdict>\` records it.`)
   if (second.length > 0) out.push(`Second opinions running on another harness and not collected yet: ${second.join('; ')}. Collect each with \`buracle plan review companion collect --role <role>\` instead of starting it again.`)
   return out.length > 0 ? out.join(' ') : undefined
 }

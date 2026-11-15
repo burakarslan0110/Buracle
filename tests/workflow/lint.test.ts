@@ -264,7 +264,7 @@ describe('rules lint', () => {
     const rules = join(root, 'rules')
     write(join(rules, 'always', 'core.md'), '# Core\nRun `buracle plan pause --kind decision`.\n')
     write(join(rules, 'always', 'fm.md'), '---\npaths: ["x"]\n---\n# has frontmatter\n')
-    write(join(rules, 'always', 'big.md'), 'line\n'.repeat(450))
+    write(join(rules, 'always', 'big.md'), 'line line line line\n'.repeat(450))
     write(join(rules, 'always', 'more.md'), 'line\n'.repeat(100))
     write(join(rules, 'paths', 'py.md'), '---\npaths:\n  - "**/*.py"\n---\n# Python\n')
     write(join(rules, 'paths', 'none.md'), '# no frontmatter\n')

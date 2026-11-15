@@ -39,8 +39,9 @@ Without a topic every section runs:
   tools    the CLI tools in canonical/tools.yaml (missing ones get install advice only; a
            tool Buracle's toolchain provides counts through its toolchain copy), and the
            version of every package in ~/.buracle/toolchain
-  skills   every skill is where each enabled harness reads it (the Claude plugin's skills/,
-           $CODEX_HOME/skills, ~/.config/opencode/skills and ~/.omp/agent/skills)
+  skills   every skill is where each enabled harness reads it: the Claude plugin's skills/, and
+           the one installed copy in ~/.agents/skills (with the links a harness that does not
+           read that folder needs)
   <h>      each enabled harness: installed version and the adapter's own checks; Claude
            Code and Codex also run their PreToolUse hook the way the harness does and
            expect it to deny a destructive command (the guards really run). With a harness

@@ -352,7 +352,6 @@ export async function indexFinding(folder: string, cfg: IndexSettings, cwd: stri
 
 export function routerFinding(ctx: AdapterContext): Finding {
   const check = 'router'
-  if (ctx.config.routing.skills === 'off') return { level: 'ok', check, detail: 'routing.skills is off: the prompt router names no skills (memory and MCP lines stay)' }
   let canonical: AdapterContext['canonical']
   try { canonical = ctx.canonical } catch (e) { return { level: 'warn', check, detail: `canonical/ could not be loaded: ${e instanceof Error ? e.message : String(e)}` } }
   if (canonical.triggers === undefined) return { level: 'warn', check, detail: 'canonical/skill-triggers.yaml was not loaded: the router names no MCP server for a prompt' }

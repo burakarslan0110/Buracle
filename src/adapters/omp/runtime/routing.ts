@@ -53,11 +53,10 @@ export interface PromptRouting {
   text?: string
 }
 
-export function promptRouting(prompt: string, data: RouterData, o: { loaded: readonly string[], available: readonly string[], deps?: readonly string[], skills: 'router' | 'off', strictness: RoutingPolicy['strictness'] }): PromptRouting {
+export function promptRouting(prompt: string, data: RouterData, o: { loaded: readonly string[], available: readonly string[], deps?: readonly string[], strictness: RoutingPolicy['strictness'] }): PromptRouting {
   const opts: Parameters<typeof routePrompt>[2] = { harness: H, loaded: o.loaded, available: o.available }
   if (o.deps !== undefined) opts.deps = o.deps
   let route = routePrompt(prompt, data.compiled, opts)
-  if (o.skills === 'off') route = { ...route, load: [], candidates: [] }
   if (o.strictness === 'off' && route.categories.length > 0) {
     const { libs: _libs, ...rest } = route
     route = { ...rest, categories: [] }

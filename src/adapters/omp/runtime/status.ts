@@ -156,7 +156,7 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const out = [`Buracle ${data.buracleVersion} · Oh My Pi${omp !== undefined ? ` ${omp}` : ''}`]
     out.push(`session ${sid ?? '-'} · ${ctx.mode} · config ${lc.source}`)
     out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : 'the harness setting'}`)
-    out.push(`routing: ${lc.config.routing.strictness} · skill router: ${lc.config.routing.skills} · workflow band: ${lc.config.workflow.band ? 'on' : 'off'}`)
+    out.push(`routing: ${lc.config.routing.strictness} · workflow band: ${lc.config.workflow.band ? 'on' : 'off'}`)
     if (sid !== undefined) {
       const state = guarded('state', () => deps.state.load(sid))
       const plan = state?.plan

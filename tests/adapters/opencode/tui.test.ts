@@ -194,14 +194,12 @@ describe('pure helpers of the server plugin', () => {
     expect(workflowCommandDescription({ id: 'x', description: 'First sentence here. Second.' })).toBe('First sentence here.')
   })
 
-  test('routing.skills off: no skill loads or candidates; a history question raises no memory line; a workflow command still loads its own skill', () => {
+  test('a history question raises no memory line; a workflow command loads its own skill', () => {
     const baked = testBaked()
-    const cfg = { routing: { ...baked.defaults.routing, skills: 'off' as const } }
+    const cfg = { routing: baked.defaults.routing }
     const base = { attached: [], loaded: [], available: ['buracle-memory'], known: new Set(['research', 'plan-build']) }
     const r = routeUserPrompt({ ...base, text: '$research what did we decide last time?' }, baked, cfg)
-    expect(r.attach).toEqual([])
     expect(r.text ?? '').not.toContain('Earlier work')
-    expect(r.text ?? '').not.toContain('research')
     const c = routeUserPrompt({ ...base, text: 'add rate limiting', command: 'plan-build' }, baked, cfg)
     expect(c.attach).toEqual(['plan-build'])
     expect(c.workflows).toEqual(['plan-build'])

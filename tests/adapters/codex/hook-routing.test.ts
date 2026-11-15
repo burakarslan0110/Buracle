@@ -96,11 +96,8 @@ describe('routing (H21-H26)', () => {
     expect(d2.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
   }))
 
-  test('routing.skills off drops the skill lines; a history question raises no memory line', () => withSandbox(async () => {
-    const c = defaultConfig()
-    c.routing.skills = 'off'
-    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research what did we decide last time?'), ctx(c), deps(quiet)))
-    expect(text).not.toContain('research')
+  test('a history question raises no memory line', () => withSandbox(async () => {
+    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research what did we decide last time?'), ctx(), deps(quiet)))
     expect(text).not.toContain('Earlier work')
   }))
 

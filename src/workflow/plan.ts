@@ -19,7 +19,7 @@ import {
 } from './plan-file'
 import { syncFlowFromPlan } from './flow'
 import { shownPath } from './plan-capture'
-import { clearLaneReviews, reviewWarnings, reviewsView, type LaneOwner } from './plan-review'
+import { reviewWarnings, reviewsView } from './plan-review'
 import { fail, isResult, ok, partial, sessionJson, type CmdResult, type WorkflowCtx } from './result'
 
 type Binding = NonNullable<SessionState['plan']>
@@ -326,8 +326,8 @@ function actOnDecision(st: SessionState, now: number): SessionState {
 
 export const MERGE_DECISION_ACTED = 'Resumed: the merge decision was acted on, so the pause ended and the stop guard holds the run again.'
 
-export function actOnMergeDecision(s: ResolvedSession | undefined, wt: { slug: string, planPath?: string, lane?: boolean }, now: number): string | undefined {
-  if (s === undefined || wt.lane === true) return undefined
+export function actOnMergeDecision(s: ResolvedSession | undefined, wt: { slug: string, planPath?: string }, now: number): string | undefined {
+  if (s === undefined) return undefined
   const merging = (st: SessionState): boolean => {
     const p = st.plan
     if (p === undefined || isPlanFinished(st) || p.phase !== 'verify' || !decisionHeld(st) || isResultReview(st.interaction)) return false
@@ -685,8 +685,7 @@ export async function planApproveResult(ctx: WorkflowCtx, s: ResolvedSession): P
   return ok({ ok: true, plan: b.path, resultApprovedAt: next.approvals?.resultApprovedAt ?? ctx.now, interaction: interactionView(next.interaction) }, lines, stale)
 }
 
-export async function planUnregister(ctx: WorkflowCtx, s: ResolvedSession, owner?: LaneOwner): Promise<CmdResult> {
-  clearLaneReviews(owner)
+export async function planUnregister(ctx: WorkflowCtx, s: ResolvedSession): Promise<CmdResult> {
   const state = loadState(s.harness, s.sessionId)
   if (state.plan === undefined) return ok({ ok: true, unregistered: null }, ['No plan is registered; nothing to do.'])
   const b = state.plan

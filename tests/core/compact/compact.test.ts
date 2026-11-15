@@ -201,19 +201,6 @@ describe('reviewers in flight survive the compaction on every harness (the recor
     expect(compactInstructions(undefined, onlySecond)).toContain('Second opinions running on another harness')
   })
 
-  test('a plan lane\'s reviewer recorded through --lane is named too, also when the lead has no plan of its own', () => {
-    const laneReviews: NonNullable<SessionState['laneReviews']> = [{ lane: 'billing', role: 'changes', startedAt: 7, handle: 'agent-b2' }]
-    const line = 'changes-review for lane billing (handle agent-b2)'
-    const leadOnly: SessionState = { ...emptyState(), laneReviews }
-    expect(compactInstructions(undefined, leadOnly)).toContain(`not collected yet: ${line}.`)
-    expect(compactInstructions(undefined, leadOnly)).toContain('(plus `--lane <slug>` for a lane\'s reviewer)')
-    expect(handoffNote({ state: leadOnly, project: 'buracle', harness: 'omp', sessionId: 's', now: NOW }).markdown).toContain(line)
-    expect(restoreContext(leadOnly)).toContain(line)
-    const both = restoreContext(withPlan({ phase: 'verify', status: 'COMPLETE' }, { reviews, laneReviews })) as string
-    expect(both).toContain('changes-review (handle agent-a1, codex); changes-review for lane billing (handle agent-b2)')
-    expect(restoreContext(emptyState())).toBeUndefined()
-  })
-
   test('nothing in flight, or no active plan: no reviewer line', () => {
     expect(compactInstructions(undefined, withPlan({}, { reviews: [reviews[1] as NonNullable<SessionState['reviews']>[number]] }))).not.toContain('Reviewers launched')
     expect(compactInstructions(undefined, withPlan({ status: 'VERIFIED' }, { reviews }))).not.toContain('Reviewers launched')

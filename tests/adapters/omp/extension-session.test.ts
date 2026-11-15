@@ -5,11 +5,9 @@ import { createBuracleExtension, type ExtensionDeps } from '../../../src/adapter
 import { PROMPT_MESSAGE_TYPE } from '../../../src/adapters/omp/runtime/prompt'
 import { CONTEXT_WARNING_TYPE, NOTICE_MESSAGE_TYPE } from '../../../src/adapters/omp/runtime/session-notes'
 import type { OmpGenerated } from '../../../src/adapters/omp/runtime/types'
-import { compactInstructions, restoreContext } from '../../../src/core/compact'
-import { emptyState } from '../../../src/core/plan/state'
+import { restoreContext } from '../../../src/core/compact'
 import { detectIntent, isGuardContinuation } from '../../../src/core/policy/intents'
 import { contextWarning } from '../../../src/core/status/context'
-import { saveState } from '../../../src/workflow/session-store'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
 import { compactRecord, fakeCtx, fakeMemory, fakePi, testDeps, testGenerated, type FakeCtx } from './fakes'
 
@@ -106,15 +104,5 @@ describe('omp H06/H07 without a handoff memory', () => {
     expect(compactRecord(SID)).toEqual({ v: 1, at: 1_791_400_000_000, todo: ['Write the parser'] })
     await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 's' }, fromExtension: false }, ctx)
     expect(fp.sent.at(-1)?.message.content).toBe('Buracle: the context was compacted.\nOpen todos at compaction time (no handoff memory was written):\n- Write the parser')
-  }))
-
-  test('a lead without a plan of its own gets its plan lanes\' running reviewers back after compaction', () => withSandbox(async sb => {
-    saveState('omp', SID, { ...emptyState(), laneReviews: [{ lane: 'billing', role: 'changes', startedAt: 1, handle: 'task-7' }] })
-    const bridge = { ...fakeMemory().bridge, writeHandoff: async () => undefined }
-    const { fp, ctx } = setup(sb, { memory: bridge, compact: { compactInstructions, handoffNote: () => ({ slug: 'h', markdown: '' }), restoreContext } })
-    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx) as { context?: string[] } | undefined
-    expect(r?.context?.join('\n')).toContain('changes-review for lane billing (handle task-7)')
-    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 's' }, fromExtension: false }, ctx)
-    expect(fp.sent.at(-1)?.message.content).toContain('not collected yet: changes-review for lane billing (handle task-7).')
   }))
 })

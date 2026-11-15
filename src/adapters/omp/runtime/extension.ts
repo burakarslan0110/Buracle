@@ -463,7 +463,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     const route = (sid: string, text: string, lc: LiveConfig): PromptRouting => {
       const strictness = lc.config.routing.strictness
       const ledger = deps.ledger.load(sid)
-      const o: Parameters<typeof promptRouting>[2] = { loaded: Object.keys(ledger.skills), available: availableNow(sid), skills: lc.config.routing.skills, strictness }
+      const o: Parameters<typeof promptRouting>[2] = { loaded: Object.keys(ledger.skills), available: availableNow(sid), strictness }
       const pd = deps.projectDeps(readWorkspace(actx(lc), H, sid)?.root)
       if (pd !== undefined) o.deps = pd
       return promptRouting(text, routerFor(strictness), o)
