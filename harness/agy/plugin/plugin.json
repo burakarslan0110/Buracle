@@ -1,0 +1,6 @@
+{
+  "name": "buracle",
+  "displayName": "Buracle",
+  "version": "0.8.17",
+  "description": "Buracle: always-on rules, path rules and review agents. Written by `buracle install`; edits are overwritten."
+}

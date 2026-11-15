@@ -8063,6 +8063,9 @@ var host = globalThis;
 if (host.Bun === undefined)
   host.Bun = shim;
 
+// src/adapters/pi/runtime/extension.ts
+import { join as join34 } from "path";
+
 // src/core/harness/native-events.ts
 var CLAUDE_CLASSIC_EVENTS = [
   "PreToolUse",
@@ -8878,7 +8881,6 @@ var piProfile = {
   bin: "pi",
   proc: { base: /^pi$/ },
   runtime: "inprocess",
-  companionPending: true,
   editBudgetMs: 20000,
   configDir: { key: "piAgentDir", env: "PI_CODING_AGENT_DIR", under: ".pi/agent" },
   relocationEnv: ["PI_CODING_AGENT_DIR"],
@@ -8947,7 +8949,6 @@ var qwenProfile = {
   proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
   runtime: "command",
   statusLineCommand: true,
-  companionPending: true,
   editBudgetMs: 28000,
   configDir: { key: "qwenHome", env: "QWEN_HOME", under: ".qwen" },
   relocationEnv: ["QWEN_HOME"],
@@ -35025,8 +35026,39 @@ function runawayNotice(why, plan) {
   return `Buracle: the turn ended although the plan ${plan} is not finished, because ${what} was reached. Check the work, then continue or run \`buracle plan pause\`.`;
 }
 
-// src/workflow/flow.ts
+// src/adapters/shared/path-rules.ts
+import { readFileSync as readFileSync20 } from "fs";
 import { join as join30 } from "path";
+function tilde(dir, home) {
+  if (home === undefined || home === "")
+    return;
+  const h = home.replace(/[\\/]+$/, "");
+  return dir.startsWith(h + "/") || dir.startsWith(h + "\\") ? `~/${dir.slice(h.length + 1).replace(/\\/g, "/")}` : undefined;
+}
+function pathRuleSource(rules, dir, opts = {}) {
+  if (rules === undefined || rules.length === 0 || dir === "")
+    return;
+  const src = {
+    rules,
+    dir,
+    body: (id) => {
+      try {
+        return readFileSync20(join30(dir, `${id}.md`), "utf8");
+      } catch {
+        return;
+      }
+    }
+  };
+  const shown = tilde(dir, opts.home);
+  if (shown !== undefined)
+    src.shownDir = shown;
+  if (opts.onRead === true)
+    src.onRead = true;
+  return src;
+}
+
+// src/workflow/flow.ts
+import { join as join31 } from "path";
 
 // src/workflow/result.ts
 var NO_SESSION_HINT = "no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from " + "BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; " + "when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. " + "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration.";
@@ -35034,7 +35066,7 @@ var NO_SESSION_HINT = "no session: no harness session id was found. Buracle read
 // src/workflow/flow.ts
 var DEFAULT_FOLD_SEC = FOLD_AFTER_SEC;
 function flowPath(h, sid) {
-  return join30(sessionDir(h, sid), "flow.json");
+  return join31(sessionDir(h, sid), "flow.json");
 }
 function readFlow(h, sid) {
   const r = readJsonSafeSync(flowPath(h, sid));
@@ -35090,7 +35122,7 @@ function recordFlowStart(h, sid, input, now) {
 }
 
 // src/usage/bar.ts
-import { isAbsolute as isAbsolute9, join as join31, relative as relative3, resolve as resolve15, sep as sep4 } from "path";
+import { isAbsolute as isAbsolute9, join as join32, relative as relative3, resolve as resolve15, sep as sep4 } from "path";
 function obj2(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x) ? x : undefined;
 }
@@ -35101,11 +35133,11 @@ function isMemoryStatus(x) {
   return s !== undefined && s["v"] === 3 && typeof s["health"] === "string" && counts !== undefined && typeof counts["project"] === "number" && typeof counts["person"] === "number" && Array.isArray(s["reasons"]);
 }
 function readMemoryStatus(slug) {
-  const dir = join31(memoryStateDir(), "status");
+  const dir = join32(memoryStateDir(), "status");
   for (const name of slug !== undefined ? [slug, "_global"] : ["_global"]) {
     if (!/^[A-Za-z0-9._-]+$/u.test(name))
       continue;
-    const r = readJsonSafeSync(join31(dir, `${name}.json`));
+    const r = readJsonSafeSync(join32(dir, `${name}.json`));
     if (r.ok && isMemoryStatus(r.value))
       return r.value;
   }
@@ -35117,6 +35149,7 @@ var CODE_EXECUTION_TOOLS = new Set(["codemode"]);
 function defaultDeps() {
   return {
     ...hostDeps("pi"),
+    buracleHome: () => buracleHome(),
     memory: createMemoryBridge({ harness: "pi", cli: hostCli }),
     flow: { start: (sid, input, now) => recordFlowStart("pi", sid, input, now), view: (sid, now, foldAfterSec) => flowViewFor("pi", sid, now, foldAfterSec) },
     columns: () => typeof process.stdout.columns === "number" && process.stdout.columns > 0 ? process.stdout.columns : 120,
@@ -35125,6 +35158,76 @@ function defaultDeps() {
 }
 function emptyGenerated() {
   return { v: 1, buracleVersion: "0.0.0", config: defaultConfig(), routing: { strictness: "enforce", categories: [] }, mcp: [], mcpIds: [], skills: [] };
+}
+
+// src/adapters/pi/runtime/commands.ts
+var PI_REMEMBER_COMMAND = "remember";
+var PI_BRAIN_COMMAND = "brain";
+var NO_CLI = "The buracle CLI was not found; run `buracle install`";
+function jsonOf(text) {
+  try {
+    const v = JSON.parse(text.trim());
+    return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
+  } catch {
+    return;
+  }
+}
+function failure(what, r) {
+  const err = jsonOf(r.stdout)?.["message"] ?? r.stderr.trim();
+  return `${what} failed (exit ${r.code})${r.timedOut ? " (timed out)" : ""}${err ? `: ${clip6(err.trim(), 300)}` : ""}`;
+}
+async function remember(host, args, ctx) {
+  const text = (args ?? "").trim();
+  if (text === "") {
+    ctx.ui.notify(`Usage: /${PI_REMEMBER_COMMAND} <text>`, "warning");
+    return;
+  }
+  const cli = host.cli();
+  if (cli === undefined) {
+    ctx.ui.notify(NO_CLI, "error");
+    return;
+  }
+  const r = await host.run([...cli, "mem", "remember", "--json", "--", text], { cwd: ctx.cwd, timeoutMs: 15000 });
+  if (r.code !== 0) {
+    ctx.ui.notify(failure("buracle mem remember", r), "error");
+    return;
+  }
+  const id = jsonOf(r.stdout)?.["id"];
+  ctx.ui.notify(`Remembered${typeof id === "string" && id !== "" ? `: ${clip6(id, 200)}` : ""}`, "info");
+}
+async function brain2(host, args, ctx) {
+  const page = brainPageArg(args ?? "");
+  if (page === undefined) {
+    ctx.ui.notify(`Usage: /${PI_BRAIN_COMMAND} [review]`, "warning");
+    return;
+  }
+  const cli = host.cli();
+  if (cli === undefined) {
+    ctx.ui.notify(NO_CLI, "error");
+    return;
+  }
+  const r = await host.run([...cli, "mem", "ui", "--open", ...page === "review" ? ["--page", "review"] : [], "--json"], { cwd: ctx.cwd, timeoutMs: 30000 });
+  const out = jsonOf(r.stdout);
+  const url = page === "review" ? out?.["page"] : out?.["url"];
+  if (r.code === 0 && typeof url === "string" && url !== "") {
+    ctx.ui.notify(`${page === "review" ? "Review page" : "Memory UI"}: ${url}${out?.["started"] === true ? " (started)" : ""}${out?.["opened"] === true ? " \xB7 opened in the browser" : ""}`, "info");
+    return;
+  }
+  ctx.ui.notify(failure("buracle mem ui", r), "error");
+}
+function registerPiCommands(pi, host) {
+  if (typeof pi.registerCommand !== "function")
+    return false;
+  const guard = (what, fn) => async (args, ctx) => {
+    try {
+      await fn(args, ctx);
+    } catch (e) {
+      host.report(what, e);
+    }
+  };
+  pi.registerCommand(PI_REMEMBER_COMMAND, { description: "Save a note to the Buracle memory: /remember <text>", handler: guard("/remember", (a, c) => remember(host, a, c)) });
+  pi.registerCommand(PI_BRAIN_COMMAND, { description: "Open the Buracle Console: /brain [review]", handler: guard("/brain", (a, c) => brain2(host, a, c)) });
+  return true;
 }
 
 // src/adapters/pi/runtime/edits.ts
@@ -35290,7 +35393,7 @@ function createPiExtras(host) {
 
 // src/adapters/pi/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.16",
+  buracleVersion: "0.8.17",
   config: {
     agents: {
       teams: true
@@ -35583,6 +35686,111 @@ var GENERATED = {
       message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses.",
       since: "0.8.6",
       until: "0.9.0"
+    }
+  ],
+  pathRules: [
+    {
+      globs: [
+        "**/api/**",
+        "**/routes/**",
+        "**/handlers/**",
+        "**/controllers/**",
+        "**/endpoints/**",
+        "**/middleware/**",
+        "**/models/**",
+        "**/models.py",
+        "**/entities/**",
+        "**/schema/**",
+        "**/schemas/**",
+        "**/queries/**",
+        "**/repository/**",
+        "**/repositories/**",
+        "**/dao/**",
+        "**/migrations/**",
+        "**/migrate/**",
+        "**/alembic/**",
+        "**/db/**",
+        "**/*.sql",
+        "**/*.prisma",
+        "**/*.graphql",
+        "**/*.proto",
+        "**/openapi*.yaml",
+        "**/openapi*.yml",
+        "**/openapi*.json"
+      ],
+      id: "backend"
+    },
+    {
+      globs: [
+        "**/*.razor",
+        "**/*.razor.cs",
+        "**/*.razor.css"
+      ],
+      id: "blazor"
+    },
+    {
+      globs: [
+        "**/*.cs",
+        "**/*.csproj",
+        "**/*.sln",
+        "**/*.slnx",
+        "**/global.json",
+        "**/Directory.Build.props",
+        "**/Directory.Packages.props"
+      ],
+      id: "dotnet"
+    },
+    {
+      globs: [
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.astro",
+        "**/*.html",
+        "**/*.css",
+        "**/*.scss",
+        "**/*.sass",
+        "**/*.less",
+        "**/*.razor",
+        "**/*.razor.css"
+      ],
+      id: "frontend"
+    },
+    {
+      globs: [
+        "**/*.go",
+        "**/go.mod",
+        "**/go.sum",
+        "**/go.work"
+      ],
+      id: "go"
+    },
+    {
+      globs: [
+        "**/*.py",
+        "**/*.pyi",
+        "**/pyproject.toml",
+        "**/requirements*.txt",
+        "**/uv.lock",
+        "**/setup.cfg"
+      ],
+      id: "python"
+    },
+    {
+      globs: [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.mts",
+        "**/*.cts",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/package.json",
+        "**/tsconfig*.json"
+      ],
+      id: "typescript"
     }
   ],
   routing: {
@@ -36184,10 +36392,10 @@ var GENERATED = {
 };
 
 // src/adapters/pi/runtime/native-off.ts
-import { join as join32 } from "path";
+import { join as join33 } from "path";
 
 // src/adapters/shared/native-off.ts
-import { readFileSync as readFileSync20, statSync as statSync23 } from "fs";
+import { readFileSync as readFileSync21, statSync as statSync23 } from "fs";
 var NATIVE_OFF_MAX_BYTES = 4 * 1024 * 1024;
 var cache3 = new Map;
 function readCapped(file, parse = JSON.parse) {
@@ -36205,7 +36413,7 @@ function readCapped(file, parse = JSON.parse) {
     return hit.value;
   let value;
   try {
-    value = parse(readFileSync20(file, "utf8"));
+    value = parse(readFileSync21(file, "utf8"));
   } catch {
     value = undefined;
   }
@@ -36221,7 +36429,7 @@ function disabledIn(doc) {
   return Object.entries(servers).filter(([, v]) => v !== null && typeof v === "object" && v.enabled === false).map(([id]) => id);
 }
 function piOffServers(project) {
-  const files = [join32(piAgentDir(), "mcp.json"), join32(project, ".pi", "mcp.json")];
+  const files = [join33(piAgentDir(), "mcp.json"), join33(project, ".pi", "mcp.json")];
   return [...new Set(files.flatMap((f) => disabledIn(readCapped(f))))];
 }
 
@@ -36252,6 +36460,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
     });
     const { memo, report, guarded, liveOrDefaults, started, spoolTo, pipe } = host;
     const extras = createPiExtras({ data, deps, live: () => liveOrDefaults(), guarded, slug: (sid) => memo(sid).slugValue });
+    registerPiCommands(pi, { cli: () => deps.cli(), run: (argv, opts) => deps.run(argv, opts), report });
     const notes = new Map;
     const denied = new Set;
     const consentHolds = new Map;
@@ -36319,6 +36528,9 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
           const plan = { call: c, ledgerId: sid, available: availableServers(data.mcp, health) };
           if (change !== undefined)
             plan.edits = [change];
+          const rules = guarded("path rules", () => pathRuleSource(data.pathRules, join34(deps.buracleHome(), "rules", "paths"), { home: deps.home() }));
+          if (rules !== undefined)
+            plan.pathRules = rules;
           return plan;
         }
       });

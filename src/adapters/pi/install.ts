@@ -4,8 +4,17 @@ import type { Ledger, Op, Plan } from '../../engine/txn'
 import { readLedger } from '../../engine/txn'
 import type { AdapterContext } from '../registry'
 import { agentDirConflict } from '../shared/agent-dir'
-import { EXTENSION_PATH, piMcpServers } from './build'
+import { AGENTS_BLOCK_ID, EXTENSION_PATH, piAgentsBlock, piMcpServers } from './build'
 import { OWNER } from './generated'
+
+function shown(dir: string, home: string): string {
+  const h = home.replace(/\/+$/, '')
+  return h !== '' && dir.startsWith(h + '/') ? `~/${dir.slice(h.length + 1)}` : dir
+}
+
+export function piAgentsFile(agentDir: string): string {
+  return join(agentDir, 'AGENTS.md')
+}
 
 export function piMcpFile(agentDir: string): string {
   return join(agentDir, 'mcp.json')
@@ -22,7 +31,7 @@ export function piMcpSet(ctx: Pick<AdapterContext, 'canonical' | 'config'>): Rec
 }
 
 /**
- * The extension is copied into the agent folder (Pi loads `extensions/*.js` there) and the MCP servers are merged key
+ * The rules go into a managed block of `AGENTS.md`, which Pi loads from the agent folder. The extension is copied into the agent folder (Pi loads `extensions/*.js` there) and the MCP servers are merged key
  * by key into `mcp.json`, so a server or file the user changed stays as it is. When Pi and Oh My Pi share the folder
  * and Oh My Pi keeps it, nothing is written.
  */
@@ -35,6 +44,7 @@ export async function installPlan(ctx: AdapterContext): Promise<Plan> {
   const ops: Op[] = [
     { kind: 'file', path: piExtensionFile(agentDir), content: readFileSync(built, 'utf8'), owner: OWNER },
     { kind: 'json-merge', path: piMcpFile(agentDir), set: piMcpSet(ctx), owner: OWNER },
+    { kind: 'md-block', path: piAgentsFile(agentDir), id: AGENTS_BLOCK_ID, content: piAgentsBlock(ctx.canonical, shown(join(ctx.paths.buracleHome(), 'rules', 'paths'), ctx.paths.home())), owner: OWNER },
   ]
   return { id: 'pi', harness: 'pi', ops }
 }
@@ -50,6 +60,7 @@ export async function uninstallPlan(ctx: AdapterContext, opts: { ledger?: Ledger
     for (const [key, entry] of Object.entries(ledger)) if (entry.owner === OWNER) keys.add(key)
   } else {
     keys.add(piExtensionFile(agentDir))
+    keys.add(`${piAgentsFile(agentDir)}#md:${AGENTS_BLOCK_ID}`)
     for (const key of Object.keys(piMcpSet(ctx))) keys.add(`${piMcpFile(agentDir)}#${key}`)
   }
   return { id: 'pi-uninstall', harness: 'pi', ops: [...keys].sort().map((path): Op => ({ kind: 'remove', path, owner: OWNER })) }

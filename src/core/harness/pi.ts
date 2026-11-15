@@ -11,7 +11,6 @@ export const piProfile: HarnessProfile = {
   bin: 'pi',
   proc: { base: /^pi$/ },
   runtime: 'inprocess',
-  companionPending: true,
   editBudgetMs: 20_000,
   configDir: { key: 'piAgentDir', env: 'PI_CODING_AGENT_DIR', under: '.pi/agent' },
   relocationEnv: ['PI_CODING_AGENT_DIR'],

@@ -2,14 +2,16 @@ import { join } from 'node:path'
 import type { Ledger, Op, Plan } from '../../engine/txn'
 import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
 import type { AdapterContext } from '../registry'
+import { qwenContentFiles, qwenMemoryBlock, QWEN_BLOCK_ID } from './content'
 import { HOOK_GROUP_IDENTITY, OWNER, qwenExcluded, qwenHooks, qwenMcpServers, qwenTipPhrases, QWEN_HOOK_EVENTS, STATUS_LINE_VALUE } from './settings'
 
 export const settingsPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(ctx.paths.qwenHome(), 'settings.json')
 
 /**
- * What the install writes into Qwen's settings.json, and nothing else (the skills are read from ~/.agents/skills):
- * the Buracle hook groups, one `mcpServers` entry per shipped server and the user's `mcp.off.qwen` as `mcp.excluded`.
- * The file is read as JSON with comments, as Qwen Code reads it; the user's own hooks, servers and keys stay.
+ * What the install writes into Qwen's folder (the skills are read from ~/.agents/skills). In settings.json: the Buracle hook groups, one `mcpServers` entry per shipped server and the user's `mcp.off.qwen` as `mcp.excluded`.
+ * The file is read as JSON with comments, as Qwen Code reads it; the user's own hooks, servers and keys stay. Besides it: a
+ * managed block in QWEN.md (the always-loaded rules and the commands), the path rules in rules/buracle/, the review agents in
+ * agents/ and the custom commands in commands/.
  */
 export async function qwenInstallPlan(ctx: AdapterContext): Promise<Plan> {
   const path = settingsPath(ctx)
@@ -26,6 +28,8 @@ export async function qwenInstallPlan(ctx: AdapterContext): Promise<Plan> {
   const tips = qwenTipPhrases(ctx.canonical)
   if (tips.length > 0) ops.push({ kind: 'json-list-merge', path, pointer: 'ui.customWittyPhrases', items: tips, identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'jsonc' })
   ops.push({ kind: 'json-list-merge', path, pointer: 'mcp.excluded', items: qwenExcluded(ctx.canonical, ctx.config), identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'jsonc' })
+  ops.push({ kind: 'md-block', path: join(ctx.paths.qwenHome(), 'QWEN.md'), id: QWEN_BLOCK_ID, content: qwenMemoryBlock(ctx.canonical), owner: OWNER })
+  for (const f of qwenContentFiles(ctx.canonical)) ops.push({ kind: 'file', path: join(ctx.paths.qwenHome(), f.path), content: f.content, owner: OWNER })
   return { id: 'qwen', harness: 'qwen', ops }
 }
 

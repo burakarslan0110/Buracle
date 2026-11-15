@@ -28,14 +28,12 @@ export function qwenTipPhrases(c: Pick<CanonicalBundle, 'tips' | 'skills'>): str
 
 /** The events the Qwen adapter answers; a `hooks.yaml` qwen binding on any other event is left out. */
 export const QWEN_HOOK_EVENTS = [
-  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PreCompact', 'PostCompact', 'Stop', 'SubagentStart', 'SessionEnd',
+  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PreCompact', 'PostCompact', 'Stop', 'SubagentStart', 'SubagentStop', 'SessionEnd',
 ] as const
 export type QwenHookEvent = (typeof QWEN_HOOK_EVENTS)[number]
 
 /** The events a `hooks.yaml` qwen binding names that the adapter does not register yet, with the reason (the parity test reads this). */
-export const QWEN_UNSERVED: Readonly<Record<string, string>> = {
-  SubagentStop: 'the review gate (H19) judges the review agents, which Buracle does not install for Qwen Code yet',
-}
+export const QWEN_UNSERVED: Readonly<Record<string, string>> = {}
 
 /** The events whose hooks take a matcher (tool names, a session's source, a subagent type); the others run for every call. */
 const MATCHED = new Set<string>(['PreToolUse', 'PostToolUse', 'PostToolUseFailure'])

@@ -904,7 +904,6 @@ var init_pi = __esm(() => {
     bin: "pi",
     proc: { base: /^pi$/ },
     runtime: "inprocess",
-    companionPending: true,
     editBudgetMs: 20000,
     configDir: { key: "piAgentDir", env: "PI_CODING_AGENT_DIR", under: ".pi/agent" },
     relocationEnv: ["PI_CODING_AGENT_DIR"],
@@ -978,7 +977,6 @@ var init_qwen = __esm(() => {
     proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
     runtime: "command",
     statusLineCommand: true,
-    companionPending: true,
     editBudgetMs: 28000,
     configDir: { key: "qwenHome", env: "QWEN_HOME", under: ".qwen" },
     relocationEnv: ["QWEN_HOME"],
@@ -37455,7 +37453,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.16",
+  buracleVersion: "0.8.17",
   commands: [
     "ab-test",
     "bugfix",

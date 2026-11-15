@@ -372,6 +372,66 @@
       "sha256": "58e7f3e5b2ac3159f7646c96fe78b5268c2e4b41462f0dd9ec9912230ba9068c",
       "exec": false
     },
+    "harness/agy/plugin/agents/changes-review.md": {
+      "by": "agy",
+      "sha256": "0704b6ef11426646fd1824d1820f8fca8e0be3d2fa79438b41e0a4a36c86628d",
+      "exec": false
+    },
+    "harness/agy/plugin/agents/goal-build-review.md": {
+      "by": "agy",
+      "sha256": "b049e79f5cf0da3b45b039b5d3512ca8c3ed991bb7948cd989a48a19b44b001d",
+      "exec": false
+    },
+    "harness/agy/plugin/agents/plan-build-review.md": {
+      "by": "agy",
+      "sha256": "e3badd36bbed7119aa6866ea331a5a8d88a2dec127e4316a49aea5dc099b9110",
+      "exec": false
+    },
+    "harness/agy/plugin/plugin.json": {
+      "by": "agy",
+      "sha256": "9581265ebdc114216b3a055818feb758e1aa287361843f2e4d7588f3147bfb10",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/AGENTS.md": {
+      "by": "agy",
+      "sha256": "ddaebb8453166afcd8661724129bd679aa50a993cfea5130b10981074552ac67",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/buracle-backend.md": {
+      "by": "agy",
+      "sha256": "d409250b4b297ae1936fcf993cf1651f5e191eb1f6b31f6d5b443d98251f5565",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/buracle-blazor.md": {
+      "by": "agy",
+      "sha256": "a54366e45d130955fa8e72b6d886ce9939556b894bd2f4b3e8bb0bcf78512d5f",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/buracle-dotnet.md": {
+      "by": "agy",
+      "sha256": "59b90751fd767ac1473c61a0e09860186cb24be0a3375e9cfd7e43c2114a3af3",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/buracle-frontend.md": {
+      "by": "agy",
+      "sha256": "783982c22a7b97dc2be503bf1e140d77f474775aaf5cf1218155e446fc38f8c8",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/buracle-go.md": {
+      "by": "agy",
+      "sha256": "90af3c2a357c116adb7e9e6da4a0691424bd5dbd9a5760e8cec6e6aee7aff833",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/buracle-python.md": {
+      "by": "agy",
+      "sha256": "2dbc3b5770378abd19fb5fd2a72f64f8a25e85d4b5f86584b32ed6a55342ee7c",
+      "exec": false
+    },
+    "harness/agy/plugin/rules/buracle-typescript.md": {
+      "by": "agy",
+      "sha256": "e9c188d306468da5aa17fa1119ea884e3b7e1ed5286242874498b6219b78b6c4",
+      "exec": false
+    },
     "harness/agy/settings.fragment.json": {
       "by": "agy",
       "sha256": "6bbabd60ebcc9bb202643184b892292baa53445454f3d689f832490576f0db33",
@@ -379,7 +439,7 @@
     },
     "harness/claude/.claude-plugin/plugin.json": {
       "by": "claude",
-      "sha256": "33c6cd75e2eb14b51b076db5db17e72f55218d00a632c753b19db711a9a2435f",
+      "sha256": "792fae6ceabb8a87053a8969b125bf6659b46a5e693f43317948c99823fc274e",
       "exec": false
     },
     "harness/claude/.lsp.json": {
@@ -524,7 +584,7 @@
     },
     "harness/claude/hooks/core/harness/pi.ts": {
       "by": "claude",
-      "sha256": "51a22d758d822974d7ef7bd51a94afed4064629a3b595583d969c09c5f270fc4",
+      "sha256": "0b927ec12644b5b78cbaf5438dc634e869e6732db8c10d33dc868f7ba36bcd1a",
       "exec": false
     },
     "harness/claude/hooks/core/harness/profile.ts": {
@@ -534,7 +594,7 @@
     },
     "harness/claude/hooks/core/harness/qwen.ts": {
       "by": "claude",
-      "sha256": "fbb20324d6ebe6f9bf61f6eaa940ed5e2aa6e12ea4fec76434792e8827172d4b",
+      "sha256": "be843dc7936b42ca32ce5acd4a649fb238e87003ba9ae3a3e060e36dee91dbcf",
       "exec": false
     },
     "harness/claude/hooks/core/index.ts": {
@@ -929,7 +989,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "1e0fa12683112bc8794e10d07881a01f61a129e583eb0d4ab090b3cc525743f9",
+      "sha256": "21885392ad5c62b8056d16c1b44a6f64e62a2843c546029dc444a714e751ed47",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1419,12 +1479,12 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "2bb1c35701193d679b89ad8928850325dd13bea3b4ef25cf1b75a64aebca611b",
+      "sha256": "b452bd7722d8b12f81e8c149ff1ffceb067b48d43c4c7bddcf4ab17c3460c867",
       "exec": false
     },
     "harness/omp/package.json": {
       "by": "omp",
-      "sha256": "7bf60f524ba27f112626b1d071406301eefaa3e7eeb9191891309840c65068ac",
+      "sha256": "b58337ad25cdd52effa010cc98b60576d0a4cc356e23c0c45e4f2e0f93c11960",
       "exec": false
     },
     "harness/omp/rules/buracle-backend.md": {
@@ -1519,17 +1579,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "c34fd5bca37161302ee1e63fbefef8611b24bbb77b086b952c87494ad5c9adbb",
+      "sha256": "8bb7b8c6c3bdac5cae38a5b03a98e8448a4e7fa7e5d0231fb92ff3f77d6fae3c",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "a87d2cb15a4982f8799f9c0298430ff06d02c4f0251d2d480fd350120d038bd1",
+      "sha256": "d375e7ea3b96ab5b6ac559441c1f6e8eb66d1bbee9631d66d3ac5382dc5e98b9",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "3529fea588ee8b0edaab3a645559fd594b472123b9ea2a171d4ba25579ccaf06",
+      "sha256": "05b04d0102c6eb3b83676f22cfbc5266e4b88a4c4c6eb3c233cf1fbe83624ce8",
       "exec": false
     },
     "harness/pi/README.md": {
@@ -1539,7 +1599,7 @@
     },
     "harness/pi/extensions/buracle.js": {
       "by": "pi",
-      "sha256": "7ea1610cbe6e5e942abee8a3cd786acf10b058065f21d9d2963624ec166304d7",
+      "sha256": "b6958aa76ef172a79df975806dcd8418432239cad2dd3c139a89fd57ede0d3b7",
       "exec": false
     },
     "harness/pi/mcp.json": {
@@ -1547,9 +1607,79 @@
       "sha256": "17b389b9174f6a5f7f0db16a51a2b3974547626b06ed0d26c135059dcc461c61",
       "exec": false
     },
+    "harness/qwen/QWEN.md": {
+      "by": "qwen",
+      "sha256": "ea63a211c1d79c172176d5eb1fbc67c1b24a15f2b227c74f1d93752215447333",
+      "exec": false
+    },
+    "harness/qwen/agents/changes-review.md": {
+      "by": "qwen",
+      "sha256": "a6c0253be772c51ba683311ba15ae5ee07fd70d64fe93f0b5b9b213941e51942",
+      "exec": false
+    },
+    "harness/qwen/agents/goal-build-review.md": {
+      "by": "qwen",
+      "sha256": "c448364e0d9f5b34da1776d3ba82b8dc1f471eb164c038d160aaf4dd5cbc9247",
+      "exec": false
+    },
+    "harness/qwen/agents/plan-build-review.md": {
+      "by": "qwen",
+      "sha256": "f9c9405fb0960d4b9e66e56f50167ded0e2d089cc514d39601d639bbadc5670a",
+      "exec": false
+    },
+    "harness/qwen/commands/brain.md": {
+      "by": "qwen",
+      "sha256": "48ecc216deacaf5288429b628fe2018e6839d0733a0ea0c9c5a3a355243530ce",
+      "exec": false
+    },
+    "harness/qwen/commands/buracle-status.md": {
+      "by": "qwen",
+      "sha256": "fee7f3e2ed10cb5622f8e720cc4a4e88bf7baa157518e2069d410294ffbedd5f",
+      "exec": false
+    },
+    "harness/qwen/commands/remember.md": {
+      "by": "qwen",
+      "sha256": "d898232bab8b1f7f2ec6bb4b10a3422c15d1a4cf2206b86005860ee400d31fb2",
+      "exec": false
+    },
+    "harness/qwen/rules/buracle/backend.md": {
+      "by": "qwen",
+      "sha256": "929f3ea504fac2a2a7edd2e45d0db35094e07b4aa9d29316bc0e08a2c4dd3d61",
+      "exec": false
+    },
+    "harness/qwen/rules/buracle/blazor.md": {
+      "by": "qwen",
+      "sha256": "ea67500053cb25738490012bc080bcbdc188b8bf32dd05aa57022b1869b5e84d",
+      "exec": false
+    },
+    "harness/qwen/rules/buracle/dotnet.md": {
+      "by": "qwen",
+      "sha256": "4d0bd9c474877e9d4d95c8f40c935914689c996e0cb4b9cf80d73bfdc49a7357",
+      "exec": false
+    },
+    "harness/qwen/rules/buracle/frontend.md": {
+      "by": "qwen",
+      "sha256": "dcdc97f63b654e42eb0c6b5be973a526bdf143b4f1dca923ba2c0313422a9a99",
+      "exec": false
+    },
+    "harness/qwen/rules/buracle/go.md": {
+      "by": "qwen",
+      "sha256": "a99029a114dd142e448b385be03997bfd7e50cec0280f06221256140d0870b8a",
+      "exec": false
+    },
+    "harness/qwen/rules/buracle/python.md": {
+      "by": "qwen",
+      "sha256": "ce99adab8ca7abd9fde414d54ba1b92cf9315e6e83c232cca9c39c198723ca50",
+      "exec": false
+    },
+    "harness/qwen/rules/buracle/typescript.md": {
+      "by": "qwen",
+      "sha256": "56fc07c160961a59dffa1acb806303e6a2ebe76a96bff5c05bbfb3f3331c3008",
+      "exec": false
+    },
     "harness/qwen/settings.fragment.json": {
       "by": "qwen",
-      "sha256": "83fd38a467d33782fcc9f30e94cf8378642cdf08625d7a84742ce7fc122d2777",
+      "sha256": "726838dcc7561e86a68356910fd88f569353fe68ba7843b93faec6a70a0d46a4",
       "exec": false
     }
   }

@@ -9,7 +9,8 @@ import { agentPermissions } from '../adapters/opencode/render'
 import type { AgentDoc } from '../core/catalog'
 import type { Harness } from '../core/events'
 import { claudeResultText } from '../core/plan/companion'
-import { COMPANION_MCP_SERVERS, COMPANION_OMP_TOOLS } from '../core/policy/companion-fence'
+import { COMPANION_MCP_SERVERS, COMPANION_MCP_TOOLS, COMPANION_OMP_TOOLS } from '../core/policy/companion-fence'
+import { harnessMcpToolName } from '../core/policy/routing'
 import { tomlParse, tomlValue } from '../engine/merge'
 import * as paths from '../engine/paths'
 import { MEMORY_RUNNER_DIR_PREFIX } from '../memory/spawn'
@@ -170,12 +171,57 @@ const omp: CompanionHost = {
   prepare: o => ({ argv: ompArgv(o.agent, o.repo, o.timeoutMs), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
 }
 
+const QWEN_READ_TOOLS: readonly string[] = ['read_file', 'grep_search', 'glob', 'list_directory']
+
+/**
+ * A Qwen Code second opinion: the prompt on stdin (a piped stdin runs one non-interactive turn and prints the answer), the
+ * built-in tools cut to the read tools and the MCP servers to codegraph, semble and context7. The two release lines
+ * spell the tool flags differently: 0.x has `--core-tools` and `--approval-mode`, 1.x has `--tools` and `--permission-mode`.
+ * The MCP tools are named in `--allowed-tools`, which approves them, because a headless run has nobody to ask.
+ */
+export function qwenArgv(version: string | undefined): string[] {
+  const mcp = COMPANION_MCP.flatMap(s => (COMPANION_MCP_TOOLS[s] ?? []).map(t => harnessMcpToolName('qwen', s, t)))
+  const major = Number.parseInt(version ?? '', 10)
+  const modern = Number.isFinite(major) && major >= 1
+  return [
+    'qwen',
+    ...(modern ? ['--print', '--no-session-persistence', '--tools', QWEN_READ_TOOLS.join(','), '--permission-mode', 'dont_ask'] : ['--core-tools', QWEN_READ_TOOLS.join(','), '--approval-mode', 'default']),
+    '--allowed-tools', mcp.join(','),
+    '--allowed-mcp-server-names', COMPANION_MCP.join(','),
+  ]
+}
+
+function qwenVersion(): string | undefined {
+  try {
+    const r = Bun.spawnSync(['qwen', '--version'], { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', env: { ...process.env }, timeout: 15_000 })
+    return /\d+\.\d+\.\d+\S*/.exec(r.stdout.toString())?.[0]
+  } catch { return undefined }
+}
+
+const qwen: CompanionHost = {
+  harness: 'qwen',
+  shell: false,
+  scratch: false,
+  prepare: o => ({ argv: qwenArgv(qwenVersion()), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
+}
+
+
+/** Pi's read tools for a second opinion: `--tools` is an allowlist of built-in tools; `--no-mcp` and `--no-extensions` leave nothing else. */
+export function piArgv(): string[] {
+  return ['pi', '-p', '--no-session', '--no-skills', '--no-extensions', '--no-mcp', '--no-context-files', '--no-prompt-templates', '--tools', 'read,grep,find,ls']
+}
+const pi: CompanionHost = {
+  harness: 'pi',
+  shell: false,
+  scratch: false,
+  prepare: o => ({ argv: piArgv(), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
+}
 // A harness Buracle has no second-opinion run for yet: choosing it fails that attempt and the next target is tried.
 function pendingHost(harness: Harness): CompanionHost {
   return { harness, shell: false, scratch: false, prepare: () => { throw new Error(`a second opinion from ${harness} is not supported yet`) } }
 }
 
-const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen: pendingHost('qwen'), pi: pendingHost('pi'), agy: pendingHost('agy') }
+const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen, pi, agy: pendingHost('agy') }
 
 export const companionTestHooks: { extraArgs?: (h: Harness) => string[] } = {}
 

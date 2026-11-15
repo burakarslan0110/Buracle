@@ -6,7 +6,8 @@ import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { compareVersions } from '../../engine/update/versions'
 import type { AdapterContext } from '../registry'
 import { agyHooks, agyMcpServers, AGY_HOOK_EVENTS, HOOK_NAME, isBuracleCommand, isBuracleStatusLine } from './config'
-import { hooksPath, mcpConfigPath, settingsPath } from './install'
+import { hooksPath, mcpConfigPath, pluginPath, settingsPath } from './install'
+import { agyPluginFiles, packageVersion } from './plugin'
 
 export interface DoctorItem { level: 'ok' | 'warn' | 'error', check: string, detail: string }
 
@@ -73,5 +74,16 @@ export async function agyDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   const skills = join(ctx.paths.harnessConfigDir('agy'), 'skills')
   const linked = existsSync(skills) ? readdirSync(skills).filter(n => lstatSync(join(skills, n)).isSymbolicLink() && existsSync(join(skills, n, 'SKILL.md'))).length : 0
   out.push(linked > 0 ? { level: 'ok', check: 'agy.skills', detail: `${linked} skills linked in ${skills}` } : { level: 'warn', check: 'agy.skills', detail: `no skill links in ${skills}: run \`buracle install\`` })
+
+  // The `buracle` plugin: the always-on rules, the path rules and the review agents (`agy plugin list` shows it).
+  const dir = pluginPath(ctx)
+  const files = agyPluginFiles(ctx.canonical, packageVersion(ctx.repoRoot))
+  const absent = files.filter(f => !existsSync(join(dir, f.path))).map(f => f.path)
+  const config = join(ctx.paths.harnessConfigDir('agy'), 'config.json')
+  const parsed = existsSync(config) ? readJson(config) : undefined
+  const off = parsed?.ok === true && rec(rec(parsed.value['plugins'])['buracle'])['enabled'] === false
+  if (absent.length > 0) out.push({ level: 'warn', check: 'agy.plugin', detail: `missing from ${dir}: ${absent.join(', ')} (run \`buracle install agy\`)` })
+  else if (off) out.push({ level: 'warn', check: 'agy.plugin', detail: `the buracle plugin is disabled in ${config}: its rules and review agents are not loaded (\`agy plugin enable buracle\`)` })
+  else out.push({ level: 'ok', check: 'agy.plugin', detail: `${files.length} files of the buracle plugin in ${dir} (rules and review agents)` })
   return out
 }

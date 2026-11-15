@@ -143,7 +143,7 @@ Araç zinciri ayrıca `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck`
 
 ## Her harness'a ne gelir
 
-Yedisi de aynı 26 hook'u, skill'leri, hafızayı ve korumaları alır. Kural dosyaları ve inceleme ajanları yalnızca Claude Code, Codex CLI, OpenCode ve Oh My Pi için kurulur; Qwen Code, Pi ve AGY CLI için Buracle hook'ları, MCP sunucularını, skill'leri ve konağın bir yeri varsa durum çubuğunu kurar.
+Yedisi de aynı 26 hook'u, skill'leri, hafızayı ve korumaları alır. Kural dosyaları ve inceleme ajanları Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code (`QWEN.md` bloğu, yerel yol kuralları) ve AGY CLI için kurulur (AGY CLI'da `buracle` eklentisi olarak, yerel yol kurallarıyla); Pi için Buracle hook'ları, MCP sunucularını, skill'leri ve konağın bir yeri varsa durum çubuğunu kurar.
 
 | | Nasıl takılır | Skill'ler | Durum ve ilerleme | İpuçları | Geri alması zor komutlar |
 |---|---|---|---|---|---|
@@ -151,11 +151,11 @@ Yedisi de aynı 26 hook'u, skill'leri, hafızayı ve korumaları alır. Kural do
 | Codex CLI | `hooks.json`, `config.toml`, `AGENTS.md` bloğu, exec-policy kuralları | `~/.agents/skills`; `$plan-build` | Yerel öğeler, tek satırlık bildirimler | Yok | Codex'in istemi |
 | OpenCode | Sunucu ve TUI eklentileri | `~/.agents/skills` | Bant, altlık | Ana ekran | TUI penceresi, soru aracı |
 | Oh My Pi | Extension'lı bir omp eklentisi | `~/.agents/skills` | Widget, panel, yerel ön ayar | Yok | omp'nin seçim penceresi |
-| Qwen Code | `~/.qwen/settings.json` içinde hook'lar ve MCP | `~/.agents/skills` | Durum çubuğu komutu | Yükleme cümleleri | Ret, ajana ne soracağını söyler |
-| Pi | Bir extension; `mcp.json` içinde MCP | `~/.agents/skills`; `/skill:plan-build` | Widget bandı, altlık | Çalışma mesajı | Pi'nin seçim penceresi |
-| AGY CLI | `~/.gemini/config` içinde `hooks.json`, `mcp_config.json` | AGY'nin skills klasöründe bağlantılar | Durum çubuğu komutu | Yok | Ret, ajana ne soracağını söyler |
+| Qwen Code | `~/.qwen/settings.json` içinde hook'lar ve MCP, `~/.qwen` içinde `QWEN.md` bloğu, yol kuralları, inceleme ajanları ve komutlar | `~/.agents/skills` | Durum çubuğu komutu | Yükleme cümleleri | Ret, ajana ne soracağını söyler |
+| Pi | Bir extension ve bir `AGENTS.md` bloğu; `mcp.json` içinde MCP; `/remember`, `/brain` | `~/.agents/skills`; `/skill:plan-build` | Widget bandı, altlık | Çalışma mesajı | Pi'nin seçim penceresi |
+| AGY CLI | `~/.gemini/config` içinde `hooks.json`, `mcp_config.json`, bir `buracle` eklentisi (kurallar, inceleme ajanları) | AGY'nin skills klasöründe bağlantılar | Durum çubuğu komutu | Yok | Ret, ajana ne soracağını söyler |
 
-`/brain`, `/remember`, `/aside` ve `/buracle-status` Claude Code, OpenCode ve Oh My Pi'de vardır; öbür dördü `buracle` altındaki CLI karşılıklarını kullanır (Codex `/aside` komutunu `/side`'a eşler). Dil sunucuları: Claude Code ve Oh My Pi kendilerininkini, Codex ve OpenCode Buracle'ın `lsp` sunucusunu kullanır, gerisinde yoktur. Plan modu: Claude Code ve Qwen Code kendi modunu kullanır; Codex planı uygulamayı seçtiğinde, OpenCode taslak olarak, Oh My Pi onayda kaydeder; Pi ve AGY CLI'da yerleşik mod yoktur (ajan senden bir tane açmanı ister).
+`/brain`, `/remember`, `/aside` ve `/buracle-status` Claude Code, OpenCode ve Oh My Pi'de vardır; Qwen Code'da `/aside` dışındakiler vardır (`/aside` onun kendi `/btw` komutudur); Pi'de `/remember` ve `/brain` vardır; gerisi `buracle` altındaki CLI karşılıklarını kullanır (Codex `/aside` komutunu `/side`'a eşler). Dil sunucuları: Claude Code ve Oh My Pi kendilerininkini, Codex ve OpenCode Buracle'ın `lsp` sunucusunu kullanır, gerisinde yoktur. Plan modu: Claude Code ve Qwen Code kendi modunu kullanır; Codex planı uygulamayı seçtiğinde, OpenCode taslak olarak, Oh My Pi onayda kaydeder; Pi ve AGY CLI'da yerleşik mod yoktur (ajan senden bir tane açmanı ister).
 
 Bütün harness'lar yerel hook'larını aynı yedi olaya eşler (oturum başlangıcı, istem, araçtan önce ve sonra, stop, sıkıştırmadan önce, oturum sonu) ve kararı ortak bir pipeline verir; ret `Buracle H<nn>: …` biçiminde görünür. Buracle, Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır.
 
@@ -186,8 +186,13 @@ Bütün harness'lar yerel hook'larını aynı yedi olaya eşler (oturum başlang
 | `opencode.subagent-stop-hold` | OpenCode | Alt ajan durma hook'u yok | Bir not ajandan inceleyiciyi bir kez sürdürmesini ister |
 | `opencode.rate-windows` | OpenCode | Kota API'si yok; pencereler yanıt başlıklarından gelir | Bir yanıt taşıyana kadar 5 saatlik ve 7 günlük bölümler boş kalır |
 | `omp.companion-shell` | Oh My Pi | Print modu bash'i salt okunur komutlarla sınırlayamaz | İkinci görüş yalnızca read, grep ve glob alır |
+| `qwen.readonly-shell` | Qwen Code | Araç listeleri araç adı verir, komut deseni vermez; kabuk salt okunur komutlarla sınırlanamaz | İkinci görüş yalnızca read, grep, glob ve list araçlarını alır; inceleme ajanları koruma hook'ları altında çalışır |
 | `agy.no-compaction-event` | AGY CLI | Sıkıştırmadan önce ya da sonra olay yok | Hafıza bağlamı SessionStart'ta gelir; bağlam boyutu her model çağrısından önce izlenir |
+| `agy.commands-without-turn` | AGY CLI | Model turu olmadan çalışan özel komut yok | İş akışları `/<id>` skill'idir; kurallar `/remember`, `/brain`, `/aside` ve `/buracle-status` için CLI karşılıklarını söyler |
+| `agy.no-subagent-result` | AGY CLI | Hook alt ajanın sonucunu görmez, bu yüzden inceleme raporu denetimi (H19) yok | İnceleme adımları raporu kendileri doğrular |
 | `agy.no-session-end` | AGY CLI | Konuşma sonu olayı yok, yalnızca tur başına Stop | Hafıza her Stop'ta yakalanır |
+| `pi.no-subagents` | Pi | Alt ajan aracı yok, bu yüzden inceleme ajanı yok | Ajan kurulmaz, H19 bağlanmaz; incelemeler ana oturumda yapılır |
+| `pi.no-path-rules` | Pi | Dosya yoluna bağlı kural yok | `AGENTS.md` bloğu kuralları sayar, H03 ilk düzenlemede kuralı verir |
 
 </details>
 

@@ -1,6 +1,7 @@
 import { detectBinary } from '../../engine/proc'
 import type { Adapter, AdapterContext } from '../registry'
 import { hooksFragment, mcpFragment, settingsFragment } from './config'
+import { agyPluginFiles, packageVersion } from './plugin'
 
 export const adapter: Adapter = {
   harness: 'agy',
@@ -13,6 +14,8 @@ export const adapter: Adapter = {
       { path: 'hooks.fragment.json', content: hooksFragment(ctx.canonical) },
       { path: 'mcp_config.fragment.json', content: mcpFragment(ctx.canonical, '{buracle}') },
       { path: 'settings.fragment.json', content: settingsFragment() },
+      // The plugin folder the install writes (rules and review agents), under `plugin/`.
+      ...agyPluginFiles(ctx.canonical, packageVersion(ctx.repoRoot)).map(f => ({ path: `plugin/${f.path}`, content: f.content })),
     ]
   },
 

@@ -1,4 +1,5 @@
 import './bun-shim'
+import { join } from 'node:path'
 import type { HookId, StopInput, ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { mcpUnavailable } from '../../../core/policy/routing'
@@ -15,8 +16,10 @@ import type { SpoolEntry } from '../../shared/pi-family/memory'
 import { availableServers, type PromptRouting } from '../../shared/pi-family/routing'
 import { runawayNotice, stopReason } from '../../shared/pi-family/stop'
 import { clip, hasTui, messageText, numAt, sessionOf, withDeadline } from '../../shared/pi-family/util'
+import { pathRuleSource } from '../../shared/path-rules'
 import { guardedContents, piChanges } from '../../shared/write-content'
 import { CODE_EXECUTION_TOOLS, defaultDeps, emptyGenerated, type PiDeps } from './deps'
+import { registerPiCommands } from './commands'
 import { piEdit, textsOf } from './edits'
 import { createPiExtras } from './extras'
 import { GENERATED } from './generated-data'
@@ -62,6 +65,7 @@ export function createBuracleExtension(data: PiGenerated = emptyGenerated(), ove
     })
     const { memo, report, guarded, liveOrDefaults, started, spoolTo, pipe } = host
     const extras = createPiExtras({ data, deps, live: () => liveOrDefaults(), guarded, slug: sid => memo(sid).slugValue })
+    registerPiCommands(pi, { cli: () => deps.cli(), run: (argv, opts) => deps.run(argv, opts), report })
     /** Context the pre-tool step has for a call, which Pi can only take back with the call's result. */
     const notes = new Map<string, string[]>()
     const denied = new Set<string>()
@@ -117,6 +121,8 @@ export function createBuracleExtension(data: PiGenerated = emptyGenerated(), ove
           if (sid === undefined) return undefined
           const plan: UsagePlan = { call: c, ledgerId: sid, available: availableServers(data.mcp, health) }
           if (change !== undefined) plan.edits = [change]
+          const rules = guarded('path rules', () => pathRuleSource(data.pathRules, join(deps.buracleHome(), 'rules', 'paths'), { home: deps.home() }))
+          if (rules !== undefined) plan.pathRules = rules
           return plan
         },
       })

@@ -13,7 +13,6 @@ export const qwenProfile: HarnessProfile = {
   proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
   runtime: 'command',
   statusLineCommand: true,
-  companionPending: true,
   editBudgetMs: 28_000,
   configDir: { key: 'qwenHome', env: 'QWEN_HOME', under: '.qwen' },
   relocationEnv: ['QWEN_HOME'],
