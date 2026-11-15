@@ -7,7 +7,7 @@ import { stop, type PipelineDeps } from '../../shared/pipeline/index'
 import type { ExtensionDeps } from './deps'
 import type { SpoolEntry } from './memory'
 import type { OmpContext, OmpExtensionAPI, OmpSessionStopEvent, OmpSessionStopResult } from './types'
-import { clip, isMain, messageText, sessionOf } from './util'
+import { clip, isMain, messageText, sessionOf } from '../../shared/pi-family/util'
 
 export function stopReason(hook: HookId, reason: string): string {
   return GUARD_MARKERS.some(m => reason.startsWith(m)) ? reason : `Buracle ${hook}: ${reason}`

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { LiveConfig } from '../../../src/adapters/omp/runtime/config'
+import type { LiveConfig } from '../../../src/adapters/shared/pi-family/config'
 import { defaultDeps, type ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { createStatusTexts, WIDGET_KEY } from '../../../src/adapters/omp/runtime/status'
 import { defaultConfig, type BuracleConfig } from '../../../src/core/config'

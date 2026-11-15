@@ -9,10 +9,10 @@ import type { BarModel, HookHealth, IndexStatus } from '../../../core/status/mod
 import { statusHealth } from '../../../engine/hook-health'
 import { brainDir, buracleHome } from '../../../engine/paths'
 import { OMP_ASIDE_COMMAND, OMP_PING_COMMAND, OMP_STATUS_COMMAND, type StatusView } from './commands'
-import type { LiveConfig } from './config'
+import type { LiveConfig } from '../../shared/pi-family/config'
 import type { ExtensionDeps } from './deps'
 import type { OmpContext, OmpGenerated } from './types'
-import { hasTui, isMain, sessionOf, withDeadline } from './util'
+import { hasTui, isMain, sessionOf, withDeadline } from '../../shared/pi-family/util'
 
 export const WIDGET_KEY = 'buracle'
 export const STATUS_KEYS = { mem: 'buracle.mem' } as const

@@ -23,13 +23,13 @@ import { addedTextOf, OMP_H04_BUDGET_MS, removedTextOf } from './checks'
 import { registerUtilityCommands } from './commands'
 import { registerCompaction } from './compaction'
 import { fenceActiveTools, fenceToolCall } from './companion-fence'
-import { judgeWithConsent, type ConsentNeed } from './consent-ask'
-import { heldConsentNeed } from './consent-held'
-import type { LiveConfig } from './config'
+import { judgeWithConsent, type ConsentNeed } from '../../shared/pi-family/consent-ask'
+import { heldConsentNeed } from '../../shared/pi-family/consent-held'
+import type { LiveConfig } from '../../shared/pi-family/config'
 import { CODE_EXECUTION_TOOLS, defaultDeps, emptyGenerated, type ExtensionDeps } from './deps'
 import { editTargets, type EditTargets } from './edits'
 import { FlowWidget, flowWidgetLines } from './flow-widget'
-import { adapterContext, memoryFns, pipelineCore, uiHooks } from './host'
+import { adapterContext, memoryFns, pipelineCore, uiHooks } from '../../shared/pi-family/host'
 import { StatusPane } from './pane'
 import { createTurnReceipts } from './receipt'
 import { workflowOfExpanded, workflowOfInput } from './flow-track'
@@ -49,7 +49,7 @@ import type {
   OmpBeforeAgentStartEvent, OmpBeforeAgentStartResult, OmpContext, OmpExtensionAPI, OmpGenerated, OmpInputEvent,
   OmpToolCallEvent, OmpToolCallResult, OmpToolResultEvent, OmpToolResultResult, OmpTurnEndEvent,
 } from './types'
-import { clip, hasTui, isMain, messageText, numAt, sessionOf, strAt, withDeadline } from './util'
+import { clip, hasTui, isMain, messageText, numAt, sessionOf, strAt, withDeadline } from '../../shared/pi-family/util'
 
 export { CODE_EXECUTION_TOOLS, defaultDeps, emptyGenerated, STATUS_INTERVAL_MS, TOOL_CALL_DEADLINE_MS, TOOL_RESULT_DEADLINE_MS } from './deps'
 export type { EvalGuard, ExtensionDeps } from './deps'
@@ -340,7 +340,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         // omp asks the user itself (consent-ask.ts): the held command's need waits for the dialog.
         if (decision.hook === 'H20' && sid !== undefined && call.command !== undefined && typeof event.toolCallId === 'string') {
           const command = call.command
-          const need = guarded('H20 need', () => heldConsentNeed(sid, command))
+          const need = guarded('H20 need', () => heldConsentNeed(H, sid, command))
           if (need !== undefined) {
             consentHolds.set(event.toolCallId, need)
             if (consentHolds.size > 64) consentHolds.delete(consentHolds.keys().next().value as string)

@@ -2,22 +2,32 @@ import * as core from '../../../core/index'
 import type { CanonicalBundle } from '../../../core/catalog'
 import * as paths from '../../../engine/paths'
 import type { AdapterContext } from '../../registry'
-import type { MemoryFns, PipelineCore } from '../../shared/pipeline/index'
-import type { UiSessionHooks } from '../../shared/ui-session'
+import type { Notice } from '../../../core/notices'
+import type { RoutingPolicy } from '../../../core/policy/routing'
+import type * as corePlan from '../../../core/plan/index'
+import type * as coreCompact from '../../../core/compact'
+import type * as corePolicy from '../../../core/policy/index'
+import type { MemoryFns, PipelineCore } from '../pipeline/index'
+import type { UiSessionHooks } from '../ui-session'
 import type { LiveConfig } from './config'
-import type { ExtensionDeps } from './deps'
 import type { MemoryBridge } from './memory'
-import type { OmpGenerated } from './types'
 import { withDeadline } from './util'
 
-// What the omp extension hands the shared pipeline (src/adapters/shared/pipeline): the adapter context it cannot
+/** The pure functions an extension takes as injected dependencies (omp's `ExtensionDeps` and Pi's both have them). */
+export interface CoreDeps {
+  policy: Pick<typeof corePolicy, 'checkBash' | 'checkWrite' | 'routeTool' | 'checkQuestion' | 'detectIntent' | 'isGuardContinuation'>
+  plan: Pick<typeof corePlan, 'stopGuardVerdict' | 'promptInteraction' | 'answerReceipt' | 'validatePlan'>
+  compact: Pick<typeof coreCompact, 'handoffNote' | 'restoreContext'>
+}
+
+// What a Pi-family extension (Oh My Pi, Pi) hands the shared pipeline (src/adapters/shared/pipeline): the adapter context it cannot
 // load from `canonical/`, the pure functions behind its injected dependencies, and the memory layer behind its bridge.
 
 const MEMORY_CONTEXT_WAIT_MS = 4_000
 const HANDOFF_WAIT_MS = 9_000
 
-/** The adapter context of the bundled extension: the canonical data baked into it and the live runtime config. */
-export function adapterContext(data: Pick<OmpGenerated, 'routing' | 'notices'>, lc: LiveConfig, home: () => string): AdapterContext {
+/** The adapter context of a bundled extension: the canonical data baked into it and the live runtime config. */
+export function adapterContext(data: { routing: RoutingPolicy, notices?: Notice[] | undefined }, lc: LiveConfig, home: () => string): AdapterContext {
   const canonical = { routing: data.routing, notices: data.notices ?? [] } as unknown as CanonicalBundle
   return { repoRoot: lc.repoRoot ?? '', config: lc.config, canonical, paths: { ...paths, home, oldVaultRoot: () => lc.vault }, buracleBin: lc.shim }
 }
@@ -26,7 +36,7 @@ export function adapterContext(data: Pick<OmpGenerated, 'routing' | 'notices'>, 
  * The pipeline's pure functions, with the ones the extension takes as dependencies in their place. A switched-off
  * stop guard and switched-off routing never reach the injected function.
  */
-export function pipelineCore(deps: Pick<ExtensionDeps, 'policy' | 'plan' | 'compact'>): PipelineCore {
+export function pipelineCore(deps: CoreDeps): PipelineCore {
   return {
     ...core,
     checkBash: (command, opts) => deps.policy.checkBash(command, opts),

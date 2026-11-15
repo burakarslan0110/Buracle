@@ -6,7 +6,7 @@ import type { ReceiptChange, ReceiptState } from '../../../core/receipt'
 import { emptyReceipt, noteChanges, noteCommand, receiptLine } from '../../../core/receipt'
 import type { EditTargets } from './edits'
 import type { OmpContext, OmpToolResultEvent } from './types'
-import { hasTui, numAt } from './util'
+import { hasTui, numAt } from '../../shared/pi-family/util'
 
 const MAX_TURNS = 32
 const OLD_KEYS = ['old_string', 'old_str', 'old_text', 'oldString', 'oldText'] as const

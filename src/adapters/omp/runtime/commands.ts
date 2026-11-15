@@ -1,6 +1,6 @@
 import { brainPageArg } from '../../../core/plan/notes'
 import type { OmpContext, OmpEphemeralTurnResult, OmpExtensionAPI } from './types'
-import { clip } from './util'
+import { clip } from '../../shared/pi-family/util'
 
 export const OMP_REMEMBER_COMMAND = 'remember'
 export const OMP_BRAIN_COMMAND = 'brain'
