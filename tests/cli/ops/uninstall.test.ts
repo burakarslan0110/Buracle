@@ -41,14 +41,14 @@ function codexPlan(env: Env, home: string, extra: Plan['ops'] = []): Plan {
 }
 
 describe('buracle uninstall', () => {
-  test('removes the skill links install made in each harness\'s own folder', () => withSandbox(async ({ root, home }) => {
+  test('removes the one skill copy install made under ~/.agents/skills', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n' })
-    const links = [join(home, '.codex/skills/plan-build'), join(home, '.config/opencode/skills/plan-build'), join(home, '.omp/agent/skills/plan-build')]
+    const copy = join(home, '.agents/skills/plan-build')
     await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('codex'), fakeAdapter('opencode'), fakeAdapter('omp')], runCli: fakeCli().runCli }, async () => {
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      for (const l of links) expect(existsSync(join(l, 'SKILL.md'))).toBe(true)
+      expect(existsSync(join(copy, 'SKILL.md'))).toBe(true)
       expect(await uninstallRun(['--yes'], memoryIO())).toBe(0)
-      for (const l of links) expect(existsSync(l)).toBe(false)
+      expect(existsSync(copy)).toBe(false)
     })
   }))
 

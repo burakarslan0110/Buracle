@@ -24,7 +24,7 @@ Hooks enforce these. Follow a denial's redirect; never work around one.
 
 ## Parallel agents
 
-Independent parts run in parallel lanes and you are the lead: no shared files, at most about 4 lanes. Editing lanes that run together each get `buracle worktree create <slug>-<n> --lane`. A lane never asks the user, changes plan state or approves; you verify its report and integrate. Before you launch lanes, read `references/lanes.md` of the `buracle` skill.
+Independent parts run in parallel lanes and you are the lead: no shared files, at most about 4 lanes. Editing lanes that run together each get `buracle worktree create <slug>-<n>`. A lane never asks the user, changes plan state or approves; you verify its report and integrate. Before you launch lanes, read `references/lanes.md` of the `buracle` skill.
 
 ## Evidence before "done"
 

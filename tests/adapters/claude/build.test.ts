@@ -63,38 +63,33 @@ describe('golden output (canonical-mini)', () => {
     expect(snapshot(miniFiles())).toBe(snapshot(miniFiles()))
   })
 
-  test('skill frontmatter: Claude keys only, explicit → disable-model-invocation', () => {
+  test('skill frontmatter: the one neutral set, explicit → disable-model-invocation, protocol → user-invocable: false', () => {
     const files = miniFiles()
     const alpha = frontmatter(file(files, 'skills/alpha/SKILL.md').content)
-    expect(Object.keys(alpha)).toEqual(['name', 'description', 'when_to_use', 'argument-hint', 'disable-model-invocation'])
+    expect(Object.keys(alpha)).toEqual(['name', 'description', 'argument-hint', 'disable-model-invocation', 'metadata'])
     expect(alpha['name']).toBe('alpha')
     expect(alpha['argument-hint']).toBe('<task>')
     expect(alpha['disable-model-invocation']).toBe(true)
+    expect(alpha['description']).toContain('When to use: The user says "alpha ile yap"')
     const beta = frontmatter(file(files, 'skills/beta/SKILL.md').content)
     expect(beta).toEqual({ name: 'beta', description: 'Beta helper: true: it answers yes/no questions about the repo # with a hash', 'user-invocable': false })
   })
 
-  test('skill body: placeholders, code spans, escapes and harness blocks', () => {
+  test('skill body: one text for every harness, copied as it is (nothing is rendered)', () => {
     const body = file(miniFiles(), 'skills/alpha/SKILL.md').content
-    expect(body).toContain('Track the phases with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any). Ask with `AskUserQuestion`: 2 to 4 options.')
-    expect(body).toContain('Launch `buracle:reviewer` with the `Agent` tool, then continue in `/buracle:beta`.')
-    expect(body).toContain('Inline code keeps one span: `/alpha <task>` and `AskUserQuestion`.')
-    expect(body).toContain('A literal placeholder stays literal: {{ask_user}} and {{skill:alpha}}.')
-    expect(body).toContain('Unknown placeholders are left alone: {{nope}} and {{skill:Bad Id}}.')
-    expect(body).toContain('```text\nburacle:reviewer\nplan_file: docs/plans/x.md\n```')
-    expect(body).toContain('\nClaude block line.\nInline claude marker.\n')
-    expect(body).not.toContain('Codex block line')
-    expect(body).not.toContain('omp block line')
-    expect(body).not.toContain('<!--')
+    expect(body).toContain('Track the phases with {{todo}}. Ask with {{ask_user}}: 2 to 4 options.')
+    expect(body).toContain('A literal placeholder stays literal: \\{{ask_user}} and \\{{skill:alpha}}.')
+    expect(body).toContain('<!-- harness:codex -->\nCodex block line.\n<!-- /harness -->')
   })
 
-  test('every .md in the skill folder is rendered; scripts and evals are copied with modes', () => {
+  test('every file of the skill folder is copied as it is, with its mode; evals are left out', () => {
     const files = miniFiles()
-    expect(file(files, 'skills/alpha/references/ref.md').content).toBe('# Reference\n\nPhase notes: ask with `AskUserQuestion`, track with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any).\n')
+    expect(file(files, 'skills/alpha/references/ref.md').content).toContain('Phase notes: ask with {{ask_user}}, track with {{todo}}.')
     const script = file(files, 'skills/alpha/scripts/run.sh')
     expect(script.mode).toBe(0o755)
     expect(script.content).toContain('{{ask_user}}')
-    expect(file(files, 'skills/alpha/evals/cases.json').content).toContain('"skill:alpha": true')
+    expect(files.some(f => f.path.startsWith('skills/alpha/evals/'))).toBe(false)
+    expect(files.some(f => f.path.endsWith('/agents/openai.yaml'))).toBe(false)
   })
 
   test('agent: abstract tools mapped, read-only writes disallowed, model for claude', () => {
@@ -254,7 +249,7 @@ describe('real repository build', () => {
     }
   })
 
-  test('every canonical skill and agent is rendered without leftover placeholders or markers', async () => {
+  test('every canonical skill is copied as it is and every agent is rendered without leftover placeholders or markers', async () => {
     const files = first.length > 0 ? first : await buildClaude(ctx)
     for (const s of ctx.canonical.skills) {
       const fm = frontmatter(file(files, `skills/${s.id}/SKILL.md`).content)
@@ -262,11 +257,13 @@ describe('real repository build', () => {
       expect(typeof fm['description']).toBe('string')
       expect(fm['disable-model-invocation'] === true).toBe(s.frontmatter['invocation'] === 'explicit')
       for (const cf of s.files) {
+        // Evals are not shipped, and the generated openai.yaml is Codex's own.
+        if (cf.path.startsWith('evals/') || cf.path === 'agents/openai.yaml') { expect(files.some(f => f.path === `skills/${s.id}/${cf.path}`)).toBe(false); continue }
         const out = file(files, `skills/${s.id}/${cf.path}`)
         if (!cf.path.endsWith('.md')) { expect(out.content).toBe(cf.content); continue }
-        const escaped = (cf.content.match(/\\\{\{/g) ?? []).length
-        expect((out.content.match(/\{\{/g) ?? []).length).toBe(escaped)
-        expect(out.content).not.toMatch(/<!--\s*\/?harness/)
+        // One text for every harness: no placeholder or harness block is left in a canonical skill, and the copy is the text as it is.
+        expect(out.content).not.toMatch(/\{\{(?:ask_user|todo|spawn_agent|skill:|agent:)|<!--\s*\/?harness/)
+        expect(out.content.includes(cf.path === 'SKILL.md' ? s.body : cf.content)).toBe(true)
       }
     }
     for (const a of ctx.canonical.agents) {

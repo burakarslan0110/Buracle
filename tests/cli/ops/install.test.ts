@@ -10,7 +10,7 @@ import { yamlParse } from '../../../src/engine/merge'
 import { applyPlans, listLedgerKey, readJournal, readLedger, txnTestHooks, type Plan } from '../../../src/engine/txn'
 import { run as procRun } from '../../../src/engine/proc'
 import { renderPathRules } from '../../../src/engine/update/compose'
-import { bunPath, readInstallRecord, shellQuote, shimContent, shimPlanOps, writeInstallRecord } from '../../../src/engine/update/install-core'
+import { agentsSkillsPlan, bunPath, readInstallRecord, shellQuote, shimContent, shimPlanOps, writeInstallRecord } from '../../../src/engine/update/install-core'
 import { parseShimText } from '../../../src/engine/update/runtime'
 import * as paths from '../../../src/engine/paths'
 import { fakeExe, narrowPath, pathOf } from '../../helpers/fake-exe'
@@ -221,10 +221,10 @@ describe('buracle install', () => {
       const r = JSON.parse(io.out()) as { harnesses: Array<{ harness: string, included: boolean, reason?: string }>, steps: string[] }
       expect(r.harnesses.map(h => [h.harness, h.included, h.reason ?? ''])).toEqual([['codex', true, ''], ['opencode', false, 'not installed'], ['omp', false, 'disabled in config']])
       expect(read(join(home, '.codex/hooks.json'))).toBe('{}\n')
-      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
-      expect(readlinkSync(join(home, '.codex/skills/bugfix'))).toBe(join(repo, 'harness/agents-skills/bugfix'))
-      expect(existsSync(join(home, '.codex/skills/empty'))).toBe(false)
-      expect(existsSync(join(home, '.agents'))).toBe(false)
+      expect(read(join(home, '.agents/skills/plan-build/SKILL.md'))).toBe('# spec\n')
+      expect(read(join(home, '.agents/skills/bugfix/SKILL.md'))).toBe('# fix\n')
+      expect(existsSync(join(home, '.agents/skills/empty'))).toBe(false)
+      expect(existsSync(join(home, '.codex/skills'))).toBe(false)
       expect(existsSync(join(home, '.config/opencode/skills'))).toBe(false)
       expect(existsSync(join(home, '.omp/agent/skills'))).toBe(false)
       expect(r.steps.some(s => s.includes('/hooks'))).toBe(true)
@@ -237,36 +237,58 @@ describe('buracle install', () => {
     })
   }))
 
-  test('Buracle skills are linked into each installed harness\'s own folder, never into ~/.agents/skills', () => withSandbox(async ({ root, home }) => {
-    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n' })
-    const own = { codex: join(home, '.codex/skills'), opencode: join(home, '.config/opencode/skills'), omp: join(home, '.omp/agent/skills') }
+  test('Buracle skills are installed once, as real files under ~/.agents/skills, and nowhere else', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n', 'harness/agents-skills/bugfix/references/x.md': 'x\n' })
     const adapters = async () => [fakeAdapter('codex'), fakeAdapter('opencode'), fakeAdapter('omp')]
     await withDeps({ repoRoot: () => repo, adapters, runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
       mkdirSync(join(home, '.agents/skills/mine'), { recursive: true })
       writeFileSync(join(home, '.agents/skills/mine/SKILL.md'), '# third party\n')
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      for (const dir of Object.values(own)) {
-        for (const id of ['plan-build', 'bugfix']) expect(readlinkSync(join(dir, id))).toBe(join(repo, 'harness/agents-skills', id))
-      }
-      expect(readdirSync(join(home, '.agents/skills'))).toEqual(['mine'])
+      expect(readdirSync(join(home, '.agents/skills')).sort()).toEqual(['bugfix', 'mine', 'plan-build'])
+      expect(read(join(home, '.agents/skills/plan-build/SKILL.md'))).toBe('# spec\n')
+      expect(read(join(home, '.agents/skills/bugfix/references/x.md'))).toBe('x\n')
+      expect(lstatSync(join(home, '.agents/skills/plan-build')).isSymbolicLink()).toBe(false)
+      expect(lstatSync(join(home, '.agents/skills/plan-build/SKILL.md')).isSymbolicLink()).toBe(false)
       expect(read(join(home, '.agents/skills/mine/SKILL.md'))).toBe('# third party\n')
+      // No second copy and no link in any harness's own folder.
+      for (const dir of ['.codex/skills', '.config/opencode/skills', '.omp/agent/skills']) expect(existsSync(join(home, dir))).toBe(false)
 
       expect(await installRun(['--yes', 'codex'], memoryIO())).toBe(0)
-      for (const dir of Object.values(own)) expect(readlinkSync(join(dir, 'plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
+      expect(read(join(home, '.agents/skills/plan-build/SKILL.md'))).toBe('# spec\n')
     })
   }))
 
-  test('an upgrade removes the ~/.agents/skills links an earlier install recorded', () => withSandbox(async ({ root, home }) => {
+  test('the skills plan is one real copy: files only, no link for any of the four harnesses', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/plan-build/scripts/run.sh': '#!/bin/sh\n' })
+    const ops = agentsSkillsPlan(repo, ['claude', 'codex', 'opencode', 'omp']).ops
+    expect(ops.map(o => o.kind)).toEqual(['file', 'file'])
+    expect(ops.map(o => o.kind === 'file' ? o.path : '')).toEqual([join(home, '.agents/skills/plan-build/SKILL.md'), join(home, '.agents/skills/plan-build/scripts/run.sh')])
+    // Claude Code alone reads the plugin's bundled copy: nothing is installed for it.
+    expect(agentsSkillsPlan(repo, ['claude']).ops).toEqual([])
+  }))
+
+  test('an upgrade replaces the per-harness skill links of an earlier install with the one copy', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n' })
-    const old = join(home, '.agents/skills/plan-build')
-    const res = await applyPlans([{ id: 'agents-skills', harness: 'core', ops: [{ kind: 'symlink', path: old, target: join(repo, 'harness/agents-skills/plan-build'), owner: 'agents-skills' }] }])
+    // An earlier checkout inside HOME: a link that leads outside HOME is never written through (a conflict), so the earlier link must be one the run may replace.
+    const target = join(home, 'old-checkout/harness/agents-skills/plan-build')
+    mkdirSync(target, { recursive: true })
+    const own = join(home, '.codex/skills/plan-build')
+    const shared = join(home, '.agents/skills/plan-build')
+    const res = await applyPlans([{ id: 'agents-skills', harness: 'core', ops: [
+      { kind: 'symlink', path: own, target, owner: 'agents-skills' },
+      { kind: 'symlink', path: shared, target, owner: 'agents-skills' },
+    ] }])
     expect(res.conflicts).toEqual([])
-    writeInstallRecord({ v: 1, plans: { 'agents-skills': { keys: [old] } }, execUndone: {} })
+    writeInstallRecord({ v: 1, plans: { 'agents-skills': { keys: [own, shared] } }, execUndone: {} })
     await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('codex')], runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      expect(existsSync(old)).toBe(false)
-      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
-      expect(readInstallRecord().record.plans['agents-skills']?.keys).toEqual([join(home, '.codex/skills/plan-build')])
+      expect(existsSync(own)).toBe(false)
+      expect(existsSync(shared)).toBe(false)
+      // A link cannot become a folder inside one transaction: the run after the removal writes the copy.
+      expect(await installRun(['--yes'], memoryIO())).toBe(0)
+      expect(lstatSync(shared).isSymbolicLink()).toBe(false)
+      expect(read(join(shared, 'SKILL.md'))).toBe('# spec\n')
+      expect(readInstallRecord().record.plans['agents-skills']?.keys).toEqual([join(shared, 'SKILL.md')])
     })
   }))
 

@@ -13,7 +13,7 @@ Outcome: a validated, reviewed and locked run file whose criteria anyone could r
    - The user named none, but a genuine A/B exists: pick the most useful one you can reach yourself and say in one line which you took and why. Ask only when the candidates would send the build somewhere genuinely different.
    - No genuine A/B: write "None." and say so in one line. Never invent a comparison.
    - A rewrite or migration: capture the "before" state now, before the first edit (`git show <base>:<path>`, a saved screenshot path, a recorded command output). Once editing starts it is gone.
-6. Clarify. This is the only planned conversation, so make it count: at most three questions per round and two rounds, through your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi). Keep asking until you have:
+6. Clarify. This is the only planned conversation, so make it count: at most three questions per round and two rounds, through your structured-question tool. Keep asking until you have:
    - **an oracle:** one observable signal that would convince the user the goal is met;
    - **evidence for every criterion:** what you will run or look at to rule it;
    - **a false-pass risk:** a believable way the result could look finished while being wrong.
@@ -103,7 +103,7 @@ None.
 
 **Review off** (`reviews.goal: false`): do not launch it. Check the criteria yourself against the concerns in goal-build-review's instructions (binary, observable, one claim each, no restated task, an oracle that matches the goal, a caught false pass), fix what you find, add "independent review off (plan.reviews.goal)" under `## Unverified`, and go to step 3.
 
-1. Launch the reviewer with your subagent tool (`spawn_agent` in Codex, `subagent` in OpenCode, `task` in Oh My Pi):
+1. Launch the reviewer with your subagent tool:
 
    ```text
    goal-build-review

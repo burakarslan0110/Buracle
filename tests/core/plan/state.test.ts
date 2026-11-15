@@ -31,10 +31,13 @@ describe('emptyState', () => {
 })
 
 describe('the escape sentence', () => {
-  test('is copied verbatim into the plan-build, goal-build and buracle skills and the working-rules reference; the always-loaded rule only names the guard', () => {
+  test('is stated once, verbatim, in the buracle skill; the workflow skills and the working-rules reference point there; the always-loaded rule only names the guard', () => {
     const canon = paths.canonicalDir()
-    for (const file of ['skills/buracle/references/working-rules.md', 'skills/plan-build/SKILL.md', 'skills/goal-build/SKILL.md', 'skills/buracle/SKILL.md']) {
-      expect(readFileSync(join(canon, file), 'utf8')).toContain(STOP_GUARD_ESCAPE)
+    expect(readFileSync(join(canon, 'skills/buracle/SKILL.md'), 'utf8')).toContain(STOP_GUARD_ESCAPE)
+    for (const file of ['skills/buracle/references/working-rules.md', 'skills/plan-build/SKILL.md', 'skills/goal-build/SKILL.md']) {
+      const text = readFileSync(join(canon, file), 'utf8')
+      expect(text).not.toContain(STOP_GUARD_ESCAPE)
+      expect(text).toContain('*Plans and the stop guard*')
     }
     // The stop guard says the sentence itself when it holds a turn, so the always-loaded rule names it in one line.
     const core = readFileSync(join(canon, 'rules/always/core.md'), 'utf8')

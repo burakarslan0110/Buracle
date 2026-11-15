@@ -38,9 +38,9 @@ Strip `--worktree`, `--new-branch` or `--current-branch` from the request text: 
    - `resume`, or the user says to continue: run `buracle plan resume`, then step 2.
    - A plan path (a PRD is handled in the next bullet): read its frontmatter. A captured native plan (`SAVED` or type `Plan`) goes straight to step 3. Otherwise run `buracle plan validate <path>` (fix errors before implementing from it), then `buracle plan register <absolute path> --phase <p>` with the phase its state implies (`plan` while `approved: false`, `verify` when `COMPLETE`, otherwise `implement`), then step 3.
    - A PRD path (`docs/requirements/*.md` or the old `docs/prd/*.md`, frontmatter `type: prd`), alone or inside the request: requirements input, not a plan. Treat it as the task description in step 2; [references/plan.md](references/plan.md) P2 says how to carry it into the plan.
-   - Abandon (`abandon`, or the user cancels the plan): confirm with {{ask_user}}, then `buracle plan unregister` and `buracle flow end --outcome cancelled`. The file stays as it is.
+   - Abandon (`abandon`, or the user cancels the plan): confirm with your structured-question tool, then `buracle plan unregister` and `buracle flow end --outcome cancelled`. The file stays as it is.
    - A task description: step 2.
-2. Run `buracle plan status --json`. After a resume, route the bound plan in step 3. For a new task, if an unfinished plan is already bound to this session, ask with {{ask_user}}: continue that plan, or start the new one (`buracle plan unregister` first; the old plan can be resumed later by its path).
+2. Run `buracle plan status --json`. After a resume, route the bound plan in step 3. For a new task, if an unfinished plan is already bound to this session, ask with your structured-question tool: continue that plan, or start the new one (`buracle plan unregister` first; the old plan can be resumed later by its path).
 3. Route by the plan's frontmatter:
 
 | State | Next |
@@ -52,19 +52,19 @@ Strip `--worktree`, `--new-branch` or `--current-branch` from the request text: 
 | `COMPLETE` | [references/verify.md](references/verify.md) (Feature) or [references/bugfix-verify.md](references/bugfix-verify.md) (Bugfix) |
 | `VERIFIED` | Done. Summarize its `## Evidence` section and change nothing. |
 | `SAVED` or type `Plan` | A captured native plan. Start [references/plan.md](references/plan.md) with it as input; never execute it directly. |
-| type `Build` | Not a plan-build plan. Point the user to {{skill:goal-build}}. |
+| type `Build` | Not a plan-build plan. Point the user to the `goal-build` skill. |
 
-Bug or feature? A bug is existing behavior that broke ("it broke", "it no longer works", an error, a crash, wrong output, a regression). Ask once with {{ask_user}} only when it is genuinely unclear. A vague idea without a clear outcome belongs in {{skill:requirements}}; suggest that instead of planning.
+Bug or feature? A bug is existing behavior that broke ("it broke", "it no longer works", an error, a crash, wrong output, a regression). Ask once with your structured-question tool only when it is genuinely unclear. A vague idea without a clear outcome belongs in the `requirements` skill; suggest that instead of planning.
 
 Read the phase reference in full before acting on it, and again after a compaction. `<slug>` is the value `buracle plan init` printed (`buracle plan status --json` shows it too).
 
 ## Phases at a glance
 
-**Plan.** `buracle plan init --type feature|bugfix --title "<title>" --json`, then `buracle plan register <path> --phase plan`. Explore, clarify, write, then `buracle plan validate <path> --strict` until exit 0, then {{agent:plan-build-review}}, then the approval gate, which first folds in the notes the user pinned to the plan in the review page (`buracle plan notes <path> --kind plan --json`). Exit: `buracle plan set approved true`, `buracle plan set status APPROVED`, `buracle plan set phase implement`, then the chosen isolation: `buracle worktree create <slug> --json` or `buracle worktree branch <slug> --json`. A planning turn cannot end (unless paused) while the plan has validation errors; clear the `--strict` warnings yourself. With `plan.nativePlanMode: on`, a feature plan is written in the harness's own plan mode and approved on leaving it ([references/native-plan.md](references/native-plan.md)).
+**Plan.** `buracle plan init --type feature|bugfix --title "<title>" --json`, then `buracle plan register <path> --phase plan`. Explore, clarify, write, then `buracle plan validate <path> --strict` until exit 0, then the `plan-build-review` agent, then the approval gate, which first folds in the notes the user pinned to the plan in the review page (`buracle plan notes <path> --kind plan --json`). Exit: `buracle plan set approved true`, `buracle plan set status APPROVED`, `buracle plan set phase implement`, then the chosen isolation: `buracle worktree create <slug> --json` or `buracle worktree branch <slug> --json`. A planning turn cannot end (unless paused) while the plan has validation errors; clear the `--strict` warnings yourself. With `plan.nativePlanMode: on`, a feature plan is written in the harness's own plan mode and approved on leaving it ([references/native-plan.md](references/native-plan.md)).
 
-**Implement.** `buracle plan set status IN_PROGRESS`, mirror open tasks into {{todo}}, then per task: RED test, minimal code, GREEN, refactor, tick the box, next task. Record departures from the plan in `## Deviations`. Exit: full checks, every `buracle plan audit --json` warning cleared or explained (a `## Deviations` line, or a file the user changed named in the report), `buracle plan complete`, `buracle plan set phase verify`, then straight into verify.
+**Implement.** `buracle plan set status IN_PROGRESS`, mirror open tasks into your todo tool, then per task: RED test, minimal code, GREEN, refactor, tick the box, next task. Record departures from the plan in `## Deviations`. Exit: full checks, every `buracle plan audit --json` warning cleared or explained (a `## Deviations` line, or a file the user changed named in the report), `buracle plan complete`, `buracle plan set phase verify`, then straight into verify.
 
-**Verify.** `buracle review-scope --json` and `buracle plan audit --json`, {{agent:changes-review}} in the background, tests, types, lint and build, then the review triage and its fixes. Only then, on the final code: the real program exercised on every changed surface, E2E scenarios, a DoD audit, and a final regression. Pass: the user's notes on the changed lines (`buracle plan notes --kind code --json`), the user's result review (`buracle plan approve-result`), the worktree merge with post-merge checks (if any; [references/verify.md](references/verify.md) V9), then `buracle plan verify`. Fail: record the gaps, add fix tasks, raise `iterations` by one, back to implement.
+**Verify.** `buracle review-scope --json` and `buracle plan audit --json`, the `changes-review` agent in the background, tests, types, lint and build, then the review triage and its fixes. Only then, on the final code: the real program exercised on every changed surface, E2E scenarios, a DoD audit, and a final regression. Pass: the user's notes on the changed lines (`buracle plan notes --kind code --json`), the user's result review (`buracle plan approve-result`), the worktree merge with post-merge checks (if any; [references/verify.md](references/verify.md) V9), then `buracle plan verify`. Fail: record the gaps, add fix tasks, raise `iterations` by one, back to implement.
 
 ## Progress
 
@@ -78,9 +78,9 @@ Buracle shows the run live, in the workflow band above the prompt and in the sta
 
 Write the plan and the reply in the user's language, chosen as *Language* in the *Plain language* rule says, in the ASD-STE100 structural style of that rule. A plan you revise keeps its own language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Inventory` and `## Deviations` among them, which the validator and `buracle plan audit` read by these English names), commands and identifiers verbatim.
 
-**Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it.
+The stop guard, the escape hatch and the pause before a question are in the `buracle` skill, *Plans and the stop guard*.
 
-**Pause before you ask.** Once a plan is registered, before any question that may end your turn (plan approval, a material decision, a step only the user can do), run `buracle plan pause --kind decision --reason "<the question>"` (use `--kind manual` for a user action). Then ask with {{ask_user}}: 2 to 4 concrete options, your recommendation first. If {{ask_user}} is unavailable, ask in plain text with numbered options and end the turn. After the answer, run `buracle plan resume` and act on it.
+**Asking.** Pause first, as that skill says. Then ask with your structured-question tool: 2 to 4 concrete options, your recommendation first. If it is unavailable, ask in plain text with numbered options and end the turn. After the answer, run `buracle plan resume` and act on it.
 
 Not questions: progress updates, waiting for a build, choosing between equivalent internals. Decide, record the choice if it matters, keep going.
 
@@ -102,37 +102,28 @@ Any other message during a run is steering: answer briefly, fold it into the pla
 Follow *Tool routing (strict)* in your rules (it lists the fallbacks): semble for code by intent (`find_related` for similar code), codegraph for callers and blast radius, `rg` for exact strings, context7 for library APIs at the installed version, web-search then web-fetch for web facts, grep for public usage of an API, buracle-memory (`memory_search`, then `memory_get`) for earlier decisions, chrome-devtools for web UIs, and the shell with the output narrowed for long test, build and log output, keeping the counts and every failure.
 
 Read the line ranges you need, not whole large files. An empty search result is not proof of absence: rephrase once or switch tools. If a server is down, use the fallback and say so in the report.
-<!-- harness:omp -->
-omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp's built-in browser tool.
-<!-- /harness -->
+Where the harness has a built-in browser tool and no chrome-devtools server, use that tool wherever this skill says chrome-devtools.
 
 ## Lanes and documents
 
-Work that splits runs in parallel per the *Parallel agents* rule: you are the lead, each lane is an agent you launch with {{spawn_agent}}, and you integrate.
+Work that splits runs in parallel per the *Parallel agents* rule: you are the lead, each lane is an agent you launch with your subagent tool, and you integrate.
 
 | Phase | Lanes | Mode | Each lane returns | Then you |
 |---|---|---|---|---|
 | plan (P3) | 2 to 4 explorers: the code map of the touched modules; the tests, fixtures and commands; the docs and prior decisions in memory; outside facts and prior art | read-only | `path:line` facts and the exact commands | write the plan from the reports |
-| implement (I1) | one lane per group of unticked tasks whose files do not overlap and that wait for no unfinished task | editing; with 2 or more lanes, each in `buracle worktree create <slug>-<n> --lane` | the commits on its branch, the RED and GREEN output, the `Verify:` result | `buracle worktree sync <slug>-<n>` in plan order, the full checks after every merge, the ticks |
+| implement (I1) | one lane per group of unticked tasks whose files do not overlap and that wait for no unfinished task | editing; with 2 or more lanes, each in `buracle worktree create <slug>-<n>` | the commits on its branch, the RED and GREEN output, the `Verify:` result | `git merge --squash` of each lane branch in plan order (*Worktrees* in the `buracle` skill), the full checks after every merge, the ticks |
 | verify (V1 to V5) | the changes review in the background; one lane per non-UI `SC-n` scenario when there are 2 or more | read-only | the JSON report; the scenario's command → result | run V2 yourself meanwhile, fix in V3, then the DoD audit (V6) and the final regression (V7) on all the evidence |
 
 Tasks that share files or build on each other stay in your session, in order. Only you write the plan file.
-
-**Parallel plans.** Independent features or fixes can each run as a whole workflow (plan-build, goal-build, bugfix) in a plan lane:
-
-1. Per lane: `buracle worktree create <slug> --lane --json` (it records your session as the lane's owner). The lane's plan file stays in your checkout, never in the lane worktree: `worktree sync` refuses a worktree with uncommitted changes, and `plan verify` rewrites the file's header after the merge. Create it from your checkout (`buracle plan init --type feature|bugfix|build --title "<t>" --slug <slug> --json`), or let the lane create it with `--dir <your checkout>/docs/plan-build` (`plan init` takes no `--lane`). Then brief the lane with the workflow, the task, the worktree path, the plan file's absolute path and the rule: register that path with `--lane <slug>` and pass `--lane <slug>` on every other `buracle plan` command, change code only in that worktree (the plan file is the one exception), skip `buracle flow`, launch no agents, ask the user nothing.
-2. The lane keeps its own binding (`buracle plan register <path> --lane <slug>`), so yours stays as it is; `buracle plan status --json` lists each lane under `lanes`. No stop guard holds a lane: check its report and its plan.
-3. At a gate (plan approval, a goal-build lock, a real question, the result review) the lane pauses its own binding and returns `blocked` with its plan path. A goal-build lock is the run's own commitment, but `buracle plan set approved true` is still yours to run. You run the reviewers on its plan or diff (recorded with `--lane <slug>` too, so your compaction texts name them), ask the user where the gate needs them, record the result with the same `--lane <slug>` (`buracle plan set approved true --lane <slug>`, `buracle plan approve-result --lane <slug>`), and continue the lane or brief a new one.
-4. Merge each lane in dependency order with `buracle worktree sync <slug>` and run the checks after every merge. Then `buracle plan verify --lane <slug>` while the lane worktree still exists (it needs the lane's worktree metadata, not its plan file), and only then `buracle worktree cleanup <slug>`.
 
 Write the plan per the *Plain language* rule: in the user's language, the main message first, and a Mermaid diagram of the change's flow in the file when the change touches more than two modules. The user approves the plan file itself. The final report goes in the reply, in the user's language, with a flow shown as a numbered list or a table.
 
 ## Review agents
 
-Launch reviewers with {{spawn_agent}} and pass inputs as labeled lines. In the input blocks of this skill, the first line names the agent to launch and the remaining lines are its prompt. Run reviewers in the background when the harness supports it and meanwhile keep to work that does not edit files under review; collect the final message before deciding anything.
+Launch reviewers with your subagent tool and pass inputs as labeled lines. In the input blocks of this skill, the first line names the agent to launch (where the harness lists Buracle's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the remaining lines are its prompt. Run reviewers in the background when the harness supports it and meanwhile keep to work that does not edit files under review; collect the final message before deciding anything.
 
 ```text
-{{agent:changes-review}}
+changes-review
 plan_file: /abs/repo/docs/plan-build/2026-10-08-rate-limit.md
 slug: rate-limit
 base_ref: main

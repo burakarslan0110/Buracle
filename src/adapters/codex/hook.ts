@@ -181,7 +181,7 @@ async function contextWarning(ctx: AdapterContext, event: string, sid: string, u
 export function capabilityCardText(ctx: AdapterContext, deps: CodexHookDeps, sid?: string): string {
   const health = mcpHealth(ctx, H, deps.now(), { nativeOff: codexOffServers(), ...(sid !== undefined ? { sid } : {}) })
   const mcp = deps.core.catalogMcp(ctx.canonical.mcp, H).filter(m => !deps.core.mcpUnavailable(health[m.id]))
-  return deps.core.capabilityCard({ policy: routingPolicy(ctx), mcp, skills: deps.core.catalogSkills(ctx.canonical.skills), plugins: [], harness: H })
+  return deps.core.capabilityCard({ policy: routingPolicy(ctx), mcp, plugins: [], harness: H })
 }
 
 /** What the shared pipeline needs from Codex: its step log, memory and workspace readers. */
@@ -319,7 +319,7 @@ function usagePlan(p: Payload, call: ToolCall, sid: string, ctx: AdapterContext,
 
 function skillLoad(call: ToolCall, sid: string, deps: CodexHookDeps, now: number): void {
   const id = deps.core.skillOf(call, H)
-  // Buracle installs its skills in $CODEX_HOME/skills; .agents covers a link an older install left.
+  // Buracle installs its skills in ~/.agents/skills; $CODEX_HOME/skills covers a link an older install left.
   const command = call.command ?? ''
   const codexHome = envOf(deps)['CODEX_HOME']
   const installed = id !== undefined && (new RegExp(`(?:\\.agents|\\.codex\\}?|CODEX_HOME\\}?)[/\\\\]skills[/\\\\]${id}[/\\\\]SKILL\\.md`).test(command)

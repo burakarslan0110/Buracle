@@ -81,10 +81,8 @@ this codebase. Every command and path in them is verified here and now.
 
 Read files with your file-read tool, in narrow ranges. Never `grep -r`, `find … | xargs grep` or
 `cat` dumps. An empty search result is not proof of absence: rephrase once or switch tools.
-<!-- harness:claude -->
-MCP tools may be deferred. Load the semble, codegraph, context7 and buracle-memory tools with
-ToolSearch before concluding that they are unavailable.
-<!-- /harness -->
+MCP tools may be deferred. Load the semble, codegraph, context7 and buracle-memory tools with the
+harness's tool search before concluding that they are unavailable.
 
 ## Progress
 
@@ -99,7 +97,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 
 ## Phases
 
-Track the phases with {{todo}}.
+Track the phases with your todo tool.
 
 ### 1. Inventory
 
@@ -110,14 +108,14 @@ Track the phases with {{todo}}.
   symlinks, and `buracle project check --json` for the drift Buracle already sees.
 - `buracle skills list --json` lists skills of kind `claude-only`: they live only in
   `.claude/skills`, so Codex cannot see them. Offer `buracle project sync --adopt`, which adds a
-  local link and changes no tracked file. Ask with {{ask_user}} before `--adopt --move`: it turns
+  local link and changes no tracked file. Ask with your structured-question tool before `--adopt --move`: it turns
   each tracked folder into a symlink that teammates without Buracle and Windows checkouts without
   symlinks do not follow.
 - List existing guidance in one call:
   `rg --files --hidden -g 'AGENTS.md' -g 'CLAUDE.md' -g '**/.claude/rules/**' -g '**/.agents/**' -g '**/.cursor/rules/**' -g '.github/copilot-instructions.md' -g 'GEMINI.md' -g 'CONTRIBUTING.md'`.
   `CLAUDE.local.md` is usually gitignored, so `rg` skips it: check for it directly with
   `ls CLAUDE.local.md`.
-- Quick memory pass ({{skill:memory}}): at most 3 `memory_search` queries such as
+- Quick memory pass (the `memory` skill): at most 3 `memory_search` queries such as
   `conventions`, `test command`, `<repo name> decision`.
 - Pick the mode: **create** (no guidance yet), **refresh** (guidance exists), **audit** (the user
   asked only for a review: write nothing but the report).
@@ -177,12 +175,12 @@ finding as `path:line — problem — evidence — proposed fix`. In audit mode,
   one read-only call in the current harness and put the result in the report only, since health
   goes stale. Under `## Project tools` add one line each: what it is for and when to consult it.
   In the report, name per server the harnesses that cannot reach it; offer to add the missing
-  declaration only with {{ask_user}}, and say it is a second copy to keep in step. Buracle's global
+  declaration only with your structured-question tool, and say it is a second copy to keep in step. Buracle's global
   servers are already covered by its routing card; do not list them.
 
 **Approval gate.** When you would change or remove human-written content, show a compact summary
 (sections added, removed and changed; line counts before → after; anything dropped and why) and
-ask with {{ask_user}}: apply, adjust, or cancel. A brand-new file in create mode needs no gate.
+ask with your structured-question tool: apply, adjust, or cancel. A brand-new file in create mode needs no gate.
 
 ### 6. Validate
 
@@ -220,8 +218,8 @@ ask with {{ask_user}}: apply, adjust, or cancel. A brand-new file in create mode
 - Audit findings: fixed, deferred, or rejected by the user.
 - The `buracle project sync` and `buracle project check` results.
 - Project MCP servers: the smoke-test result and the harnesses each one does not reach.
-- Follow-ups: a recurring procedure you noticed → {{skill:new-skill}}; a rule whose effect
-  should be measured → {{skill:ab-test}}.
+- Follow-ups: a recurring procedure you noticed → the `new-skill` skill; a rule whose effect
+  should be measured → the `ab-test` skill.
 
 The guidance files are the record; do not copy them into memory. Write a `gotcha` memory only for a
 verified trap that does not belong in the repo, such as one specific to this machine.
@@ -231,7 +229,7 @@ verified trap that does not belong in the repo, such as one specific to this mac
 | Situation | Do |
 |---|---|
 | Not a git repository | Work in the current directory; `buracle project sync` may refuse, report it. |
-| Large monorepo | Root plus top-level packages only. For many packages, launch one read-only explorer per package with {{spawn_agent}}; each returns facts with evidence, then merge their results. |
+| Large monorepo | Root plus top-level packages only. For many packages, launch one read-only explorer per package with your subagent tool; each returns facts with evidence, then merge their results. |
 | Two competing conventions | Prefer the one in recently added files (`git log --diff-filter=A --since=6.months --name-only --format=`); ask if still unclear. |
 | Guidance contradicts the code | Ask which one is right; never pick silently. |
 | A command needs credentials or services | Document the prerequisite and the variable names, never the values. |

@@ -10,7 +10,7 @@ import { harnessLinks, toolchainLinks } from '../toolchain/links'
 import { readToolchainState } from '../toolchain/state'
 import { inCheckout, type LiveContext } from './context'
 import {
-  AGENTS_SKILLS_CONSUMERS, agentsSkillsPlan, bunPath, corePlan, dropMixedRemovals, harnessSkillsDir, keyPath, pathRulesDir, planKeys, pruneOps,
+  AGENTS_SKILLS_CONSUMERS, agentsSkillsPlan, bunPath, corePlan, dropMixedRemovals, keyPath, pathRulesDir, planKeys, pruneOps,
   readInstallRecord, type PathRuleFile,
 } from './install-core'
 import { errText, isInside } from './output'
@@ -132,10 +132,12 @@ export async function composeInstall(opts: ComposeOptions): Promise<ComposeResul
       raw[0] = { key: 'core', plan: corePlan(core), carried: [...carried, ...linkCarried] }
     }
     const included = res.harnesses.filter(h => h.included).map(h => h.harness)
-    // A harness this run did not look at (not selected, or its detection failed) keeps its skill
-    // links; every other recorded link that no plan produces is pruned, the old ~/.agents/skills ones too.
-    const untouched = res.harnesses.filter(h => !h.inScope || (h.reason ?? '').startsWith('detect failed')).map(h => harnessSkillsDir(h.harness)).filter((d): d is string => d !== undefined).map(d => resolve(d))
-    const skillCarried = (record.plans['agents-skills']?.keys ?? []).filter(k => untouched.some(d => isInside(resolve(keyPath(k)), d)))
+    // The skills are one copy for every harness. While a harness that uses it was not looked at (not selected, or
+    // its detection failed), everything an earlier run recorded stays: `buracle install claude` must not take the
+    // skills away from Codex. Otherwise what no plan produces any more is pruned, such as the per-harness links
+    // of an earlier Buracle.
+    const unseenConsumer = res.harnesses.some(h => AGENTS_SKILLS_CONSUMERS.includes(h.harness) && (!h.inScope || (h.reason ?? '').startsWith('detect failed')))
+    const skillCarried = unseenConsumer ? record.plans['agents-skills']?.keys ?? [] : []
     if (included.some(h => AGENTS_SKILLS_CONSUMERS.includes(h)) || record.plans['agents-skills'] !== undefined) {
       raw.push({ key: 'agents-skills', plan: agentsSkillsPlan(opts.repoRoot, included), carried: skillCarried })
     }

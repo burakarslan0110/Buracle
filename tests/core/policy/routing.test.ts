@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { Harness, ToolCall } from '../../../src/core/events'
 import { HARNESSES, classifyTool, parseMcpName } from '../../../src/core/events'
-import type { CatalogMcp, CatalogSkill } from '../../../src/core/catalog'
+import type { CatalogMcp } from '../../../src/core/catalog'
 import { catalogMcp, catalogSkills } from '../../../src/core/catalog'
 import type { McpHealth, RoutingPolicy } from '../../../src/core/policy/routing'
 import {
@@ -303,62 +303,63 @@ describe('routeTool: shell and eval calls', () => {
 
 describe('capabilityCard (H15)', () => {
   const bundle = loadCanonicalSync(CANON)
-  const card = (h: Harness, extra: Partial<{ mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], policy: RoutingPolicy }> = {}): string =>
-    capabilityCard({ policy: extra.policy ?? POLICY, mcp: extra.mcp ?? catalogMcp(bundle.mcp, h), skills: extra.skills ?? catalogSkills(bundle.skills), plugins: extra.plugins ?? [], harness: h })
+  const card = (h: Harness, extra: Partial<{ mcp: CatalogMcp[], plugins: string[], policy: RoutingPolicy }> = {}): string =>
+    capabilityCard({ policy: extra.policy ?? POLICY, mcp: extra.mcp ?? catalogMcp(bundle.mcp, h), plugins: extra.plugins ?? [], harness: h })
 
   test('fits in 30 lines for every harness with the real catalog', () => {
     expect(CAPABILITY_CARD_MAX_LINES).toBe(30)
     for (const h of HARNESSES) expect(card(h).split("\n").length).toBeLessThanOrEqual(CAPABILITY_CARD_MAX_LINES)
   })
 
-  test('the real card of each harness (Claude with its LSP line) fits in 30 lines with every server and skill on its own line', () => {
+  test('the real card of each harness (Claude with its LSP line) fits in 30 lines with every server on its own line and no skill list', () => {
     const skills = catalogSkills(bundle.skills)
     const lsp = bundle.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
     expect(lsp.length).toBeGreaterThan(0)
     const plugins: Record<Harness, string[]> = { claude: [], codex: [], opencode: [], omp: [] }
     for (const h of HARNESSES) {
       const mcp = catalogMcp(bundle.mcp, h)
-      const c = capabilityCard({ policy: POLICY, mcp, skills, plugins: plugins[h], harness: h, ...(h === 'claude' ? { lsp } : {}) })
+      const c = capabilityCard({ policy: POLICY, mcp, plugins: plugins[h], harness: h, ...(h === 'claude' ? { lsp } : {}) })
       const lines = c.split('\n')
       expect({ h, lines: lines.length, fits: lines.length <= CAPABILITY_CARD_MAX_LINES }).toEqual({ h, lines: lines.length, fits: true })
       for (const m of mcp) expect({ h, server: m.id, listed: lines.some(l => l.startsWith(`- ${m.id}${m.critical ? '' : '*'}: `)) }).toEqual({ h, server: m.id, listed: true })
-      for (const s of skills) expect({ h, skill: s.id, oneLiner: lines.includes(`- ${s.id}: ${s.short}${s.invocation === 'explicit' ? ' (on request)' : ''}`) }).toEqual({ h, skill: s.id, oneLiner: true })
+      for (const s of skills) expect({ h, skill: s.id, oneLiner: lines.some(l => l.startsWith(`- ${s.id}: `)) }).toEqual({ h, skill: s.id, oneLiner: false })
+      expect({ h, skillLines: lines.filter(l => l.startsWith('Skills')).length }).toEqual({ h, skillLines: 1 })
       expect(c).not.toContain('more lines omitted')
     }
-    const claude = capabilityCard({ policy: POLICY, mcp: catalogMcp(bundle.mcp, 'claude'), skills, plugins: plugins.claude, harness: 'claude', lsp })
+    const claude = capabilityCard({ policy: POLICY, mcp: catalogMcp(bundle.mcp, 'claude'), plugins: plugins.claude, harness: 'claude', lsp })
     expect(claude).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): ')
     expect(claude.split('\n')[0]).toBe('Buracle capabilities (Claude Code). Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.')
   })
 
-  test('lists installed servers and skills with the harness syntax and points to the routing rules', () => {
+  test('lists installed servers, says how skills start and load in the harness, and points to the routing rules', () => {
     const c = card('claude')
     expect(c).toContain('Tool routing (strict)')
     expect(c).toContain('mcp__plugin_buracle_<server>__<tool>')
-    expect(c).toContain('Skills (the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>):')
+    expect(c).toContain('Skills: the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>.')
     for (const id of MCP_IDS) expect(c).toContain(`- ${id}`)
     expect(c).not.toContain('Plugins:')
     expect(card('claude', { plugins: ['lint-lsp@acme-market'] })).toContain('Plugins: lint-lsp')
-    expect(capabilityCard({ policy: POLICY, mcp: [], skills: [], plugins: [], harness: 'claude', lsp: ['typescript', 'pyright', 'gopls'] })).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): gopls, pyright, typescript')
+    expect(capabilityCard({ policy: POLICY, mcp: [], plugins: [], harness: 'claude', lsp: ['typescript', 'pyright', 'gopls'] })).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): gopls, pyright, typescript')
     expect(card('omp')).not.toContain('chrome-devtools')
-    expect(card('codex')).toContain('Skills (the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md):')
-    expect(card('omp')).toContain('Skills (the user starts a workflow with /<id>; you load one by reading skill://<id>):')
+    expect(card('codex')).toContain('Skills: the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md.')
+    expect(card('omp')).toContain('Skills: the user starts a workflow with /<id>; you load one by reading skill://<id>.')
     expect(c).toContain('Buracle names the skills and MCP servers each prompt calls for')
   })
 
-  test('skill lines use the short description and mark the workflows that start on request', () => {
+  test('no skill is listed: the harness lists its skills itself; the catalog still marks the workflows that start on request', () => {
     const c = card('claude')
     const skills = catalogSkills(bundle.skills)
     for (const s of skills) {
       expect(s.short).toBeDefined()
-      expect(c).toContain(`- ${s.id}: ${s.short}${s.invocation === 'explicit' ? ' (on request)' : ''}`)
+      expect(c).not.toContain(`- ${s.id}: `)
     }
     expect(skills.filter(s => s.invocation === 'explicit').map(s => s.id)).toEqual(['bugfix', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
-    expect(card('codex', { skills: [{ id: 'x', description: 'Does one thing well. Then more.', userInvocable: true }] })).toContain('- x: Does one thing well')
+    expect(card('codex').split('\n').filter(l => /skill/i.test(l)).length).toBe(2)
   })
 
   test('OpenCode v2: skills load through the skill tool; non-critical servers sit behind Code Mode', () => {
     const c = card('opencode')
-    expect(c).toContain('Skills (the user starts a workflow with /<id>; you load one with the skill tool):')
+    expect(c).toContain('Skills: the user starts a workflow with /<id>; you load one with the skill tool.')
     expect(c).toContain('execute tool')
     expect(c).not.toContain('tool search')
     expect(c).toMatch(/^- grep\*: /m)
@@ -383,9 +384,8 @@ describe('capabilityCard (H15)', () => {
 
   test('is deterministic: input order and duplicates do not change the text', () => {
     const mcp = catalogMcp(bundle.mcp, 'claude')
-    const skills = catalogSkills(bundle.skills)
-    const a = card('claude', { mcp, skills, plugins: ['b@m', 'a@m'] })
-    const b = card('claude', { mcp: [...mcp].reverse().concat(mcp[0] as CatalogMcp), skills: [...skills].reverse(), plugins: ['a@m', 'b@m', 'a@m'] })
+    const a = card('claude', { mcp, plugins: ['b@m', 'a@m'] })
+    const b = card('claude', { mcp: [...mcp].reverse().concat(mcp[0] as CatalogMcp), plugins: ['a@m', 'b@m', 'a@m'] })
     expect(a).toBe(b)
     expect(card('claude')).toBe(card('claude'))
   })
@@ -396,17 +396,15 @@ describe('capabilityCard (H15)', () => {
   })
 
   test('compacts long catalogs instead of exceeding the limit', () => {
-    const many: CatalogSkill[] = Array.from({ length: 60 }, (_, i) => ({ id: `skill-${String(i).padStart(2, '0')}`, description: `Skill number ${i} does a thing.`, userInvocable: true }))
     const mcp: CatalogMcp[] = Array.from({ length: 30 }, (_, i) => ({ id: `srv-${String(i).padStart(2, '0')}`, description: 'A server.', transport: 'stdio', critical: true, routing: [], harnesses: ['claude'] }))
-    const c = card('claude', { skills: many, mcp })
+    const c = card('claude', { mcp })
     expect(c.split('\n').length).toBeLessThanOrEqual(CAPABILITY_CARD_MAX_LINES)
-    expect(c).toContain('skill-00')
     expect(c).toContain('srv-00')
   })
 
   test('works with empty inputs', () => {
-    const c = capabilityCard({ policy: POLICY, mcp: [], skills: [], plugins: [], harness: 'codex' })
-    expect(c.split('\n').length).toBe(1)
+    const c = capabilityCard({ policy: POLICY, mcp: [], plugins: [], harness: 'codex' })
+    expect(c.split('\n')).toEqual([c.split('\n')[0] as string, 'Skills: the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md.'])
     expect(c).toStartWith('Buracle capabilities (Codex). ')
     expect(c).toContain('Tool routing (strict)')
   })

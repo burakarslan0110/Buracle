@@ -30,10 +30,10 @@
    - Least that works: no abstraction, dependency or boilerplate the fix did not strictly need. A deliberate shortcut carries a `SHORTCUT:` comment that names its ceiling and the trigger for upgrading it; list those markers in the report (`git diff -U0 | rg -n '(#|//) ?SHORTCUT:'`).
 4. **Changes review** for every proven fix, a one-line fix included, whatever `plan.reviews.changes` says (that switch is for feature work; a fix always gets its review):
    - `buracle review-scope --json` gives `base_ref`, `diff_range` and possibly a `warning` (resolve a warning first; if the fix is already committed on the default branch, add `--base <commit before the fix>`; in a worktree run, add `--slug <slug>`; on a branch made with `buracle worktree branch`, review-scope already diffs against its recorded base).
-   - Launch the reviewer with {{spawn_agent}}, in the background when the harness supports it, while you run step 1; the block's first line names the agent and the rest is its prompt. There is no plan file, so pass `goal` instead:
+   - Launch the reviewer with your subagent tool, in the background when the harness supports it, while you run step 1; the block's first line names the agent (where the harness lists Buracle's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the rest is its prompt. There is no plan file, so pass `goal` instead:
 
      ```text
-     {{agent:changes-review}}
+     changes-review
      goal: <Given / When / Actual / Expected>; root cause: <path:line — statement>
      base_ref: <from review-scope>
      diff_range: <from review-scope>
@@ -52,7 +52,7 @@
 ## Finish
 
 1. Remove all instrumentation and confirm that `git status --porcelain` lists only intended changes. Then read the notes the user pinned to the changed lines in the review page (`/brain review`): `buracle plan notes --kind code --json` (add `--slug <slug>` in a worktree run). Fix each open note, re-run the checks it touches, and mark it with `buracle plan notes --done <id>[,<id>]`. Read them again after the end question; new notes count as Request changes. No notes is never an approval.
-2. **End question.** Unless the user already said what they want, ask once with {{ask_user}}. The question carries what you ran:
+2. **End question.** Unless the user already said what they want, ask once with your structured-question tool. The question carries what you ran:
 
    ```text
    Bug: <one line>
@@ -68,10 +68,9 @@
    - **Leave uncommitted** (not offered in a worktree run, whose work must be merged).
    - **Request changes:** the user describes the problem. It is new evidence: go back to Investigate, *Trace to the source*, then RED onward; the review re-runs on the files changed since the last one.
    - **Explain the fix in more detail** (the first time you ask only): the causal chain from the trigger to the root cause, why that boundary is the right place to fix, what the diff does line by line, and the alternatives you rejected. Change no code, then ask again without this option.
-3. **Worktree run: merge.** In the worktree, stage everything (`git -C <worktree> add -A`) and make one commit as above, so that `git -C <worktree> status --porcelain` prints nothing. Make exactly one: the squash takes its subject and its `Root cause:` body from a single commit. With several commits the subject falls back to `fix: <slug>` and only the `Root cause:` lines are kept. Then `buracle worktree sync <slug> --json`. Act on the exit code:
-   - **0**: merged. Run the full suite in the main checkout. When it fails there, fix it on the base branch and re-run; never report success over a red base. Then `buracle worktree cleanup <slug>` (no `--force` needed after this sync).
-   - **2**: merged, but the base checkout's own uncommitted changes could not be restored. Do not pop or drop the stash; tell the user their changes are in `git stash list` and need a manual `git stash pop`. Run the suite and clean up as for 0.
-   - **1**: nothing merged. Read the error. If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), re-run the checks and sync once more. Still failing: report it as blocked and keep the worktree.
+3. **Worktree run: merge.** In the worktree, stage everything (`git -C <worktree> add -A`) and make one commit as above, so that `git -C <worktree> status --porcelain` prints nothing. Make exactly one: the merge commit reuses its subject and its `Root cause:` body. Then squash-merge with git in the main checkout, on the base branch (the CLI does not merge): `git merge --squash <branch>`, then `git commit -C <branch>`, which reuses that commit's message. Then:
+   - **Merged**: run the full suite in the main checkout. When it fails there, fix it on the base branch and re-run; never report success over a red base. Then `buracle worktree cleanup <slug>` (no `--force` needed after the merge).
+   - **A conflict or an error**: undo the attempt with `git reset --merge`; never stash or discard the user's own changes. If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), re-run the checks and merge once more. Still failing: report it as blocked and keep the worktree.
 
    No stop guard holds a bugfix run, so finish the merge in the same turn as the answer.
 4. **Memory.** When the root cause was non-obvious, write one `gotcha` memory with `memory_write`: the symptom, the root cause at `file:line`, the fix, and the test that guards it. Run `memory_search` first and update instead of duplicating. Never store secrets or logs.

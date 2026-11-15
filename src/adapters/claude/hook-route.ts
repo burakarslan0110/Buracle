@@ -22,7 +22,7 @@ export const readHealth = (nowMs: number = Date.now()): McpHealth => readMcpHeal
 export function capabilityCardText(ctx: AdapterContext, health: McpHealth = mcpHealth(ctx, H, Date.now())): string {
   const mcp = catalogMcp(ctx.canonical.mcp, H).filter(m => !mcpUnavailable(health[m.id]))
   const lsp = ctx.canonical.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
-  return capabilityCard({ policy: routingPolicy(ctx), mcp, skills: catalogSkills(ctx.canonical.skills), plugins: [], harness: H, lsp })
+  return capabilityCard({ policy: routingPolicy(ctx), mcp, plugins: [], harness: H, lsp })
 }
 
 export function pluginRoot(repoRoot: string, env: (name: string) => string | undefined): string {

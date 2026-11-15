@@ -18,14 +18,14 @@ Exit gate: (1) a reproduction that fails reliably, and (2) a root-cause statemen
 ### Cannot reproduce
 
 - Compare environments: runtime and dependency versions (lockfile), configuration and environment variables, data, operating system.
-- Ask the user once with {{ask_user}} for the missing pieces, offering the specific items you need as options: exact steps, input data, versions, logs or a screenshot.
+- Ask the user once with your structured-question tool for the missing pieces, offering the specific items you need as options: exact steps, input data, versions, logs or a screenshot.
 
 ### Environment blocker
 
 The reproduction cannot run because the environment blocks it: an expired cloud login, dependencies behind a private registry, a credential or service only the user has.
 
 1. Try at most one quick workaround (an already provisioned virtual environment, a cached install). One, not a research project.
-2. Then stop and ask with {{ask_user}}, also while `plan.questions` is off (a blocker is always asked). Name the exact blocker and the exact command that clears it, and offer two options: "Unblocked: re-run the reproduction" (recommended) and "Continue without running it (static investigation, lower confidence)".
+2. Then stop and ask with your structured-question tool, also while `plan.questions` is off (a blocker is always asked). Name the exact blocker and the exact command that clears it, and offer two options: "Unblocked: re-run the reproduction" (recommended) and "Continue without running it (static investigation, lower confidence)".
 3. For an interactive login, tell the user they can run it in this session as `! <command>`, or in another terminal and reply when it is done.
 4. Once unblocked, re-run the reproduction and continue from the top of this section.
 

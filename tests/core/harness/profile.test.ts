@@ -24,8 +24,8 @@ const quill: HarnessProfile = {
   protectedDirs: [{ key: 'quillDir', under: '.quill', entries: ['settings.toml', 'hooks/'] }],
   selfText: { what: "Quill's own configuration", remedy: 'ask the user' },
   skills: {
-    dir: 'skills',
-    readsAgentsDir: true,
+    readsAgentsDir: false,
+    linkDir: 'skills',
     readsClaudeUserDir: false,
     readsClaudeProjectDir: false,
     invoke: { slash: true, namespace: 'q', dollar: false, at: false, commandTag: false },
@@ -116,7 +116,8 @@ describe('a fifth harness is one profile', () => {
     expect(five.of('quill')).toBe(quill)
     expect(five.table(p => p.label)).toEqual({ ...HARNESS_LABEL, quill: 'Quill' })
     expect(five.table(p => p.bin)['quill']).toBe('quill')
-    expect(five.where(p => p.skills.dir !== undefined)).toEqual(['codex', 'opencode', 'omp', 'quill'])
+    expect(five.where(p => p.skills.readsAgentsDir)).toEqual(['codex', 'opencode', 'omp'])
+    expect(five.where(p => p.skills.linkDir !== undefined)).toEqual(['quill'])
     expect(five.where(p => p.runtime === 'command')).toEqual(['claude', 'codex', 'quill'])
   })
 

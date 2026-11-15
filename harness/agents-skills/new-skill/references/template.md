@@ -1,24 +1,5 @@
 # Skill template
 
-## Notation used in this file
-
-Installed copies of skills are rendered per harness, and rendering replaces every Buracle
-placeholder with that harness's tool name. This file therefore spells placeholders with guillemets:
-
-| In this file | Write in the real SKILL.md |
-|---|---|
-| `«ask_user»` | the name `ask_user` in double curly braces |
-| `«todo»` | the name `todo` in double curly braces |
-| `«spawn_agent»` | the name `spawn_agent` in double curly braces |
-| `«skill:<id>»` | `skill:` plus the skill id, in double curly braces |
-| `«agent:<id>»` | `agent:` plus the agent id, in double curly braces |
-| `«harness:claude»` … `«/harness»` | an HTML comment holding `harness:claude` (or `codex`, `opencode`, `omp`), then the harness-only text, then an HTML comment holding `/harness`; one space inside each comment delimiter |
-
-Double curly braces mean two `{` before the name and two `}` after it, with no spaces. For a real,
-unrendered example, open a canonical source in the Buracle repo, for instance
-`canonical/skills/ab-test/SKILL.md` (placeholders and harness blocks) or
-`canonical/skills/dead-code/SKILL.md` (a script path per harness).
-
 ## Canonical SKILL.md (Buracle repo or personal skills source)
 
 ```markdown
@@ -49,7 +30,7 @@ short-description: <at most 80 characters>
 
 ## Phases
 
-Track the phases with «todo».
+Track the phases with your todo tool.
 
 ### 1. <Phase name>
 
@@ -58,7 +39,7 @@ Track the phases with «todo».
 
 ### 2. <Phase name>
 
-- <Step.> Ask with «ask_user» only when <condition>.
+- <Step.> Ask with your structured-question tool only when <condition>.
 
 ## Failure handling
 
@@ -75,31 +56,20 @@ Field rules (CONTRACTS §8.1):
 
 - `name` equals the folder name: kebab-case, at most 64 characters.
 - `description` plus `when_to_use`: at most 1,024 characters together. Routing depends on them.
-- `invocation`: `explicit` makes the skill user-started only (adapters map it to each harness's
-  switch); `implicit` lets the agent pick it up.
+- `invocation`: `explicit` makes the skill user-started only (the build writes each harness's
+  switch for it); `implicit` lets the agent pick it up.
 - `mcp`: ids from `canonical/mcp.yaml` (`context7`, `codegraph`, `semble`, `web-search`,
   `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`); `[]` when none.
 - `short-description`: at most 80 characters (shown in Codex's skill list).
 
 ## Calling a bundled script
 
-Scripts live in `scripts/` and are called by absolute path, which differs per harness. Define it
-once with harness-only blocks and reuse it:
+Scripts live in `scripts/` and are called by absolute path. Buracle installs one copy of a skill
+for every harness, so name that path and keep the fallback:
 
 ```markdown
 `<skill-dir>` below means this skill's folder:
-«harness:claude»
-`${CLAUDE_SKILL_DIR}`
-«/harness»
-«harness:codex»
-`${CODEX_HOME:-$HOME/.codex}/skills/<id>`
-«/harness»
-«harness:opencode»
-`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/<id>`
-«/harness»
-«harness:omp»
-`${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/<id>`
-«/harness»
+`$HOME/.agents/skills/<id>`
 If that path does not exist, use the folder that holds this SKILL.md.
 
 Run `bun <skill-dir>/scripts/<name>.ts --json`.
@@ -112,7 +82,7 @@ network unless that is the script's purpose.
 
 ## Project skill (`<project>/.agents/skills/<id>/`)
 
-Nothing renders project skills, so they use the portable subset and plain wording:
+Project skills are not built, so they carry the portable frontmatter themselves:
 
 ```markdown
 ---
@@ -135,6 +105,6 @@ disable-model-invocation: true
 
 - Word tool use generically: "ask the user, with your structured question tool if you have one",
   "track the steps in your todo list", "hand independent work to a subagent if your harness has
-  them". No placeholders and no harness-only blocks.
+  them".
 - After adding or renaming one, run `buracle project sync --json` so Claude Code sees it through
   `.claude/skills`.

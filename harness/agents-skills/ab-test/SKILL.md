@@ -1,6 +1,7 @@
 ---
 name: ab-test
 description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill. The user starts it with /ab-test (Codex: $ab-test). When to use: After editing a skill's description or body, a rule or the routing policy, before keeping the change; when a skill seems never to trigger (\"benchmark this\", \"compare before and after\", \"does the skill trigger\", \"is context7 really called\")."
+argument-hint: "<skill:<id> | rule:<path> | routing> [harness]"
 metadata:
   short-description: "Paired before/after evals of skills and rules with tool-use evidence"
 ---
@@ -25,9 +26,7 @@ baseline, on cases that could have failed?
 - **Honest reporting.** Small samples are noisy; say so. Never round "unclear" up to "improved".
 
 `<skill-dir>` below means this skill's folder:
-**Codex:** `${CODEX_HOME:-$HOME/.codex}/skills/ab-test`
-**OpenCode:** `${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/ab-test`
-**Oh My Pi:** `${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/ab-test`
+`$HOME/.agents/skills/ab-test`
 If that path does not exist, use the folder that holds this SKILL.md.
 
 ## Progress
@@ -45,7 +44,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 
 ## Phases
 
-Track the phases with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).
+Track the phases with your todo tool.
 
 ### 1. Frame
 
@@ -53,7 +52,7 @@ Track the phases with your plan/todo tool (`update_plan` in Codex, `todowrite` i
 (`skill:<id>`, `rule:<path>`, `routing`, or an `AGENTS.md` section), the baseline (a git ref, or
 "without the target"), the candidate (working tree or ref), the harness(es), and a hypothesis with a
 threshold, for example: "With the new description, history questions in the user's language trigger
-`memory_search` in at least 2 of 3 runs; the baseline in at most 1." Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) only for
+`memory_search` in at least 2 of 3 runs; the baseline in at most 1." Ask with your structured-question tool only for
 what you cannot infer.
 
 ### 2. Cases

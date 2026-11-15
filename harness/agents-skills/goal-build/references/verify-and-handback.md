@@ -22,7 +22,7 @@ Mark the phase: `buracle flow phase verify`.
    | Full | code with a UI or another user-facing entry point | every layer |
 
 2. `buracle review-scope --json` (add `--slug <slug>` in a worktree run). A `warning` means the diff is probably wrong or empty; resolve it first.
-3. Launch changes-review with your subagent tool (`spawn_agent` in Codex, `subagent` in OpenCode, `task` in Oh My Pi), in the background when the harness supports it, and record it at once (`buracle plan review start --role changes --handle <id>`); with `reviews.companion` not `off`, start the second opinion too (`--role changes`; SKILL.md, *Review agents*). With `reviews.changes` off at the lock, do not launch it: review the diff yourself against changes-review's concerns, and the Review layer goes under `## Unverified` as "independent review off (plan.reviews.changes)".
+3. Launch the `changes-review` agent with your subagent tool, in the background when the harness supports it, and record it at once (`buracle plan review start --role changes --handle <id>`); with `reviews.companion` not `off`, start the second opinion too (`--role changes`; SKILL.md, *Review agents*). With `reviews.changes` off at the lock, do not launch it: review the diff yourself against changes-review's concerns, and the Review layer goes under `## Unverified` as "independent review off (plan.reviews.changes)".
 
    ```text
    changes-review
@@ -82,10 +82,9 @@ Mark the phase: `buracle flow phase handback`.
 **Worktree merge** (done outcome, worktree runs only). The user chose "separate worktree, squash-merged and removed when the build verifies" in phase 1, so this step needs no new question.
 
 1. Commit everything in the worktree; `git -C <worktree> status --porcelain` prints nothing.
-2. `buracle worktree sync <slug> --json`, then act on the exit code:
-   - **0**: merged. Re-run the full test suite in the main checkout, then `buracle worktree cleanup <slug>` (after this sync it needs no `--force`). Never verify over a red base: fix it there, or hand back as blocked.
-   - **2**: merged, but local changes stashed before the merge (never the run file) could not be restored. Do not pop or drop the stash. Tell the user their earlier local changes are in `git stash list` and need a manual `git stash pop`. Run the post-merge suite and clean up as for 0.
-   - **1**: nothing merged. Read the error. If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), resolve conflicts in files this run changed, re-run the checks and retry once. Still failing: hand back as blocked with the error. Never clean up in this state.
+2. Squash-merge with git in the main checkout, on the base branch (the CLI does not merge): `git merge --squash <branch>`, then `git commit` with a message of your own. Then:
+   - **Merged**: re-run the full test suite in the main checkout, then `buracle worktree cleanup <slug>` (after the merge it needs no `--force`). Never verify over a red base: fix it there, or hand back as blocked.
+   - **A conflict or an error**: undo the attempt with `git reset --merge`; never stash or discard the user's own changes. If the base moved on, merge it into the worktree branch (`git -C <worktree> merge <base>`; never rebase), resolve conflicts in files this run changed, re-run the checks and retry once. Still failing: hand back as blocked with the error. Never clean up in this state.
 
 **Done with verification off** (every criterion passed in the last judge round):
 
@@ -130,11 +129,7 @@ Next: <only for outcomes other than done>
 
 When the user wants the run continued in a fresh session, by another agent or on a machine without Buracle, hand back a brief instead of running it. Without Buracle there is no run file and no stop guard, so the goal condition moves into the prompt.
 
-**Codex:** Put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` Codex's `/goal` keeps the goal attached to the chat; `/goal clear` removes it.
-
-**Oh My Pi:** Put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` Oh My Pi's goal mode keeps the session working toward it (setting `goal.enabled`, on by default); `/goal drop` ends it.
-
-**OpenCode:** OpenCode has no goal command, so the brief's first sentence states the condition, and nothing else holds the session open.
+Where the harness has a goal command (`/goal` in Claude Code, Codex and Oh My Pi), put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` It keeps the session working until the condition holds; `/goal clear` drops it (`/goal drop` in Oh My Pi, whose goal mode is the `goal.enabled` setting, on by default). Without a goal command (OpenCode), the brief's first sentence states the condition, and nothing else holds the session open.
 
 ```text
 Build <the goal>.

@@ -29,7 +29,7 @@ assertType<Equals<StopDecision, { action: 'allow' } | { action: 'block', reason:
 assertType<Equals<typeof core.checkBash, (command: string, cfg: { extraDeny: string[] }) => { deny?: string }>>(true)
 assertType<Equals<typeof core.checkWrite, (paths: string[], ctx: { cwd: string, home: string, vault: string, protect: string[] }) => { deny?: string }>>(true)
 assertType<Equals<typeof core.routeTool, (call: ToolCall, policy: RoutingPolicy, health: McpHealth) => PreDecision>>(true)
-assertType<Equals<typeof core.capabilityCard, (input: { policy: RoutingPolicy, mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], harness: Harness, lsp?: string[] }) => string>>(true)
+assertType<Equals<typeof core.capabilityCard, (input: { policy: RoutingPolicy, mcp: CatalogMcp[], plugins: string[], harness: Harness, lsp?: string[] }) => string>>(true)
 assertType<Equals<typeof core.checkQuestion, (state: SessionState, call: ToolCall, now: number) => { deny?: string, context?: string }>>(true)
 assertType<Equals<typeof core.questionPause, (state: SessionState, call: ToolCall, now: number) => SessionState>>(true)
 assertType<Equals<typeof core.questionAnswered, (response: unknown, depth?: number) => boolean>>(true)

@@ -65,7 +65,7 @@ function neutralProse(p: Placeholder, afterDeterminer: boolean, opts: Pick<Rende
       const a = p.arg ?? ''
       if (userInvocable(a, opts)) return inParens ? `\`/${a}\`; Codex: \`$${a}\`` : `\`/${a}\` (Codex: \`$${a}\`)`
       const name = `${afterDeterminer ? '' : 'the '}\`${a}\` skill`
-      const how = `read \`\${CODEX_HOME:-~/.codex}/skills/${a}/SKILL.md\` in Codex, load it with the \`skill\` tool in OpenCode, read \`skill://${a}\` in Oh My Pi`
+      const how = `read \`~/.agents/skills/${a}/SKILL.md\` in Codex, load it with the \`skill\` tool in OpenCode, read \`skill://${a}\` in Oh My Pi`
       return inParens ? `${name}: ${how}` : `${name} (${how})`
     }
     case 'agent':

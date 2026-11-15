@@ -11,7 +11,7 @@ Outcome: an approved plan in which every task has a known location, a chosen app
 
 ## P2. Frame the work and create the plan file
 
-1. Restate the request in one to three sentences: what will exist, for whom, and how anyone can tell it works. If you cannot, the request is too vague: suggest `/requirements` (Codex: `$requirements`) and stop.
+1. Restate the request in one to three sentences: what will exist, for whom, and how anyone can tell it works. If you cannot, the request is too vague: suggest the `requirements` skill and stop.
 2. Look for special shapes:
    - **Replacement or migration:** add an `## Inventory` table (keep that heading in English; the validator and `buracle plan audit` read it) that maps every replaced function, endpoint, flag or behavior to the task that keeps it, or to the reason it is dropped. Nothing disappears silently. Use three columns: the replaced item, the task that keeps it written as `Task N`, and the reason when it is dropped:
 
@@ -44,7 +44,7 @@ Keep going until every future task has a location, an approach and a verificatio
 
 Ask only when the answer changes the plan: behavior the user would notice, scope edges, compatibility or data risk, a real trade-off between valid approaches. Never ask what the code can tell you.
 
-- At most three questions per round and two rounds, batched into one structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) call per round. Pause before asking (SKILL.md, *Talking to the user*).
+- At most three questions per round and two rounds, batched into one structured-question tool call per round. Pause before asking (SKILL.md, *Talking to the user*).
 - Each question offers 2 to 4 options that name real files, symbols or behaviors. Put your recommendation first and mark it "(recommended)".
 - If `branchIsolation` is on and the request carried no `--worktree`, `--new-branch` or `--current-branch` flag, add: "Where should implementation run?" with the options separate worktree (recommended) / new branch `plan-build/<slug>` from the current branch / current branch.
 - No answer, or "you decide" (in any language): take your recommendation and record it under `## Assumptions`.
@@ -155,7 +155,7 @@ Task rules:
 
 **Review off** (`reviews.plan: false`): do not launch it. Check the plan yourself against the concerns in plan-build-review's instructions (requirement gaps, scope creep, risky assumptions, missing tasks and tests, weak DoD, task order), fix what you find, and add "independent review off (plan.reviews.plan)" under `## Unverified`. Then go to step 3.
 
-1. Launch the reviewer with your subagent tool (`spawn_agent` in Codex, `subagent` in OpenCode, `task` in Oh My Pi):
+1. Launch the reviewer with your subagent tool:
 
    ```text
    plan-build-review
@@ -181,7 +181,7 @@ Mark the phase: `buracle flow phase approve`.
 1. `buracle plan notes <path> --kind plan --json`. When the web UI runs, its `page` is the review page URL: there the user reads the rendered plan and pins notes to passages.
 2. `buracle plan pause --kind decision --reason "plan approval"`
 3. **Fold in the user's notes:** `buracle plan notes <path> --kind plan --json`. Apply each open note to the plan, or say in the summary why you did not; re-validate after an edit; then mark each applied note with `buracle plan notes --done <id>[,<id>]`. No notes is never an approval.
-4. Show a summary of at most 15 lines: goal, the approach in two lines, numbered task titles, E2E scenario names, assumptions, review findings (fixed and declined), the notes you applied, the plan path and the review page URL from step 1. Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi): "Approve this plan?" with the options Approve (recommended) / Request changes. A free-text answer counts too; see the phrase table in SKILL.md.
+4. Show a summary of at most 15 lines: goal, the approach in two lines, numbered task titles, E2E scenario names, assumptions, review findings (fixed and declined), the notes you applied, the plan path and the review page URL from step 1. Ask with your structured-question tool: "Approve this plan?" with the options Approve (recommended) / Request changes. A free-text answer counts too; see the phrase table in SKILL.md.
 5. Changes requested, in the reply or as new notes on the review page: run step 3 again, edit, re-validate, re-run the reviewer only if tasks changed materially (record it again with `buracle plan review done`), then ask again.
 
 **On approval:**
@@ -195,9 +195,7 @@ Mark the phase: `buracle flow phase approve`.
    - New branch: `buracle worktree branch <slug> --json`. It switches to `plan-build/<slug>` started from the current HEAD, or to `plan-build/<slug>-2` (and so on) when that name is taken, brings your uncommitted changes along, and records the base, so the review later diffs only this run's work. Use the branch it prints, and record it in the plan as one line under `## Assumptions` with the branch name verbatim (`Isolation: new branch plan-build/rate-limit-2`): a later or compacted session finds the run's branch there.
    - Current branch, or isolation off: nothing to do.
    - **When isolation fails** (either command exits non-zero): read the `error` code, fix the cause and retry once. Still failing: pause with `--kind decision` and ask: retry after a manual fix / the other isolation / current branch / stop. Never continue in the current checkout without the user's answer.
-6. **Model switch** (`modelSwitch: manual`, the user approved this plan, you are the lead, not a plan lane): `buracle plan pause --kind decision --reason "model switch: switch to the implementation model, then say continue"`. Tell the user in one line how to switch:
-   **Codex:** run `/model`, pick the model and its reasoning effort for the implementation, then say "continue".
-   **OpenCode:** open the model list with `/models` (or ctrl+x m), pick the model for the implementation, then say "continue".
-   **Oh My Pi:** run `/model` (or `/switch`), pick the model for the implementation, then say "continue". Oh My Pi can also switch by itself at the first edit (`/prewalk`, or the `prewalk.enabled` setting).
-   Then end the turn. The user's "continue" ends this pause; when their message means go on in other words, run `buracle plan resume`. Approval off, or a plan lane: no pause, keep the current model.
+6. **Model switch** (`modelSwitch: manual`, the user approved this plan): `buracle plan pause --kind decision --reason "model switch: switch to the implementation model, then say continue"`. Tell the user in one line how to switch:
+   open the harness's model picker (`/model`; `/models` or ctrl+x m in OpenCode; `/model` or `/switch` in Oh My Pi), pick the model for the implementation (in Codex also its reasoning effort), then say "continue". Oh My Pi can also switch by itself at the first edit (`/prewalk`, or the `prewalk.enabled` setting).
+   Then end the turn. The user's "continue" ends this pause; when their message means go on in other words, run `buracle plan resume`. Approval off: no pause, keep the current model.
 7. Continue at once with [implement.md](implement.md). Do not end the turn, except for the model-switch pause of step 6.

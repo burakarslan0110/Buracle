@@ -587,7 +587,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     const card = (ctx: OmpContext): string => {
       const health = healthFor(spoolSid(ctx), ctx.cwd)
       const policy = { ...data.routing, strictness: liveOrDefaults().config.routing.strictness }
-      return deps.policy.capabilityCard({ policy, mcp: data.mcp.filter(s => !mcpUnavailable(health[s.id])), skills: data.skills, plugins: data.plugins, harness: H })
+      return deps.policy.capabilityCard({ policy, mcp: data.mcp.filter(s => !mcpUnavailable(health[s.id])), plugins: data.plugins, harness: H })
     }
 
     const scheduleMaint = (ctx: OmpContext): void => {

@@ -19,7 +19,6 @@ export const ompProfile: HarnessProfile = {
   ],
   selfText: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set …`, `omp plugin …`)" },
   skills: {
-    dir: 'skills',
     readsAgentsDir: true,
     readsClaudeUserDir: false,
     readsClaudeProjectDir: true,
