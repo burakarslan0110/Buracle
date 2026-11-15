@@ -1,4 +1,4 @@
-import { mkdirSync, symlinkSync } from 'node:fs'
+import { lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { allAdapters } from '../../src/adapters/registry'
@@ -38,9 +38,26 @@ export function builtOutput(): Promise<BuiltOutput> {
     mkdirSync(view, { recursive: true })
     symlinkSync(join(REPO, 'canonical'), join(view, 'canonical'))
     symlinkSync(join(root, 'harness'), join(view, 'harness'))
+    linkIntoCheckout(join(root, 'harness'))
     return { root, harness: join(root, 'harness'), view, report }
   })()
   return globalThis.__BURACLE_BUILT_HARNESS__
+}
+
+// Code under test locates harness/ through the checkout (paths.repoRoot(), the hooks' hook-data.json), and a fresh
+// clone has none. For the length of the run, this checkout's harness/ is a link to the folder built above, so that
+// code sees what the release would hold. A real harness/ folder (a contributor's own build) is left alone, and the
+// link is removed when the run ends (or replaced when a killed run left a stale one).
+function linkIntoCheckout(target: string): void {
+  const link = join(REPO, 'harness')
+  let st
+  try { st = lstatSync(link) } catch { st = undefined }
+  if (st !== undefined && !st.isSymbolicLink()) return
+  if (st !== undefined) unlinkSync(link)
+  symlinkSync(target, link)
+  process.on('exit', () => {
+    try { if (readlinkSync(link) === target) unlinkSync(link) } catch { /* already gone */ }
+  })
 }
 
 /** The result of the one build of this run, awaited at import time so that tests can use it synchronously. */

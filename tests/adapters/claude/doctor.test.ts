@@ -14,10 +14,9 @@ import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
 import { run as runProcess, which, type RunOptions, type RunResult } from '../../../src/engine/proc'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
-import { BUILT } from '../../helpers/built-harness'
 
 const REPO = paths.repoRoot()
-const FOLDER = join(BUILT.harness, 'claude')
+const FOLDER = join(REPO, 'harness', 'claude')
 const ok = (stdout: string): RunResult => ({ code: 0, stdout, stderr: '', timedOut: false })
 
 function ctx(): AdapterContext {

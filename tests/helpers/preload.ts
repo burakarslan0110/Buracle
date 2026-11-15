@@ -1,5 +1,5 @@
 import { afterAll } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { lstatSync, mkdirSync, mkdtempSync, readlinkSync, rmSync, unlinkSync } from 'node:fs'
 import { tmpdir, userInfo } from 'node:os'
 import { join } from 'node:path'
 import { accountHome } from '../../src/engine/platform'
@@ -33,6 +33,11 @@ if (globalThis.__BURACLE_REAL_HOME_GUARD__ === undefined) {
   afterAll(() => {
     const guard = globalThis.__BURACLE_REAL_HOME_GUARD__
     if (!guard) return
+    // The link to this run's built harness/ that tests/helpers/built-harness.ts put into the checkout.
+    try {
+      const link = join(import.meta.dir, '..', '..', 'harness')
+      if (lstatSync(link).isSymbolicLink() && readlinkSync(link).startsWith(guard.runRoot)) unlinkSync(link)
+    } catch {  }
     try { rmSync(guard.runRoot, { recursive: true, force: true }) } catch {  }
     const problems: string[] = []
     for (const h of guard.homes) {
@@ -42,3 +47,7 @@ if (globalThis.__BURACLE_REAL_HOME_GUARD__ === undefined) {
     if (problems.length > 0) throw new Error(`tests modified the real home directory:\n${problems.join('\n')}`)
   })
 }
+
+// Every test run builds harness/ once (into the run's temp folder, linked into the checkout), because code under
+// test finds it through the checkout and a fresh clone has none. See tests/helpers/built-harness.ts.
+await import('./built-harness')

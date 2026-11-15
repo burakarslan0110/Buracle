@@ -24,6 +24,7 @@ import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { fakeExe, onlyPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, fakeFetch, makeRepo, memoryIO, REAL_REPO as REAL_REPO_DIR, withDeps } from './helpers'
+import { BUILT } from '../../helpers/built-harness'
 
 const FAKE_SERVER = `
 const mode = process.argv[2] ?? 'ok'
@@ -672,7 +673,9 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
 
   test('generated files that differ from the manifest or from canonical/, and node_modules that does not match package.json', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
-    for (const d of ['canonical', 'harness']) cpSync(join(REAL_REPO_DIR, d), join(repo, d), { recursive: true })
+    cpSync(join(REAL_REPO_DIR, 'canonical'), join(repo, 'canonical'), { recursive: true })
+    // a real copy of the built folder: the checkout's own harness/ is a link to it for the length of the run, and this test edits files
+    cpSync(BUILT.harness, join(repo, 'harness'), { recursive: true })
     writeFileSync(join(repo, 'package.json'), '{"name":"buracle-test","version":"0.0.0","dependencies":{"yaml":"1.0.0"}}\n')
     symlinkSync(join(REAL_REPO_DIR, 'node_modules'), join(repo, 'node_modules'))
     await withDeps({ repoRoot: () => repo, adapters: async () => [] }, async () => {

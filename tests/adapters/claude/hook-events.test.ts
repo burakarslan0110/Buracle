@@ -17,7 +17,6 @@ import { readFlow } from '../../../src/workflow/flow'
 import { loadLedger, updateLedger } from '../../../src/workflow/ledger'
 import { freshState, loadState, saveState } from '../../../src/workflow/session-store'
 import { withSandbox } from '../../helpers/sandbox'
-import { BUILT } from '../../helpers/built-harness'
 
 const SID = 'sess-events-1'
 const NOW = 1_800_000_000_000
@@ -225,7 +224,7 @@ describe('PostToolUse', () => {
   })
 })
 
-const PLUGIN = join(BUILT.harness, 'claude')
+const PLUGIN = join(REPO, 'harness', 'claude')
 
 function info(cwd: string, over: Partial<WorkspaceInfo> = {}): WorkspaceInfo {
   return { cwd, root: cwd, children: [], index: { codegraph: { state: 'ready', at: NOW - 60_000 }, semble: { state: 'building', since: NOW - 5_000 } }, ...over }
