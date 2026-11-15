@@ -133,18 +133,6 @@ for (const surface of SURFACES) {
       expect((await ui.find({ key: 'band-progress' }))?.text).toBe(' 3/7')
     })
 
-    test('collapsed (isCollapsed) is one row with the active step only, and no buttons', async ($, on) => {
-      worldOf(on, SPEC)
-      await $.session.start(SESSION)
-      const ui = await $.ui.mount({ plugin: 'buracle', surface, component: 'AbovePrompt', props: { ...BAND, isCollapsed: true } })
-      expect((await ui.find({ key: 'band-phase-implement' }))?.text).toBe('● Implement')
-      expect(await ui.find({ key: 'band-row-0' })).toBeDefined()
-      expect(await ui.find({ key: 'band-row-1' })).toBeUndefined()
-      expect(await ui.find({ key: 'band-crumb' })).toBeUndefined()
-      expect(await ui.find({ key: 'band-progress' })).toBeUndefined()
-      expect(await ui.find({ key: 'band-details' })).toBeUndefined()
-    })
-
     test('a /buracle:bugfix command shows the fix phases at once and records the start', async ($, on) => {
       const world = worldOf(on)
       await $.session.start(SESSION)

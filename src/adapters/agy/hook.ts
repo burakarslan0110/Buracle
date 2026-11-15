@@ -1,10 +1,11 @@
 import { join } from 'node:path'
 import type { ToolCall } from '../../core/events'
 import { classifyTool } from '../../core/events'
+import { skillOf } from '../../core/policy/usage'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import type { AdapterContext } from '../registry'
 import {
-  afterTool, commandDeps, guardTool, knownServers, promptContext, runFrame, startContext, stopReason, type FrameSpec,
+  afterTool, commandDeps, guardTool, knownServers, promptContext, runFrame, startContext, stopReason, trackSkillLoad, trackSlashWorkflow, type FrameSpec,
 } from '../shared/command-host/index'
 import { isObj, QUIET, str, out, type HookOutcome } from '../shared/claude-dialect'
 import { claudeChanges, type FileChange } from '../shared/write-content'
@@ -134,6 +135,7 @@ async function preInvocation(d: PipelineDeps, p: Record<string, unknown>, sid: s
   const state = readTurn(d.ctx, sid)
   const parts: string[] = []
   if (text !== '' && text !== state.prompt) {
+    await trackSlashWorkflow(d, { sid, text, now })
     parts.push(...await promptContext(d, { sid, cwd, text, userText: true, now, skillsDir: join(d.ctx.paths.harnessConfigDir(H), 'skills'), readOnly: false }))
   }
   parts.push(...state.pending)
@@ -154,6 +156,8 @@ async function preToolUse(d: PipelineDeps, p: Record<string, unknown>, sid: stri
 async function postToolUse(d: PipelineDeps, p: Record<string, unknown>, sid: string, cwd: string, now: number): Promise<HookOutcome> {
   const call = decodeCall(p, sid, d.ctx)
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
+  // AGY loads a skill by reading its SKILL.md: a workflow's run starts with that read.
+  if (call.kind === 'read' && str(p['error']) === undefined) await trackSkillLoad(d, { sid, skillId: skillOf(call, H), now })
   const context = await afterTool(d, { sid, cwd, now, subagent: false, call, ok: str(p['error']) === undefined, ...(server !== undefined && server !== 'unclassified' ? { mcpServer: server } : {}) })
   later(d.ctx, sid, context)
   return out({})

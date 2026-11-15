@@ -349,17 +349,6 @@ export function bandRows(v: BandView, columns: number, maxRows: number, emoji: b
   return [fit(one, cols)]
 }
 
-/** The collapsed band: one row with the active step only, the same segment the full band draws for it. */
-export function bandCollapsedRows(v: BandView, columns: number, emoji: boolean): Segment[][] {
-  const cols = Math.floor(Number.isFinite(columns) ? columns : 0)
-  if (!v.visible || cols < 8) return []
-  const g = emoji ? UNICODE : ASCII
-  const cur = v.phases.find(p => p.state === 'current')
-  if (cur !== undefined) return [fit([seg(`band-phase-${cur.id}`, `${glyphOf('current', v, g)} ${cur.label}`, phaseColor('current', v), { bold: true })], cols)]
-  if (v.phases.length === 0) return [fit([seg('band-phase', `${g.current} ${v.workflow ?? ''}`, STATUS_COLOR[v.status])], cols)]
-  return v.status === 'done' ? [fit([seg('band-phase', `${g.done} done`, 'green')], cols)] : []
-}
-
 export function bandText(v: BandView): string[] {
   if (!v.visible) return ['No workflow is running.']
   const head = `${v.breadcrumb.join(' \u203A ')}${v.title !== undefined ? ` \u00B7 ${v.title}` : ''} \u00B7 ${STATUS_TEXT[v.status]}${v.elapsedMin !== undefined ? ` \u00B7 ${elapsedText(v.elapsedMin)}` : ''}`

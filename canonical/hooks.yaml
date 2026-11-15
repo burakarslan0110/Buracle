@@ -414,7 +414,7 @@ hooks:
           - { event: PreToolUse, matcher: Bash, timeoutMs: 5000 }
       opencode: { event: session.prompt, also: [{ event: tool.execute.before, matcher: skill }, { event: session.skill.activated }] }
       omp: { event: input, also: [{ event: tool_result }, { event: before_agent_start }, { event: session_start }, { event: session_switch }] }
-      qwen: { event: UserPromptExpansion, timeoutMs: 5000, also: [{ event: PostToolUse, matcher: Skill|skill, async: true, timeoutMs: 5000 }] }
+      qwen: { event: UserPromptSubmit, timeoutMs: 5000, also: [{ event: PostToolUse, matcher: Skill|skill, async: true, timeoutMs: 5000 }] }
       pi: { event: input, also: [{ event: tool_result }, { event: before_agent_start }, { event: session_start }] }
       agy: { event: PreInvocation, timeoutMs: 10000, also: [{ event: PostToolUse, timeoutMs: 5000 }, { event: SessionStart, timeoutMs: 10000 }] }
 

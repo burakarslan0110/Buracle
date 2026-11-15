@@ -1,6 +1,7 @@
 import type { CanonicalBundle, HookBinding, McpServerSpec } from '../../core/catalog'
 import { catalogMcp, envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
+import { tipsFor } from '../shared/tip-text'
 
 export const OWNER = 'qwen'
 
@@ -21,8 +22,8 @@ export function isBuracleStatusLine(command: unknown): boolean {
 export const TIP_PREFIX = 'Buracle tip: '
 
 /** `ui.customWittyPhrases`: the loading phrases Qwen Code cycles through (docs/users/configuration/settings.md), one per canonical tip. */
-export function qwenTipPhrases(c: Pick<CanonicalBundle, 'tips'>): string[] {
-  return (c.tips ?? []).map(t => `${TIP_PREFIX}${t.text}`)
+export function qwenTipPhrases(c: Pick<CanonicalBundle, 'tips' | 'skills'>): string[] {
+  return tipsFor(c, 'qwen').map(t => `${TIP_PREFIX}${t.text}`)
 }
 
 /** The events the Qwen adapter answers; a `hooks.yaml` qwen binding on any other event is left out. */
@@ -33,7 +34,6 @@ export type QwenHookEvent = (typeof QWEN_HOOK_EVENTS)[number]
 
 /** The events a `hooks.yaml` qwen binding names that the adapter does not register yet, with the reason (the parity test reads this). */
 export const QWEN_UNSERVED: Readonly<Record<string, string>> = {
-  UserPromptExpansion: 'flow tracking (H25) is outside the four pillars (skills, hooks, MCP, Brain); Qwen Code 1.0.0-preview.1 does not know the event either',
   SubagentStop: 'the review gate (H19) judges the review agents, which Buracle does not install for Qwen Code yet',
 }
 
@@ -115,6 +115,6 @@ export function qwenExcluded(c: Pick<CanonicalBundle, 'mcp'>, cfg: Pick<BuracleC
 }
 
 /** What Buracle owns in settings.json, as the file `harness/qwen/settings.fragment.json` shows it (`{buracle}` stands for the shim's path). */
-export function settingsFragment(c: Pick<CanonicalBundle, 'hooks' | 'mcp' | 'tips'>, buracle: string): string {
+export function settingsFragment(c: Pick<CanonicalBundle, 'hooks' | 'mcp' | 'tips' | 'skills'>, buracle: string): string {
   return JSON.stringify({ hooks: qwenHooks(c), mcpServers: qwenMcpServers(c, buracle), ui: { statusLine: STATUS_LINE_VALUE, customWittyPhrases: qwenTipPhrases(c) } }, null, 2) + '\n'
 }

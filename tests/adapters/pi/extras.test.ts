@@ -63,6 +63,16 @@ describe('pi extras: the workflow band', () => {
     expect(calls.widgets[0]?.lines?.join('\n')).toContain('plan-build')
   }))
 
+  test('a workflow skill the model loads starts the flow; another skill or none does not', () => withSandbox(async () => {
+    const { ctx, calls } = uiCtx()
+    const extras = createPiExtras(host())
+    expect(extras.flowStartLoaded(SID, undefined)).toBeUndefined()
+    expect(extras.flowStartLoaded(SID, 'memory')).toBeUndefined()
+    expect(extras.flowStartLoaded(SID, 'bugfix')).toBe('bugfix')
+    extras.refreshFlow(SID, ctx)
+    expect(calls.widgets[0]?.lines?.join('\n')).toContain('bugfix')
+  }))
+
   test('no workflow, no widget content; print mode and a host without setWidget draw nothing', () => withSandbox(async () => {
     const quiet = uiCtx()
     createPiExtras(host()).refreshFlow(SID, quiet.ctx)

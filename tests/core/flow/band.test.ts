@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { BandInput, BandPlan, BandView } from '../../../src/core/flow/band'
-import { bandCollapsedRows, bandPlanOf, bandRows, bandSummary, bandText, bandView, criteriaOf, resumeSuggestion } from '../../../src/core/flow/band'
+import { bandPlanOf, bandRows, bandSummary, bandText, bandView, criteriaOf, resumeSuggestion } from '../../../src/core/flow/band'
 import type { FlowRecord } from '../../../src/core/flow/record'
 import { flowEnd, flowPhase, flowStart, flowStep } from '../../../src/core/flow/record'
 import { emptyState } from '../../../src/core/plan/state'
@@ -244,17 +244,5 @@ rounds: 1
     expect(bandSummary(view({}))).toBe('')
     expect(resumeSuggestion(view({}))).toBeUndefined()
     expect(bandText(view({}))).toEqual(['No workflow is running.'])
-  })
-})
-
-describe('bandCollapsedRows', () => {
-  test('is one row with the active step only', () => {
-    const v = view({ flow: flow('plan-build', 'implement'), plan: plan() })
-    expect(renderPlainLines(bandCollapsedRows(v, 120, true)).split('\n').filter(l => l !== '')).toEqual(['● Implement'])
-    expect(renderPlainLines(bandCollapsedRows(v, 120, false)).split('\n').filter(l => l !== '')).toEqual(['> Implement'])
-  })
-  test('is empty when no run is shown or the width is tiny', () => {
-    expect(bandCollapsedRows(view({}), 120, true)).toEqual([])
-    expect(bandCollapsedRows(view({ flow: flow('plan-build', 'implement'), plan: plan() }), 4, true)).toEqual([])
   })
 })

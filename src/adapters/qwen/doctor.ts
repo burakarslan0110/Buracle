@@ -60,6 +60,14 @@ export async function qwenDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   else if (!isBuracleStatusLine(statusCmd)) out.push({ level: 'warn', check: 'qwen.statusLine', detail: `ui.statusLine runs ${JSON.stringify(statusCmd)}, not Buracle's status line (kept as the user's choice)` })
   else out.push({ level: 'ok', check: 'qwen.statusLine', detail: `ui.statusLine in ${file} runs \`buracle statusline qwen\`` })
 
+  // Buracle's tips ride in `ui.customWittyPhrases`; Qwen Code shows those phrases only in the `witty` and `all` modes (default `off`, 1.0.0-preview.1).
+  if ((ctx.canonical.tips ?? []).length > 0) {
+    const mode = rec(settings['ui'])['loadingPhrases']
+    out.push(mode === 'witty' || mode === 'all'
+      ? { level: 'ok', check: 'qwen.tips', detail: `ui.loadingPhrases is ${mode}: Buracle's tips show while the model works` }
+      : { level: 'warn', check: 'qwen.tips', detail: `Buracle's tips show only when ui.loadingPhrases is "witty" or "all" (it is ${typeof mode === 'string' ? JSON.stringify(mode) : 'unset, so "off"'} in ${file}); Buracle leaves that setting to you` })
+  }
+
   const skills = join(ctx.paths.agentsDir(), 'skills')
   out.push(existsSync(skills) ? { level: 'ok', check: 'qwen.skills', detail: `Qwen Code reads the skills from ${skills}` } : { level: 'warn', check: 'qwen.skills', detail: `${skills} does not exist: run \`buracle install\`` })
   return out

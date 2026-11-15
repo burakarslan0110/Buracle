@@ -6,6 +6,8 @@ import { adapter } from '../../../src/adapters/agy/index'
 import { defaultConfig } from '../../../src/core/config'
 import { dispatchHook } from '../../../src/cli/commands/hook'
 import * as paths from '../../../src/engine/paths'
+import { activeFlow } from '../../../src/core/flow/record'
+import { readFlow } from '../../../src/workflow/flow'
 import { loadLedger } from '../../../src/workflow/ledger'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { call, ctx, injected, json, payload, SID } from './helpers'
@@ -194,6 +196,25 @@ describe('PostToolUse answers {} and records what it saw', () => {
       expect(await hook('PostToolUse', payload('PostToolUse', call('replace_file_content', { TargetFile: '/nope/a.txt', TargetContent: 'a', ReplacementContent: 'b' })))).toEqual(EMPTY)
       expect(await hook('PostInvocation', payload('PostInvocation'))).toEqual({ stdout: '', exitCode: 0 })
       expect(await hook('SomethingNew', payload('SomethingNew'))).toEqual({ stdout: '', exitCode: 0 })
+    })
+  })
+})
+
+describe('H25: flow tracking', () => {
+  const active = () => activeFlow(readFlow('agy', SID))?.workflow
+  test('reading a workflow skill\'s SKILL.md starts its flow record; reading another file does not', async () => {
+    await withSandbox(async ({ home }) => {
+      await hook('PostToolUse', payload('PostToolUse', call('view_file', { AbsolutePath: join(home, '.gemini', 'config', 'skills', 'memory', 'SKILL.md') }), process.cwd()))
+      await hook('PostToolUse', payload('PostToolUse', call('view_file', { AbsolutePath: '/work/app/README.md' }), process.cwd()))
+      expect(active()).toBeUndefined()
+      await hook('PostToolUse', payload('PostToolUse', call('view_file', { AbsolutePath: join(home, '.gemini', 'config', 'skills', 'bugfix', 'SKILL.md') }), process.cwd()))
+      expect(active()).toBe('bugfix')
+    })
+  })
+  test('a user message that starts with /<workflow> starts it', async () => {
+    await withSandbox(async () => {
+      await hook('PreInvocation', prompt('/plan-build add a thing'))
+      expect(active()).toBe('plan-build')
     })
   })
 })

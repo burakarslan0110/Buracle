@@ -4,7 +4,7 @@ import { backgroundWait } from '../../core/plan/background'
 import { isUserText } from '../../core/policy/intents'
 import type { AdapterContext } from '../registry'
 import {
-  afterTool, claudeShapedChanges, commandDeps, guardTool, knownServers, promptContext, runFrame, sharedSkillsDir, startContext, stopReason,
+  afterTool, claudeShapedChanges, commandDeps, guardTool, knownServers, promptContext, runFrame, sharedSkillsDir, startContext, stopReason, trackSkillLoad, trackSlashWorkflow,
   type FrameSpec,
 } from '../shared/command-host/index'
 import { blockOut, contextOut, denyOut, isObj, QUIET, str, type HookOutcome } from '../shared/claude-dialect'
@@ -39,6 +39,8 @@ async function run(d: PipelineDeps, event: string, p: Record<string, unknown>, s
       // Qwen Code also runs this event for the tool results it sends back; `submitted_prompt` marks what the user typed.
       const submitted = str(p['submitted_prompt'])
       const text = submitted ?? str(p['prompt']) ?? ''
+      // A skill typed as `/<id>` reaches this event as typed in headless runs (the hooks guide); the skill tool covers the rest.
+      if (submitted !== undefined || isUserText(text)) await trackSlashWorkflow(d, { sid, text, now })
       return contextOut('UserPromptSubmit', await promptContext(d, { sid, cwd, text, userText: submitted !== undefined || isUserText(text), now, skillsDir: sharedSkillsDir(d.ctx), readOnly: p['permission_mode'] === 'plan' }))
     }
     case 'PreToolUse': return preToolUse(d, p, sid, now, false)
@@ -79,6 +81,8 @@ async function postToolUse(d: PipelineDeps, p: Record<string, unknown>, sid: str
   const tool = str(p['tool_name']) ?? ''
   const cls = classifyTool(H, tool, isObj(p['tool_input']) ? p['tool_input'] : {}, cwd, knownServers(d.ctx, H))
   const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input: {}, ...cls }
+  // The `skill` tool (`{ skill: <name> }`, tools/skill.ts of qwen-code) loads a skill: a workflow's run starts here.
+  if (tool.toLowerCase() === 'skill' && isObj(p['tool_input'])) await trackSkillLoad(d, { sid, skillId: str(p['tool_input']['skill']), now })
   // The tool ran, so the event is a success: Qwen Code sends a failed call to PostToolUseFailure.
   return contextOut('PostToolUse', await afterTool(d, { sid, cwd, now, subagent: isSubagent(p), call, ok: true, ...(cls.kind === 'mcp' && cls.mcp?.server !== undefined ? { mcpServer: cls.mcp.server } : {}) }))
 }

@@ -182,3 +182,33 @@ export async function stopReason(
 
 /** `<agents dir>/skills`, where the shared copy of the skills lives. */
 export const sharedSkillsDir = (ctx: AdapterContext): string => join(ctx.paths.agentsDir(), 'skills')
+
+// ---- H25 flow tracking: what starts a workflow's flow record on a command-hook host -----------------------------------
+
+/** A user message that starts with `/<id>` and names a workflow: the id and the rest of its first line as the title. */
+export function slashWorkflowOf(text: string, isWorkflow: (id: string) => boolean): { workflow: string, title?: string } | undefined {
+  const m = /^\/([a-z][a-z0-9-]{0,39})(?=\s|$)([^\n]*)/.exec(typeof text === 'string' ? text.trim() : '')
+  const id = m?.[1]
+  if (id === undefined || !isWorkflow(id)) return undefined
+  const title = (m?.[2] ?? '').trim().slice(0, 200)
+  return title !== '' ? { workflow: id, title } : { workflow: id }
+}
+
+/** Starts the flow record of the workflow a user message names (`/<id> …`); true when it started one. */
+export async function trackSlashWorkflow(d: PipelineDeps, a: { sid: string, text: string, now: number }): Promise<boolean> {
+  const { flowDef } = await import('../../../core/flow/catalog')
+  const start = slashWorkflowOf(a.text, id => flowDef(id) !== undefined)
+  if (start === undefined) return false
+  const { recordFlowStart } = await import('../../../workflow/flow')
+  return d.step('H25 flow start', false, () => recordFlowStart(d.harness, a.sid, { ...start, source: 'prompt' }, a.now))
+}
+
+/** Starts the flow record of the workflow skill a tool call loads (`skillId` as the host spells it); true when it started one. */
+export async function trackSkillLoad(d: PipelineDeps, a: { sid: string, skillId: string | undefined, now: number }): Promise<boolean> {
+  if (a.skillId === undefined) return false
+  const { workflowOfSkill } = await import('../../../core/flow/catalog')
+  const workflow = workflowOfSkill(`buracle:${a.skillId.replace(/^buracle:/, '')}`)
+  if (workflow === undefined) return false
+  const { recordFlowStart } = await import('../../../workflow/flow')
+  return d.step('H25 flow start', false, () => recordFlowStart(d.harness, a.sid, { workflow, source: 'skill' }, a.now))
+}
