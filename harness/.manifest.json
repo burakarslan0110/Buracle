@@ -899,7 +899,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "5551d3b208e0ece0d552906bfcf66528b6a6579f9df04069e31347432d16ffbc",
+      "sha256": "c9bafc2f0754a3ee02ee150aa43296486034a72895f402af5859304df7856490",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1489,17 +1489,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "e8bd2ee64f8e556bfc6d101e4a1e7427591c320ff1ee235022e5a8f08c511846",
+      "sha256": "4ec5911c9ea40ca8824458b9e4c27dff520d4f83ca40b88803c47ed7565b730d",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "7b20798035f9ce9e53a5db6085b79338ff1cccd8fd7782da1ae14bff679e03c7",
+      "sha256": "1e6b57fa57cddf1da51b08d16084641b31d6bf0db32c3c0949474ba935d3ac90",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "bca301bb899f211fba2d10d00926d93efaef3f72487f2f9872387c70f42d5bea",
+      "sha256": "9a4e11b464dc4effa4685d766b3306079fa62e8e0c31a3c660127abc82442062",
       "exec": false
     }
   }
