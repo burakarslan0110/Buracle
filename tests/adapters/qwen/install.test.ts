@@ -44,7 +44,7 @@ describe('install into ~/.qwen/settings.json', () => {
     })
   })
 
-  test('the user\'s own hooks, servers, keys and comments stay; a hook of theirs on the same event is kept next to Buracle\'s', async () => {
+  test('the user\'s own hooks, servers, keys and comments stay; a hook of theirs on the same event is kept next to Buracle Stack\'s', async () => {
     await withSandbox(async ({ home }) => {
       mkdirSync(join(home, '.qwen'), { recursive: true })
       writeFileSync(settingsFile(home), `{
@@ -72,7 +72,7 @@ describe('install into ~/.qwen/settings.json', () => {
     })
   })
 
-  test('a Buracle server entry the user changed is kept, and a file that is not valid JSON is not touched', async () => {
+  test('a Buracle Stack server entry the user changed is kept, and a file that is not valid JSON is not touched', async () => {
     await withSandbox(async ({ home }) => {
       await install()
       const s = read(home)
@@ -88,7 +88,7 @@ describe('install into ~/.qwen/settings.json', () => {
     })
   })
 
-  test('uninstall removes what Buracle wrote and leaves the user\'s keys', async () => {
+  test('uninstall removes what Buracle Stack wrote and leaves the user\'s keys', async () => {
     await withSandbox(async ({ home }) => {
       mkdirSync(join(home, '.qwen'), { recursive: true })
       writeFileSync(settingsFile(home), JSON.stringify({ theme: 'dark', hooks: { Stop: [{ hooks: [{ type: 'command', command: '/my/stop.sh' }] }] }, mcpServers: { mine: { command: 'x' } } }, null, 2))

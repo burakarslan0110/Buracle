@@ -509,7 +509,7 @@ describe('distill', () => {
     })
   })
 
-  test('every distilled record carries a tag, the model name and Buracle as the author (PRD R9)', async () => {
+  test('every distilled record carries a tag, the model name and Buracle Stack as the author (PRD R9)', async () => {
     await withBrain(async ({ repo }) => {
       await finishedSession(repo)
       writeTelemetry('codex', SID, { at: Date.now(), model: 'gpt-6-luna', modelId: 'gpt-6-luna' })

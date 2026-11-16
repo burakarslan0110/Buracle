@@ -15,10 +15,10 @@ const press = (v: MenuView, ...keys: Key[]): MenuView => keys.reduce((acc, k) =>
 const ch = (c: string): Key => ({ char: c })
 
 const ITEMS_80 = [
-  '  > Install or repair  set Buracle up in your coding agents, or repair it',
+  '  > Install or repair  set Buracle Stack up in your agents, or repair it',
   '    Update             look for new versions and apply them, step by step',
   '    Health check       check every part and see how to fix what is broken',
-  '    Memory             open the Buracle Console in your browser',
+  '    Memory             open the Buracle Stack Console in your browser',
   '    Quit',
 ]
 const HINT = '  ↑↓ move · enter choose · q quit'
@@ -27,7 +27,7 @@ describe('main menu frames', () => {
   test('80 by 24 at color level 0: the title, the status, every choice with what it does, and the key hints', () => {
     expect(renderMenu(plain, menu(80, 24))).toEqual([
       '',
-      '  buracle v0.5.0 · One engineering setup, one memory, every coding agent',
+      '  buracle stack v0.5.0 · One engineering setup, one memory, every coding agent',
       '',
       '  + All good · no update check yet',
       '',
@@ -38,7 +38,7 @@ describe('main menu frames', () => {
   })
 
   test('with color and room, the pixel logo stands on top with the version and the tagline under it', () => {
-    const lines = shown(color, menu(80, 24))
+    const lines = shown(color, menu(96, 24))
     expect(lines.slice(1, 7)).toEqual(LOGO.map(l => `  ${l}`.trimEnd()))
     expect(lines[7]).toBe('  v0.5.0  ·  One engineering setup, one memory, every coding agent')
     expect(lines.slice(11, 16)).toEqual(ITEMS_80.map(l => l.replace('  > ', '  ❯ ')))
@@ -46,23 +46,23 @@ describe('main menu frames', () => {
     expect(lines.at(-1)).toBe(HINT)
   })
 
-  test('below 55 columns the icon stands for the logo; descriptions that do not all fit move under the list, for the selected choice only', () => {
+  test('below 96 columns the icon stands for the logo; descriptions that do not all fit move under the list, for the selected choice only', () => {
     const v = menu(54, 20)
     const lines = shown(color, v)
     expect(lines.slice(1, 7).map(l => l.slice(0, 10).trimEnd())).toEqual(ICON.map(l => `  ${l}`.trimEnd()))
     expect(lines.join('\n')).toContain('buracle')
     expect(lines.slice(10, 15)).toEqual(['  ❯ Install or repair', '    Update', '    Health check', '    Memory', '    Quit'])
-    expect(lines.at(-4)).toBe('  set Buracle up in your coding agents, or repair it')
+    expect(lines.at(-4)).toBe('  set Buracle Stack up in your agents, or repair it')
     expect(shown(color, press(v, 'down')).at(-4)).toBe('  look for new versions and apply them, step by step')
     expect(shown(color, press(v, 'end')).at(-4)).toBe('')
   })
 
   test('the header follows the terminal size and never leaves; below 40 by 10 only the list stays', () => {
     const at = (rows: number) => shown(color, menu(80, rows))
-    const TITLE = '  ◉ buracle v0.5.0 · One engineering setup, one memory, every coding agent'
+    const TITLE = '  ◉ buracle stack v0.5.0'
     const STATUS = '  ✔ All good · no update check yet'
     const ITEMS = ITEMS_80.map(l => l.replace('  > ', '  ❯ '))
-    expect(at(20)[1]).toBe(`  ${LOGO[0]}`.trimEnd())
+    expect(shown(color, menu(96, 20))[1]).toBe(`  ${LOGO[0]}`.trimEnd())
     expect(at(19).slice(0, 5)).toEqual(['', TITLE, '', STATUS, ''])
     expect(at(12)).toEqual([TITLE, STATUS, '', ...ITEMS, '', '', '', HINT])
     expect(at(10)).toEqual([TITLE, STATUS, ...ITEMS, '', '', HINT])
@@ -137,7 +137,7 @@ describe('main menu text safety', () => {
   test('a message after a command takes the line under the list', () => {
     const lines = shown(plain, { ...menu(60, 20), message: 'buracle install: done' })
     expect(lines).toContain('  buracle install: done')
-    expect(lines).not.toContain('  set Buracle up in your coding agents, or repair it')
+    expect(lines).not.toContain('  set Buracle Stack up in your agents, or repair it')
   })
 })
 

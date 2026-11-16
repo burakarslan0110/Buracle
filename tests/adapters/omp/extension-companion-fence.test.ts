@@ -26,7 +26,7 @@ function setup(cwd: string, fence: string | undefined, active: string[] = []) {
   return { call, start, tools }
 }
 
-const FENCE = /^Buracle H01: this run is a read-only second opinion \(plan-build-review\) and /
+const FENCE = /^Buracle Stack H01: this run is a read-only second opinion \(plan-build-review\) and /
 
 describe('omp: the second-opinion fence (BURACLE_REVIEWER_AGENT in the child)', () => {
   test('MCP tools of other servers, their xd:// devices, file writes and the shell are blocked; read tools and the three review servers pass', () => withSandbox(async ({ root }) => {

@@ -17,7 +17,7 @@ function shown(command: string): string {
 }
 
 export function consentQuestion(need: ConsentNeed): string {
-  return `Buracle consent: \`${shown(need.command)}\` ${need.summary}. Run it?`
+  return `Buracle Stack consent: \`${shown(need.command)}\` ${need.summary}. Run it?`
 }
 
 export function consentRefusal(need: ConsentNeed): string {

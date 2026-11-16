@@ -183,7 +183,7 @@ export function statusLineFinding(settingsPath: string): Finding {
   const sl = r.value !== null && typeof r.value === 'object' ? r.value['statusLine'] : undefined
   const cmd = sl !== null && typeof sl === 'object' ? (sl as Record<string, unknown>)['command'] : undefined
   if (typeof cmd !== 'string') return { level: 'warn', check, detail: 'no statusLine configured; run `buracle install claude`' }
-  if (!/\bstatusline claude\b/.test(cmd)) return { level: 'warn', check, detail: `statusLine runs ${JSON.stringify(cmd)}, not Buracle's status line (kept as the user's choice)` }
+  if (!/\bstatusline claude\b/.test(cmd)) return { level: 'warn', check, detail: `statusLine runs ${JSON.stringify(cmd)}, not Buracle Stack's status line (kept as the user's choice)` }
   return { level: 'ok', check, detail: cmd }
 }
 
@@ -311,7 +311,7 @@ export function permissionFinding(
     const current = configured === undefined ? 'not set (Claude Code then starts in auto mode)' : JSON.stringify(configured)
     const fix = cfg.enforce
       ? 'run `buracle install` to write bypassPermissions back (permissions.enforce), then start a new session'
-      : 'permissions.enforce is off, so Buracle keeps this value; set it back yourself, or turn permissions.enforce on and run `buracle install`'
+      : 'permissions.enforce is off, so Buracle Stack keeps this value; set it back yourself, or turn permissions.enforce on and run `buracle install`'
     return {
       level: 'warn', check,
       detail: `~/.claude/settings.json permissions.defaultMode is ${current}, not bypassPermissions (permissions.bypass is on). Claude Code's one-time "make auto mode your default" prompt, /config or its /doctor skill change it; ${fix}`,

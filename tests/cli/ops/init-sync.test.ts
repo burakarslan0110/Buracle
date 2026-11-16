@@ -14,7 +14,7 @@ function read(p: string): string {
 }
 
 // `buracle install` took over `buracle init` (the first setup) and `buracle sync` (build, then install).
-describe('buracle install sets Buracle up on a clean home', () => {
+describe('buracle install sets Buracle Stack up on a clean home', () => {
   test('writes config.yaml, the shim and the PATH link, lists the harnesses and says what is left; idempotent', () => withSandbox(async ({ root, home, buracleHome }) => {
     const repo = makeRepo(root)
     const cli = fakeCli()

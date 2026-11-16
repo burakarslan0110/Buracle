@@ -128,7 +128,7 @@ describe('opencode doctor', () => {
     const enforced = permissionFinding({ bypass: true, enforce: true }, 'ask')
     expect(enforced).toMatchObject({ level: 'warn' })
     expect(enforced.detail).toContain('run `buracle install opencode` to restore it')
-    expect(permissionFinding({ bypass: true, enforce: false }, undefined).detail).toContain('Buracle keeps your value')
+    expect(permissionFinding({ bypass: true, enforce: false }, undefined).detail).toContain('Buracle Stack keeps your value')
     expect(permissionFinding({ bypass: false, enforce: true }, 'ask').level).toBe('ok')
   })
 
@@ -143,7 +143,7 @@ describe('opencode doctor', () => {
     expect(found[0]?.detail).toContain('commands/plan-build.md, commands.bugfix in the config shadow')
   }))
 
-  test('warns when cli.json disables the Buracle TUI plugin', () => withSandbox(async () => {
+  test('warns when cli.json disables the Buracle Stack TUI plugin', () => withSandbox(async () => {
     const dir = paths.opencodeConfigDir()
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'cli.json'), '{ "plugins": ["-buracle"] }')

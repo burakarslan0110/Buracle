@@ -55,7 +55,7 @@ describe('G1: project settings are refused at the path when the content is unkno
 describe('G1: Claude Code project settings', () => {
   const file = `${CWD}/.claude/settings.local.json`
 
-  test('ordinary changes pass: permissions, env, hooks, the memory redirect, Buracle enabled', () => {
+  test('ordinary changes pass: permissions, env, hooks, the memory redirect, Buracle Stack enabled', () => {
     for (const s of [
       { permissions: { allow: ['Bash(npm test:*)'], deny: ['Read(.env)'] } },
       { env: { NODE_ENV: 'test', BURACLE_NO_AUTOSTART: '1' } },
@@ -68,16 +68,16 @@ describe('G1: Claude Code project settings', () => {
     }
   })
 
-  test('changes that switch Buracle off are refused', () => {
+  test('changes that switch Buracle Stack off are refused', () => {
     const cases: Array<[unknown, string]> = [
-      [{ enabledPlugins: { 'buracle@buracle': false } }, "turns Buracle's plugin off"],
-      [{ enabledPlugins: { 'Buracle@local-market': false } }, "turns Buracle's plugin off"],
+      [{ enabledPlugins: { 'buracle@buracle': false } }, "turns Buracle Stack's plugin off"],
+      [{ enabledPlugins: { 'Buracle@local-market': false } }, "turns Buracle Stack's plugin off"],
       [{ disableAllHooks: true }, 'disableAllHooks'],
       [{ allowManagedHooksOnly: true }, 'allowManagedHooksOnly'],
       [{ env: { BURACLE_HOME: '/tmp/fb' } }, 'env.BURACLE_HOME'],
       [{ env: { HOME: '/tmp/h' } }, 'env.HOME'],
       [{ env: { CLAUDE_CONFIG_DIR: '/tmp/c' } }, 'env.CLAUDE_CONFIG_DIR'],
-      [{ env: { BURACLE_HOOK_TIMEOUT_MS: '1' } }, 'cuts every Buracle hook short'],
+      [{ env: { BURACLE_HOOK_TIMEOUT_MS: '1' } }, 'cuts every Buracle Stack hook short'],
       [{ disabledExtensions: ['extension-module:buracle'] }, 'disabledExtensions'],
     ]
     for (const [s, why] of cases) {
@@ -89,21 +89,21 @@ describe('G1: Claude Code project settings', () => {
   })
 
   test('JSON with comments and trailing commas is parsed, not skipped', () => {
-    expect(judge(file, '{\n  // keep quiet\n  "enabledPlugins": { "buracle@buracle": false, },\n}\n')).toContain("Buracle's plugin off")
+    expect(judge(file, '{\n  // keep quiet\n  "enabledPlugins": { "buracle@buracle": false, },\n}\n')).toContain("Buracle Stack's plugin off")
     expect(judge(file, '{\n  /* team */ "permissions": { "allow": ["Bash(ls)"], },\n}\n')).toBeUndefined()
   })
 
   test("a setting the file already held is the user's: an unrelated edit passes, a new one does not", () => {
     const before = json({ disableAllHooks: true, permissions: { allow: [] } })
     expect(judge(file, json({ disableAllHooks: true, permissions: { allow: ['Bash(ls)'] } }), before)).toBeUndefined()
-    expect(judge(file, json({ disableAllHooks: true, enabledPlugins: { 'buracle@buracle': false } }), before)).toContain("Buracle's plugin off")
+    expect(judge(file, json({ disableAllHooks: true, enabledPlugins: { 'buracle@buracle': false } }), before)).toContain("Buracle Stack's plugin off")
     expect(judge(file, json({ env: { BURACLE_HOME: '/tmp/b' } }), json({ env: { BURACLE_HOME: '/tmp/a' } }))).toContain('BURACLE_HOME')
   })
 
   test('text that does not parse (a fragment a shell appends) is scanned for the words of those settings', () => {
     expect(judge(file, ', "disableAllHooks": true }')).toContain('cannot read as valid settings')
     expect(judge(file, '{ "permissions": ')).toBeUndefined()
-    expect(checkWrite([file], bare({ contents: { [file]: { after: json({ enabledPlugins: { 'buracle@buracle': false } }) } } })).deny).toContain("Buracle's plugin off")
+    expect(checkWrite([file], bare({ contents: { [file]: { after: json({ enabledPlugins: { 'buracle@buracle': false } }) } } })).deny).toContain("Buracle Stack's plugin off")
   })
 })
 
@@ -116,13 +116,13 @@ describe('G1: Codex project config', () => {
     }
   })
 
-  test('hooks switched off, in any TOML spelling, a disabled Buracle plugin, hook trust state and relocations are refused', () => {
+  test('hooks switched off, in any TOML spelling, a disabled Buracle Stack plugin, hook trust state and relocations are refused', () => {
     const cases: Array<[string, string]> = [
       ['[features]\nhooks = false\n', 'features.hooks'],
       ['features.hooks = false\n', 'features.hooks'],
       ['features = { codex_hooks = false }\n', 'features.codex_hooks'],
       ['[profiles.fast.features]\nhooks = false\n', 'profiles.fast.features.hooks'],
-      ['[plugins."buracle@buracle"]\nenabled = false\n', "turns Buracle's plugin off"],
+      ['[plugins."buracle@buracle"]\nenabled = false\n', "turns Buracle Stack's plugin off"],
       ['[hooks.state."/Users/u/.codex/hooks.json:pre_tool_use:0"]\nenabled = false\n', 'trust state'],
       ['allow_managed_hooks_only = true\n', 'allow_managed_hooks_only'],
       ['[shell_environment_policy.set]\nBURACLE_HOME = "/tmp/fb"\n', 'BURACLE_HOME'],
@@ -140,16 +140,16 @@ describe('G1: Codex project config', () => {
 describe('G1: OpenCode config and omp settings', () => {
   test('OpenCode: a `-buracle` (or wildcard) plugin entry is refused, other plugins pass', () => {
     const file = `${CWD}/opencode.jsonc`
-    expect(judge(file, json({ plugins: ['-buracle'] }))).toContain("removes Buracle's plugin")
-    expect(judge(file, json({ plugins: ['-*'] }))).toContain("removes Buracle's plugin")
-    expect(judge(file, json({ plugins: ['-bur*'] }))).toContain("removes Buracle's plugin")
-    expect(judge(`${CWD}/.opencode/opencode.json`, json({ plugin: ['-buracle'] }))).toContain("removes Buracle's plugin")
+    expect(judge(file, json({ plugins: ['-buracle'] }))).toContain("removes Buracle Stack's plugin")
+    expect(judge(file, json({ plugins: ['-*'] }))).toContain("removes Buracle Stack's plugin")
+    expect(judge(file, json({ plugins: ['-bur*'] }))).toContain("removes Buracle Stack's plugin")
+    expect(judge(`${CWD}/.opencode/opencode.json`, json({ plugin: ['-buracle'] }))).toContain("removes Buracle Stack's plugin")
     for (const c of [{ plugins: ['opencode-x', '-opencode.prompt.footer'] }, { mcp: { servers: { x: { type: 'local', command: ['x', '--flag'] } } } }]) {
       expect({ c, deny: judge(file, json(c)) }).toEqual({ c, deny: undefined })
     }
   })
 
-  test('omp: disabledExtensions naming Buracle is refused in YAML and JSON; other settings pass', () => {
+  test('omp: disabledExtensions naming Buracle Stack is refused in YAML and JSON; other settings pass', () => {
     expect(judge(`${CWD}/.omp/config.yml`, 'disabledExtensions:\n  - extension-module:buracle\n')).toContain('disabledExtensions')
     expect(judge(`${CWD}/.omp/config.yaml`, 'disabledExtensions: [extension-module:buracle]\n')).toContain('disabledExtensions')
     expect(judge(`${CWD}/.omp/settings.json`, json({ disabledExtensions: ['extension-module:buracle'] }))).toContain('disabledExtensions')
@@ -157,11 +157,11 @@ describe('G1: OpenCode config and omp settings', () => {
     expect(judge(`${CWD}/.omp/config.yml`, 'disabledProviders: ["*"]\n')).toBeUndefined()
   })
 
-  test('plugin and extension code passes unless it names Buracle; a folder named after Buracle is refused', () => {
+  test('plugin and extension code passes unless it names Buracle Stack; a folder named after Buracle Stack is refused', () => {
     expect(judge(`${CWD}/.opencode/plugins/fmt.ts`, 'export default { id: "fmt", setup() {} }\n')).toBeUndefined()
-    expect(judge(`${CWD}/.opencode/plugins/x.ts`, 'export default { id: "buracle", setup() {} }\n')).toContain('names Buracle')
-    expect(judge(`${CWD}/.opencode/plugins/buracle/index.ts`, 'export default {}\n')).toContain('folder that names Buracle')
-    expect(judge(`${CWD}/.omp/extensions/x.ts`, 'import { rmSync } from "node:fs"\nrmSync(home + "/.omp/plugins/node_modules/buracle-omp", { recursive: true })\n')).toContain('names Buracle')
+    expect(judge(`${CWD}/.opencode/plugins/x.ts`, 'export default { id: "buracle", setup() {} }\n')).toContain('names Buracle Stack')
+    expect(judge(`${CWD}/.opencode/plugins/buracle/index.ts`, 'export default {}\n')).toContain('folder that names Buracle Stack')
+    expect(judge(`${CWD}/.omp/extensions/x.ts`, 'import { rmSync } from "node:fs"\nrmSync(home + "/.omp/plugins/node_modules/buracle-omp", { recursive: true })\n')).toContain('names Buracle Stack')
     expect(judge('/Users/u/Desktop/buracle/.opencode/plugins/fmt.ts', 'export default {}\n', undefined, { cwd: '/Users/u/Desktop/buracle' })).toBeUndefined()
   })
 })
@@ -187,7 +187,7 @@ describe('G3: shell startup files and launchd agents', () => {
     ]
     for (const line of cases) {
       const reason = judge(`${HOME}/.zshrc`, `alias ll='ls -l'\n${line}\n`, "alias ll='ls -l'\n")
-      expect({ line, reason }).toEqual({ line, reason: expect.stringContaining('moves Buracle or a harness') as unknown as string })
+      expect({ line, reason }).toEqual({ line, reason: expect.stringContaining('moves Buracle Stack or a harness') as unknown as string })
     }
   })
 
@@ -209,7 +209,7 @@ describe('G3: shell startup files and launchd agents', () => {
 
   test('the shim under a relocated BURACLE_HOME stays a SEC-1 area whatever the content', () => {
     const selfPaths = { buracleHome: '/opt/fb-home' }
-    expect(checkWrite(['/opt/fb-home/bin/buracle'], bare({ selfPaths, contents: { '/opt/fb-home/bin/buracle': { after: '#!/bin/sh\n' } } })).deny).toContain("Buracle's own installation")
+    expect(checkWrite(['/opt/fb-home/bin/buracle'], bare({ selfPaths, contents: { '/opt/fb-home/bin/buracle': { after: '#!/bin/sh\n' } } })).deny).toContain("Buracle Stack's own installation")
   })
 })
 

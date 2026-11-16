@@ -119,18 +119,18 @@ describe('skills add, remove, update', () => {
     })
   })
 
-  test('a Buracle skill id is refused while ~/.agents/skills holds no Buracle link', async () => {
+  test('a Buracle Stack skill id is refused while ~/.agents/skills holds no Buracle Stack link', async () => {
     await withSandbox(async ({ root, home }) => {
       const repo = await skillsRepo(root)
       const r = await skillsAdd(`${repo}/skills/alpha`, { id: 'research' }, ctx(root))
       expect(r.code).toBe(1)
-      expect(r.errors.join('\n')).toContain('research: a Buracle skill has this id')
+      expect(r.errors.join('\n')).toContain('research: a Buracle Stack skill has this id')
       expect(existsSync(join(home, '.agents', 'skills', 'research'))).toBe(false)
       expect(readInstalled()).toEqual([])
     })
   })
 
-  test('--all installs every skill; --dry-run changes nothing; a Buracle skill id and a foreign folder are refused', async () => {
+  test('--all installs every skill; --dry-run changes nothing; a Buracle Stack skill id and a foreign folder are refused', async () => {
     await withSandbox(async ({ root, home }) => {
       const repo = await skillsRepo(root)
       const c = ctx(root)
@@ -148,8 +148,8 @@ describe('skills add, remove, update', () => {
       write(join(home, '.agents', 'skills', 'beta', 'SKILL.md'), skillMd('beta-of-my-own'))
       const refused = await skillsAdd(repo, { all: true }, c)
       expect(refused.code).toBe(1)
-      expect(refused.errors.join('\n')).toContain("alpha: a Buracle skill has this id")
-      expect(refused.errors.join('\n')).toContain('beta: ~/.agents/skills/beta exists and was not installed by Buracle; --force replaces it')
+      expect(refused.errors.join('\n')).toContain("alpha: a Buracle Stack skill has this id")
+      expect(refused.errors.join('\n')).toContain('beta: ~/.agents/skills/beta exists and was not installed by Buracle Stack; --force replaces it')
       expect(readFileSync(join(home, '.agents', 'skills', 'beta', 'SKILL.md'), 'utf8')).toBe(skillMd('beta-of-my-own'))
       const forced = await skillsAdd(repo, { skill: ['beta'], force: true }, c)
       expect(forced.code).toBe(0)

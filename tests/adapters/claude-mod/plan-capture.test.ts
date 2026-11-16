@@ -63,7 +63,7 @@ async function repoWithSub(root: string): Promise<{ repo: string, sub: string }>
 }
 
 describe('H12 plan.capture', () => {
-  test('the saved form is a valid Buracle plan: type Plan, status SAVED, approved', () => {
+  test('the saved form is a valid Buracle Stack plan: type Plan, status SAVED, approved', () => {
     const skeleton = planSkeleton({ type: 'Plan', title: 'Giriş sayfası ekle', created: DAY })
     const plan = parsePlan(skeleton)
     expect(plan.header).toMatchObject({ created: DAY, status: 'SAVED', approved: true, type: 'Plan' })
@@ -103,7 +103,7 @@ describe('H12 plan.capture', () => {
       expect(text).toContain('> 1. Changed step')
       expect(text).not.toContain('Formu yaz')
       expect(text).toContain('\nharness: claude\n')
-      expect(text).toContain('Approved in Claude Code plan mode and saved by Buracle (H12)')
+      expect(text).toContain('Approved in Claude Code plan mode and saved by Buracle Stack (H12)')
       expect(await exitPlan(repo, { tool_response: { isAgent: false } })).toContain(`${DAY}-giris-sayfasi-ekle.md`)
     })
   })

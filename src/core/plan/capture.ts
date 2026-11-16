@@ -41,9 +41,9 @@ export function capturedPlanNote(harness: Harness, approved: boolean, via: PlanC
   const label = PLAN_HARNESS_LABEL[harness]
   const quoted = 'the plan text is quoted under Captured Plan.'
   if (via === 'cli') return `Saved with \`buracle plan capture\` (${label})${approved ? '' : ' as a draft, not marked approved'}; ${quoted}`
-  if (approved) return `Approved in ${label} plan mode and saved by Buracle (H12); ${quoted}`
-  if (!harnessProfile(harness).plan.approval) return `Saved by Buracle (H12) when the session left ${label}'s plan agent. ${label} has no approval step, so this plan is not marked approved; ${quoted}`
-  return `Saved by Buracle (H12) from ${label} plan mode as a draft, not marked approved; ${quoted}`
+  if (approved) return `Approved in ${label} plan mode and saved by Buracle Stack (H12); ${quoted}`
+  if (!harnessProfile(harness).plan.approval) return `Saved by Buracle Stack (H12) when the session left ${label}'s plan agent. ${label} has no approval step, so this plan is not marked approved; ${quoted}`
+  return `Saved by Buracle Stack (H12) from ${label} plan mode as a draft, not marked approved; ${quoted}`
 }
 
 export function capturedPlanMarkdown(plan: string, o: CapturedPlanOptions): string {

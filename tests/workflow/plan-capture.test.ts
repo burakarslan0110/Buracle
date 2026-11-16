@@ -29,7 +29,7 @@ describe('the shared plan writer (H12)', () => {
     expect(parsePlan(text).header).toMatchObject({ status: 'SAVED', approved: true, type: 'Plan', created: DAY })
     expect(parsePlan(text).title).toBe('Add a cache')
     expect(text).toContain('\nharness: codex\n')
-    expect(text).toContain('Approved in Codex plan mode and saved by Buracle (H12)')
+    expect(text).toContain('Approved in Codex plan mode and saved by Buracle Stack (H12)')
     expect(text).toContain('> 1. Cache the index')
     expect(parsePlan(text).tasks).toEqual([])
   }))

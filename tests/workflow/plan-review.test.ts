@@ -142,7 +142,7 @@ describe('buracle plan review: durable reviewer records', () => {
   }))
 })
 
-describe('buracle plan: state of an older Buracle that carries plan-lane fields', () => {
+describe('buracle plan: state of an older Buracle Stack that carries plan-lane fields', () => {
   test('a state file with laneReviews and a worktree record with lane fields still load; the fields are ignored', () => sandbox(async root => {
     const repo = await makeRepo(root)
     const lead = join(repo, 'docs', 'plans', '2026-10-08-lead.md')

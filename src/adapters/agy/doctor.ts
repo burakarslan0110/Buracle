@@ -36,21 +36,21 @@ export async function agyDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   const bin = await detectBinary('agy')
   if (!bin.installed) return [{ level: 'warn', check: 'agy.binary', detail: 'agy is not on PATH; nothing to check' }]
   const min = MIN_VERSIONS.agy
-  if (bin.version !== undefined && compareVersions(bin.version, min) < 0) out.push({ level: 'error', check: 'agy.version', detail: `AGY CLI ${bin.version} is older than ${min}, the oldest Buracle supports; update it with \`agy update\`` })
+  if (bin.version !== undefined && compareVersions(bin.version, min) < 0) out.push({ level: 'error', check: 'agy.version', detail: `AGY CLI ${bin.version} is older than ${min}, the oldest Buracle Stack supports; update it with \`agy update\`` })
   else out.push({ level: 'ok', check: 'agy.version', detail: `AGY CLI ${bin.version ?? '(version unknown)'} (minimum ${min})` })
 
   const file = hooksPath(ctx)
   if (!existsSync(file)) return [...out, { level: 'warn', check: 'agy.hooks', detail: `${file} does not exist: run \`buracle install agy\`` }]
   const hooksJson = readJson(file)
-  if (!hooksJson.ok) return [...out, { level: 'error', check: 'agy.hooks', detail: `${file} is not valid JSON (${hooksJson.error}); Buracle does not touch it, so its hooks cannot be registered` }]
+  if (!hooksJson.ok) return [...out, { level: 'error', check: 'agy.hooks', detail: `${file} is not valid JSON (${hooksJson.error}); Buracle Stack does not touch it, so its hooks cannot be registered` }]
   const mine = rec(hooksJson.value[HOOK_NAME])
   const want = agyHooks(ctx.canonical)
   const handlers = (event: string): unknown[] => (Array.isArray(mine[event]) ? mine[event] as unknown[] : []).flatMap(g => (rec(g)['hooks'] !== undefined ? rec(g)['hooks'] as unknown[] : [g]))
   const missing = AGY_HOOK_EVENTS.filter(e => (want[e]?.length ?? 0) > 0 && !handlers(e).some(h => isBuracleCommand(rec(h)['command'])))
-  if (mine['enabled'] === false) out.push({ level: 'error', check: 'agy.hooks', detail: `the "${HOOK_NAME}" hook is disabled ("enabled": false) in ${file}: no Buracle hook runs, including the guards` })
-  else if (missing.length > 0) out.push({ level: 'error', check: 'agy.hooks', detail: `no Buracle hook for ${missing.join(', ')} in ${file}: run \`buracle install agy\`` })
+  if (mine['enabled'] === false) out.push({ level: 'error', check: 'agy.hooks', detail: `the "${HOOK_NAME}" hook is disabled ("enabled": false) in ${file}: no Buracle Stack hook runs, including the guards` })
+  else if (missing.length > 0) out.push({ level: 'error', check: 'agy.hooks', detail: `no Buracle Stack hook for ${missing.join(', ')} in ${file}: run \`buracle install agy\`` })
   else {
-    out.push({ level: 'ok', check: 'agy.hooks', detail: `Buracle hooks for ${AGY_HOOK_EVENTS.filter(e => (want[e]?.length ?? 0) > 0).length} events in ${file}` })
+    out.push({ level: 'ok', check: 'agy.hooks', detail: `Buracle Stack hooks for ${AGY_HOOK_EVENTS.filter(e => (want[e]?.length ?? 0) > 0).length} events in ${file}` })
     const guard = rec(handlers('PreToolUse').map(rec).find(h => isBuracleCommand(h['command'])))
     if (typeof guard['command'] === 'string') out.push(await guardProbe(guard['command'], ctx.paths.home()))
   }
@@ -59,15 +59,15 @@ export async function agyDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   const mcp = existsSync(mcpFile) ? readJson(mcpFile) : undefined
   const servers = mcp?.ok === true ? rec(mcp.value['mcpServers']) : {}
   const lost = Object.keys(agyMcpServers(ctx.canonical, ctx.buracleBin)).filter(id => servers[id] === undefined)
-  if (mcp?.ok === false) out.push({ level: 'error', check: 'agy.mcp', detail: `${mcpFile} is not valid JSON (${mcp.error}); Buracle does not touch it` })
+  if (mcp?.ok === false) out.push({ level: 'error', check: 'agy.mcp', detail: `${mcpFile} is not valid JSON (${mcp.error}); Buracle Stack does not touch it` })
   else out.push(lost.length > 0 ? { level: 'warn', check: 'agy.mcp', detail: `MCP servers missing from ${mcpFile}: ${lost.join(', ')} (run \`buracle install agy\`)` } : { level: 'ok', check: 'agy.mcp', detail: `${Object.keys(servers).length} MCP servers in ${mcpFile}` })
 
   const settingsFile = settingsPath(ctx)
   const settings = existsSync(settingsFile) ? readJson(settingsFile) : undefined
   const statusCmd = settings?.ok === true ? rec(settings.value['statusLine'])['command'] : undefined
-  if (settings?.ok === false) out.push({ level: 'error', check: 'agy.statusLine', detail: `${settingsFile} is not valid JSON (${settings.error}); Buracle does not touch it` })
+  if (settings?.ok === false) out.push({ level: 'error', check: 'agy.statusLine', detail: `${settingsFile} is not valid JSON (${settings.error}); Buracle Stack does not touch it` })
   else if (typeof statusCmd !== 'string') out.push({ level: 'warn', check: 'agy.statusLine', detail: `no statusLine in ${settingsFile}: run \`buracle install agy\`` })
-  else if (!isBuracleStatusLine(statusCmd)) out.push({ level: 'warn', check: 'agy.statusLine', detail: `statusLine runs ${JSON.stringify(statusCmd)}, not Buracle's status line (kept as the user's choice)` })
+  else if (!isBuracleStatusLine(statusCmd)) out.push({ level: 'warn', check: 'agy.statusLine', detail: `statusLine runs ${JSON.stringify(statusCmd)}, not Buracle Stack's status line (kept as the user's choice)` })
   else out.push({ level: 'ok', check: 'agy.statusLine', detail: `statusLine in ${settingsFile} runs \`buracle statusline agy\`` })
 
   // AGY does not read ~/.agents/skills: the install links each skill into its own folder.

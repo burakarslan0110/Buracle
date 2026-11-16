@@ -340,7 +340,7 @@ export class LspClient {
         this.reply(id, [{ uri: this.rootUri, name: basename(this.rootDir) || this.rootDir }])
         return
       case 'workspace/applyEdit':
-        this.reply(id, { applied: false, failureReason: 'the Buracle bridge is read-only' })
+        this.reply(id, { applied: false, failureReason: 'the Buracle Stack bridge is read-only' })
         return
       case 'window/showDocument':
         this.reply(id, { success: false })

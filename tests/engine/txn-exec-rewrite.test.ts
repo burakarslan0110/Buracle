@@ -28,8 +28,8 @@ function rewriteJson(path: string, fn: string): string[] {
   return [process.execPath, '-e', script]
 }
 
-describe('commands that rewrite a file Buracle merged into', () => {
-  test('the transaction commits when Buracle\'s values hold; rollback restores the user\'s bytes', () => withSandbox(async (sb) => {
+describe('commands that rewrite a file Buracle Stack merged into', () => {
+  test('the transaction commits when Buracle Stack\'s values hold; rollback restores the user\'s bytes', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, USER_SETTINGS)
     const r = await applyPlans([plan([
@@ -54,18 +54,18 @@ describe('commands that rewrite a file Buracle merged into', () => {
     expect((await readLedger())[ledgerKey(p, 'statusLine')]).toBeUndefined()
   }))
 
-  test('a command that changes the value Buracle wrote fails verification and everything rolls back', () => withSandbox(async (sb) => {
+  test('a command that changes the value Buracle Stack wrote fails verification and everything rolls back', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, USER_SETTINGS)
     await expect(applyPlans([plan([
       { kind: 'json-merge', path: p, set: { statusLine: STATUS }, owner: O },
       { kind: 'exec', owner: O, argv: rewriteJson(p, '({...s, statusLine: {type: "command", command: "other"}})') },
-    ])])).rejects.toThrow(/verification failed for .*settings\.json: a command of this transaction changed what Buracle wrote there/)
+    ])])).rejects.toThrow(/verification failed for .*settings\.json: a command of this transaction changed what Buracle Stack wrote there/)
     expect(read(p)).toBe(USER_SETTINGS)
     expect(await readLedger()).toEqual({})
   }))
 
-  test('a command that edits a whole file Buracle wrote fails verification', () => withSandbox(async (sb) => {
+  test('a command that edits a whole file Buracle Stack wrote fails verification', () => withSandbox(async (sb) => {
     const f = join(sb.home, '.claude', 'rules', 'buracle', 'core.md')
     await expect(applyPlans([plan([
       { kind: 'file', path: f, content: '# rules\n', owner: O },
@@ -101,14 +101,14 @@ describe('commands that rewrite a file Buracle merged into', () => {
   }))
 })
 
-describe('Markdown and TOML files Buracle created', () => {
+describe('Markdown and TOML files Buracle Stack created', () => {
   test('an AGENTS.md created for a block is deleted with the block; a pre-existing one stays', () => withSandbox(async (sb) => {
     const created = join(sb.home, '.config', 'opencode', 'AGENTS.md')
     const mine = join(sb.home, '.codex', 'AGENTS.md')
     write(mine, '# My rules\n')
     await applyPlans([plan([
-      { kind: 'md-block', path: created, id: 'buracle', content: 'Buracle block', owner: O },
-      { kind: 'md-block', path: mine, id: 'buracle', content: 'Buracle block', owner: O },
+      { kind: 'md-block', path: created, id: 'buracle', content: 'Buracle Stack block', owner: O },
+      { kind: 'md-block', path: mine, id: 'buracle', content: 'Buracle Stack block', owner: O },
     ])])
     expect((await readLedger())[ledgerKey(created, 'md:buracle')]?.created).toEqual([''])
     expect((await readLedger())[ledgerKey(mine, 'md:buracle')]?.created).toBeUndefined()
@@ -160,7 +160,7 @@ describe('Markdown and TOML files Buracle created', () => {
     }
   }))
 
-  test('a pre-existing config.toml stays even when only Buracle\'s tables were in it', () => withSandbox(async (sb) => {
+  test('a pre-existing config.toml stays even when only Buracle Stack\'s tables were in it', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'config.toml')
     write(p, '')
     await applyPlans([plan([{ kind: 'toml-tables', path: p, tables: { 'tools.update_plan': { enabled: true } }, owner: O }])])

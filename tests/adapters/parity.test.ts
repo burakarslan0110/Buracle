@@ -393,7 +393,7 @@ function mcpServers(h: Pillar, files: Files): string[] {
 }
 
 describe('parity: language servers (PARITY-6)', () => {
-  test('all six of Buracle\'s language servers reach every harness: .lsp.json on Claude Code, the lsp MCP bridge on Codex and OpenCode, omp\'s built-in LSP plus csharp-ls in its lsp.json', async () => {
+  test('all six of Buracle Stack\'s language servers reach every harness: .lsp.json on Claude Code, the lsp MCP bridge on Codex and OpenCode, omp\'s built-in LSP plus csharp-ls in its lsp.json', async () => {
     const { canonical, files } = await built()
     const ids = JSON.stringify(canonical.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : [])).sort())
     const bridged = JSON.stringify(lspServers(canonical.tools).map(s => s.id).sort()) === ids
@@ -591,7 +591,7 @@ const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'early
 }
 
 // Host behavior the design document records for omp: it wakes the session itself when a background task ends, and a
-// session_stop block continues the session quietly. Buracle's omp stop handler (src/adapters/omp/runtime/stop.ts) holds
+// session_stop block continues the session quietly. Buracle Stack's omp stop handler (src/adapters/omp/runtime/stop.ts) holds
 // only the block-with-reason mechanism, so these two cells are asserted from the document, in the docs describe below.
 const OMP_NATIVE = { backgroundWait: 'hasPendingAsyncWake', quietStopFeedback: 'session-stop-continuation' } as const
 
@@ -622,7 +622,7 @@ const LIMITS: Readonly<Partial<Record<keyof typeof FEATURES, Readonly<Partial<Re
     codex: [
       { doc: 'canonical/hooks.yaml', says: 'which Codex uses only when it compacts locally, not for providers it compacts remotely (OpenAI, Azure, Bedrock)' },
       { doc: 'docs/design/harness-adapters.md', says: 'the `compact_prompt` key, which only local compaction uses (OpenAI, Azure and Bedrock compact remotely and ignore it)' },
-      { doc: 'docs/USAGE.md', says: 'Codex follows Buracle\'s summary prompt only where it compacts locally' },
+      { doc: 'docs/USAGE.md', says: 'Codex follows Buracle Stack\'s summary prompt only where it compacts locally' },
     ],
   },
 }
@@ -857,7 +857,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect(ids.length).toBeGreaterThan(0)
     const hookData = JSON.parse(readFileSync(join(BUILT.harness, 'hook-data.json'), 'utf8')) as { notices?: Array<{ id: string }> }
     const calls = (rel: string) => /startupNotices\((?:d\.)?ctx\.canonical\.notices/.test(withPipeline(readFileSync(join(REPO, rel), 'utf8'), 'sessionStart'))
-    const inBundle = (text: string) => ids.every(id => text.includes(id)) && text.includes('Buracle notice, shown once on this machine.')
+    const inBundle = (text: string) => ids.every(id => text.includes(id)) && text.includes('Buracle Stack notice, shown once on this machine.')
     const has: Record<Harness, boolean> = {
       claude: calls('src/adapters/claude/hook.ts') && ids.every(id => (hookData.notices ?? []).some(n => n.id === id)),
       codex: calls('src/adapters/codex/hook.ts') && ids.every(id => (hookData.notices ?? []).some(n => n.id === id)),
@@ -867,7 +867,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect(has).toEqual(FEATURES.startupNotices)
   })
 
-  test('the compaction summary keeps Buracle\'s list (decisions, rejected approaches, verification, files, todos) on all four; Codex only where it compacts locally', async () => {
+  test('the compaction summary keeps Buracle Stack\'s list (decisions, rejected approaches, verification, files, todos) on all four; Codex only where it compacts locally', async () => {
     const { files } = await built()
     const keep = 'Keep the approaches that were tried and rejected'
     const codexToml = Bun.TOML.parse(file(files.codex, 'config.fragment.toml').replaceAll('{buracle}', '/x')) as Record<string, unknown>
@@ -901,8 +901,8 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect(Object.fromEntries(HARNESSES.map(h => [h, text[h].includes('.claude/rules/web.md')]))).toEqual(FEATURES.projectRuleList)
     expect(Object.fromEntries(HARNESSES.map(h => [h, text[h].includes('- `review`')]))).toEqual(FEATURES.claudeOnlySkillList)
     const { files } = await built()
-    expect(file(files.omp, 'extensions/buracle.js')).toContain('Buracle project rules (H28)')
-    expect(file(files.opencode, 'plugins/buracle/index.js')).toContain('Buracle project rules (H28)')
+    expect(file(files.omp, 'extensions/buracle.js')).toContain('Buracle Stack project rules (H28)')
+    expect(file(files.opencode, 'plugins/buracle/index.js')).toContain('Buracle Stack project rules (H28)')
   }), 60_000)
 
   test('the OpenCode and omp bundles carry the H04 missing-tool and checker notes', async () => {

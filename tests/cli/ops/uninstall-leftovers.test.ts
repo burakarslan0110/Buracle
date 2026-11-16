@@ -90,7 +90,7 @@ describe('uninstall leftovers (O8)', () => {
         expect(await uninstallRun(['--yes', '--json'], u)).toBe(0)
         expect(readFileSync(join(home, '.zshrc'), 'utf8')).toBe('')
         expect(readFileSync(bashRc, 'utf8')).toBe('')
-        expect((JSON.parse(u.out()) as { notes: string[] }).notes).toContain(`Removed the PATH lines Buracle added to ~/.zshrc, ~/${bashRc.slice(home.length + 1)}.`)
+        expect((JSON.parse(u.out()) as { notes: string[] }).notes).toContain(`Removed the PATH lines Buracle Stack added to ~/.zshrc, ~/${bashRc.slice(home.length + 1)}.`)
       })
     })
   }))
@@ -112,8 +112,8 @@ describe('uninstall leftovers (O8)', () => {
         expect(existsSync(join(paths.toolchainDir(), 'npm', 'srv', 'package.json'))).toBe(true)
         expect(Object.keys((JSON.parse(readFileSync(paths.toolchainStateFile(), 'utf8')) as { system: object }).system)).toEqual(['gh'])
         const notes = (JSON.parse(io.out()) as { notes: string[] }).notes
-        expect(notes).toContain('Removed the PATH lines Buracle added to ~/.zshrc.')
-        expect(notes.some(n => n.startsWith('Removed the system tools Buracle downloaded (node)'))).toBe(true)
+        expect(notes).toContain('Removed the PATH lines Buracle Stack added to ~/.zshrc.')
+        expect(notes.some(n => n.startsWith('Removed the system tools Buracle Stack downloaded (node)'))).toBe(true)
       })
     })
   }))
@@ -141,7 +141,7 @@ describe('uninstall leftovers (O8)', () => {
     })
   }))
 
-  test('the Buracle Console is stopped', () => withSandbox(async ({ root, home }) => {
+  test('the Buracle Stack Console is stopped', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const codex = fakeAdapter('codex', { plan: () => ({ id: 'codex', harness: 'codex', ops: [{ kind: 'file', path: join(home, '.codex/a.txt'), content: 'a\n', owner: 'codex' }] }) })
     await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli }, async () => {
@@ -152,7 +152,7 @@ describe('uninstall leftovers (O8)', () => {
         expect(await uninstallRun(['--yes'], io)).toBe(0)
         await ui.proc.exited
         expect(alive(ui.proc.pid)).toBe(false)
-        expect(io.out()).toContain('Stopped the Buracle Console')
+        expect(io.out()).toContain('Stopped the Buracle Stack Console')
       } finally {
         ui.proc.kill()
       }

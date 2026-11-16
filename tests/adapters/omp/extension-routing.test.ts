@@ -58,10 +58,10 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
     const { fp, ctx } = setup(sb)
     await fp.emit('input', input('$plan-build add rate limiting'), ctx)
     const text = await hidden(fp, ctx, '$plan-build add rate limiting')
-    expect(text).toBe('Buracle routing for this prompt:\n- The user asked for the plan-build skill: load it before any other step and follow it (read skill://plan-build); the rest of the prompt is its input.')
+    expect(text).toBe('Buracle Stack routing for this prompt:\n- The user asked for the plan-build skill: load it before any other step and follow it (read skill://plan-build); the rest of the prompt is its input.')
     expect(loadLedger('omp', SID).prompt?.route.load).toEqual(['plan-build'])
     const held = await fp.emit('session_stop', stop, ctx) as { decision: string, reason: string }
-    expect(held).toEqual({ decision: 'block', reason: 'Buracle routing check: the user asked for plan-build and it was not loaded. Load it now and follow it, or say in one line why it does not apply.' })
+    expect(held).toEqual({ decision: 'block', reason: 'Buracle Stack routing check: the user asked for plan-build and it was not loaded. Load it now and follow it, or say in one line why it does not apply.' })
     expect(isGuardContinuation(held.reason)).toBe(true)
     expect(await fp.emit('session_stop', { ...stop, stop_hook_active: true }, ctx)).toBeUndefined()
   }))
@@ -96,7 +96,7 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
     for (const why of ['finished', 'disabled'] as StopWhy[]) {
       const out = await after(why, ++n) as { decision?: string, reason?: string } | undefined
       expect({ why, decision: out?.decision }).toEqual({ why, decision: 'block' })
-      expect(out?.reason).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
+      expect(out?.reason).toStartWith('Buracle Stack routing check: the user asked for plan-build and it was not loaded.')
     }
   }))
 
@@ -124,10 +124,10 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
     expect(r.message.content).toContain('read skill://plan-build')
     expect(await fp.emit('before_agent_start', agentStart('$plan-build add rate limiting'), ctx)).toEqual(r)
     expect(loadLedger('omp', SID).turn).toBe(2)
-    const expanded = "Run Buracle's `bugfix` workflow for the request below; the user asked for it explicitly.\nFirst read `skill://bugfix` ...\n\nRequest: the parser crashes\n"
+    const expanded = "Run Buracle Stack's `bugfix` workflow for the request below; the user asked for it explicitly.\nFirst read `skill://bugfix` ...\n\nRequest: the parser crashes\n"
     await fp.emit('before_agent_start', agentStart(expanded), ctx)
     expect(readFlow('omp', SID)?.stack.at(-1)).toMatchObject({ workflow: 'bugfix', title: 'the parser crashes', source: 'command' })
-    expect(await fp.emit('before_agent_start', agentStart('Buracle routing check: the user asked for plan-build and it was not loaded.'), ctx)).toBeUndefined()
+    expect(await fp.emit('before_agent_start', agentStart('Buracle Stack routing check: the user asked for plan-build and it was not loaded.'), ctx)).toBeUndefined()
   }))
 })
 
@@ -149,7 +149,7 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     expect(await hidden(fp, ctx, 'and what did we decide last time about the runtime?')).toBeUndefined()
     expect(loadLedger('omp', SID).turn).toBe(1)
     const held = await fp.emit('session_stop', stop, ctx) as { decision: string, reason: string }
-    expect(held.reason).toStartWith('Buracle routing check: the user asked for research and it was not loaded.')
+    expect(held.reason).toStartWith('Buracle Stack routing check: the user asked for research and it was not loaded.')
   }))
 
   test('two queued asks keep core\'s caps: the first one loads, the second is a skill to evaluate', () => withSandbox(async sb => {
@@ -163,11 +163,11 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'], candidates: ['plan-build'] })
   }))
 
-  test('Buracle\'s own continuation takes no queued prompt: the prompt waits for its own delivery', () => withSandbox(async sb => {
+  test('Buracle Stack\'s own continuation takes no queued prompt: the prompt waits for its own delivery', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, {}, {}, research())
     ctx.isIdle = () => false
     await fp.emit('input', input('$research compare bun and deno'), ctx)
-    expect(await hidden(fp, ctx, 'Buracle routing check: the user asked for plan-build and it was not loaded.')).toBeUndefined()
+    expect(await hidden(fp, ctx, 'Buracle Stack routing check: the user asked for plan-build and it was not loaded.')).toBeUndefined()
     expect(loadLedger('omp', SID).turn).toBe(0)
     expect(await hidden(fp, ctx, '$research compare bun and deno')).toContain('read skill://research')
     expect(loadLedger('omp', SID).turn).toBe(1)
@@ -206,18 +206,18 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     expect(first).toContain('read skill://research')
     expect(await hidden(fp, ctx, '$research compare bun and deno')).toBe(first)
     expect(loadLedger('omp', SID).turn).toBe(1)
-    expect(await hidden(fp, ctx, 'Buracle routing check: the user asked for research and it was not loaded.')).toBeUndefined()
+    expect(await hidden(fp, ctx, 'Buracle Stack routing check: the user asked for research and it was not loaded.')).toBeUndefined()
   }))
 
   test('print mode does not expand /skill:<id>: the literal command is an ask to read the skill (held by the audit), and its run starts when the skill is read', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, {}, { mode: 'print' })
-    expect(await hidden(fp, ctx, '/skill:plan-build add rate limiting')).toBe('Buracle routing for this prompt:\n- The user asked for the plan-build skill: load it before any other step and follow it (read skill://plan-build); the rest of the prompt is its input.')
+    expect(await hidden(fp, ctx, '/skill:plan-build add rate limiting')).toBe('Buracle Stack routing for this prompt:\n- The user asked for the plan-build skill: load it before any other step and follow it (read skill://plan-build); the rest of the prompt is its input.')
     const l = loadLedger('omp', SID)
     expect(l.skills['plan-build']).toBeUndefined()
     expect(l.prompt?.route).toMatchObject({ invoked: [], load: ['plan-build'] })
     expect(readFlow('omp', SID)?.stack ?? []).toEqual([])
     const held = await fp.emit('session_stop', stop, ctx) as { decision: string, reason: string }
-    expect(held).toEqual({ decision: 'block', reason: 'Buracle routing check: the user asked for plan-build and it was not loaded. Load it now and follow it, or say in one line why it does not apply.' })
+    expect(held).toEqual({ decision: 'block', reason: 'Buracle Stack routing check: the user asked for plan-build and it was not loaded. Load it now and follow it, or say in one line why it does not apply.' })
     await fp.emit('tool_call', toolCall('read', { path: 'skill://plan-build' }), ctx)
     await fp.emit('tool_result', toolResult('read', { path: 'skill://plan-build' }), ctx)
     expect(loadLedger('omp', SID).skills['plan-build']?.n).toBe(1)
@@ -315,7 +315,7 @@ describe('omp H02 on line-anchored edits', () => {
     const r = await fp.emit('tool_call', toolCall('edit', { input: '*** Begin Patch\n[.env#1A2B]\nPUT 1.=1:\n+A=2\n*** End Patch' }), ctx) as { block?: boolean, reason?: string }
     expect(seen).toEqual([[join(cwd, '.env')]])
     expect(r.block).toBe(true)
-    expect(r.reason).toStartWith('Buracle H02:')
+    expect(r.reason).toStartWith('Buracle Stack H02:')
     expect(await fp.emit('tool_call', toolCall('edit', { input: '[src/a.ts#1A2B]\nPUT 1.=1:\n+x\nMV src/b.ts' }), ctx)).toBeUndefined()
     expect(seen.at(-1)).toEqual([join(cwd, 'src/a.ts'), join(cwd, 'src/b.ts')])
   }))
@@ -328,11 +328,11 @@ describe('omp H02 on `~/` paths', () => {
     const r = await fp.emit('tool_call', toolCall('write', { path: '~/.ssh/authorized_keys', content: 'ssh-ed25519 AAAA x\n' }), ctx) as { block?: boolean, reason?: string }
     expect(seen).toEqual([[join(sb.home, '.ssh', 'authorized_keys')]])
     expect(r.block).toBe(true)
-    expect(r.reason).toStartWith('Buracle H02:')
+    expect(r.reason).toStartWith('Buracle Stack H02:')
     const patch = await fp.emit('tool_call', toolCall('edit', { input: '*** Begin Patch\n*** Update File: notes.md\n*** Move to: ~/.ssh/config\n@@\n-a\n+Host *\n*** End Patch' }), ctx) as { block?: boolean, reason?: string }
     expect(seen.at(-1)).toEqual([join(ctx.cwd, 'notes.md'), join(sb.home, '.ssh', 'config')])
     expect(patch.block).toBe(true)
-    expect(patch.reason).toStartWith('Buracle H02:')
+    expect(patch.reason).toStartWith('Buracle Stack H02:')
   }))
 })
 
@@ -442,7 +442,7 @@ describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
     const { fp, ctx } = setup(sb)
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     const context = await hidden(fp, ctx, 'x')
-    expect(warnings(ctx)).toEqual([{ method: 'notify', args: [expect.stringContaining('Buracle was installed for Oh My Pi into /work/profile-a, but this session reads /work/profile-b (PI_CODING_AGENT_DIR)'), 'warning'] }])
+    expect(warnings(ctx)).toEqual([{ method: 'notify', args: [expect.stringContaining('Buracle Stack was installed for Oh My Pi into /work/profile-a, but this session reads /work/profile-b (PI_CODING_AGENT_DIR)'), 'warning'] }])
     expect(context ?? '').not.toContain('/work/profile-a')
     await fp.emit('input', input('keep going'), ctx)
     await hidden(fp, ctx, 'keep going')
@@ -484,7 +484,7 @@ describe('omp H19 review gate on a review agent\'s yield', () => {
     const { fp, ctx } = setup(sb, {}, { kind: 'sub', name: 'plan-build-review', sid: '01a118a8-8d01-740c-9360-111111111111' })
     const bad = await fp.emit('tool_call', toolCall('yield', { data: { verdict: 'needs_changes', summary: 'docs/plans/x.md', findings: [] } }), ctx) as { block?: boolean, reason?: string }
     expect(bad.block).toBe(true)
-    expect(bad.reason).toStartWith('Buracle H19: your report as plan-build-review is not valid review JSON (')
+    expect(bad.reason).toStartWith('Buracle Stack H19: your report as plan-build-review is not valid review JSON (')
     expect(await fp.emit('tool_call', toolCall('yield', { data: { verdict: 'needs_changes', summary: 'docs/plans/x.md', findings: [] } }), ctx)).toBeUndefined()
     const good = setup(sb, {}, { kind: 'sub', name: 'plan-build-review', sid: '01a118a8-8d01-740c-9360-222222222222' })
     expect(await good.fp.emit('tool_call', toolCall('yield', { data: report }), good.ctx)).toBeUndefined()
@@ -539,18 +539,18 @@ describe('omp utility commands', () => {
   test('/buracle-status views: status (also /buracle), flow, plan, memory; anything else gets the usage', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb)
     const show = async (name: string, args: string) => { await fp.commands.get(name)!.handler(args, ctx); return String(ctx.uiCalls.at(-1)?.args[0]) }
-    expect((await show('buracle-status', '')).split('\n')[0]).toBe('Buracle 0.1.0 · Oh My Pi')
+    expect((await show('buracle-status', '')).split('\n')[0]).toBe('Buracle Stack 0.1.0 · Oh My Pi')
     mkdirSync(join(paths.buracleHome(), 'cache'), { recursive: true })
     writeFileSync(join(paths.buracleHome(), 'cache', 'harness-versions.json'), JSON.stringify({ omp: { v: '18.10.4', at: 1_791_400_000_000 - 60_000 } }))
-    expect((await show('buracle-status', '')).split('\n')[0]).toBe('Buracle 0.1.0 · Oh My Pi 18.10.4')
+    expect((await show('buracle-status', '')).split('\n')[0]).toBe('Buracle Stack 0.1.0 · Oh My Pi 18.10.4')
     expect(await show('buracle', '')).toContain('commands: /plan-build /goal-build · /remember <text> · /brain · /aside <question> · /buracle-status [status|memory|plan|flow] · /buracle-ping')
     expect(await show('buracle-status', 'flow')).toBe('No workflow is running.')
     await fp.emit('input', input('/plan-build add rate limiting'), ctx)
     expect(await show('buracle-status', 'flow')).toStartWith('plan-build · add rate limiting · starting')
     expect(await show('buracle-status', '')).toContain('workflow: plan-build (add rate limiting)')
     const pane = async (args: string) => { await fp.commands.get('buracle-status')!.handler(args, ctx); return ctx.uiCalls.at(-1) }
-    expect(await pane('plan')).toMatchObject({ method: 'setWidget', args: ['buracle.pane', expect.arrayContaining(['Buracle plan', 'No plan is bound to this session.']), { placement: 'belowEditor' }] })
-    expect(await pane('memory')).toMatchObject({ method: 'setWidget', args: ['buracle.pane', expect.arrayContaining(['Buracle memory', 'web UI: not running (/brain starts and opens it)', '/buracle-status memory again closes this view']), { placement: 'belowEditor' }] })
+    expect(await pane('plan')).toMatchObject({ method: 'setWidget', args: ['buracle.pane', expect.arrayContaining(['Buracle Stack plan', 'No plan is bound to this session.']), { placement: 'belowEditor' }] })
+    expect(await pane('memory')).toMatchObject({ method: 'setWidget', args: ['buracle.pane', expect.arrayContaining(['Buracle Stack memory', 'web UI: not running (/brain starts and opens it)', '/buracle-status memory again closes this view']), { placement: 'belowEditor' }] })
     expect(await pane('memory')).toEqual({ method: 'setWidget', args: ['buracle.pane', undefined, { placement: 'belowEditor' }] })
     expect(await show('buracle-status', 'bogus')).toBe('Usage: /buracle-status [status|memory|plan|flow]')
     const print = setup(sb, {}, { mode: 'print' })
@@ -599,7 +599,7 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
       { language: 'py', code: "import subprocess\nsubprocess.run(['buracle', 'plan', 'pause', '--kind', 'decision'])" },
     ]) {
       const r = await sub.fp.emit('tool_call', toolCall('eval', input, '3'), sub.ctx) as Verdict
-      expect({ language: input.language, block: r?.block, lane: r?.reason?.includes('Buracle H01: a subagent does not run') }).toEqual({ language: input.language, block: true, lane: true })
+      expect({ language: input.language, block: r?.block, lane: r?.reason?.includes('Buracle Stack H01: a subagent does not run') }).toEqual({ language: input.language, block: true, lane: true })
     }
     expect(await sub.fp.emit('tool_call', toolCall('eval', { language: 'js', code: "require('child_process').execSync('buracle plan status --json')" }, '4'), sub.ctx)).toBeUndefined()
     const main = setup(sb, { evalGuard: defaultDeps().evalGuard })

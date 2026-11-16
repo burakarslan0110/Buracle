@@ -194,7 +194,7 @@ describe('the stub adapters', () => {
       expect(await a.installPlan(ctx())).toEqual({ id: h, harness: h, ops: [] })
       expect(a.uninstallPlan).toBeUndefined()
       expect(a.hook).toBeUndefined()
-      expect(await a.doctor(ctx())).toEqual([{ level: 'warn', check: `${h}.support`, detail: `Buracle support for ${harnessProfile(h).label} is not installed yet` }])
+      expect(await a.doctor(ctx())).toEqual([{ level: 'warn', check: `${h}.support`, detail: `Buracle Stack support for ${harnessProfile(h).label} is not installed yet` }])
     }
   })
 

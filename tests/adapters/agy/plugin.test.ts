@@ -19,14 +19,14 @@ describe('the generated plugin files', () => {
     const paths = canonical.rules.filter(r => r.scope === 'paths').map(r => `rules/buracle-${r.id}.md`)
     const agents = [...canonical.agents.map(a => `agents/${a.id}.md`), 'agents/buracle-companion.md']
     expect(files.map(f => f.path).sort()).toEqual(['plugin.json', 'rules/AGENTS.md', ...paths, ...agents].sort())
-    expect(JSON.parse(get('plugin.json'))).toEqual({ name: 'buracle', displayName: 'Buracle', version: '1.2.3', description: expect.any(String) })
+    expect(JSON.parse(get('plugin.json'))).toEqual({ name: 'buracle', displayName: 'Buracle Stack', version: '1.2.3', description: expect.any(String) })
     expect(packageVersion(REPO)).toMatch(/^\d+\.\d+\.\d+/)
   })
 
   test('the always-on rules are one plain Markdown file: every always rule, the commands section, no frontmatter, under the 24 KB file cap', () => {
     const text = get('rules/AGENTS.md')
     expect(text.startsWith('---')).toBe(false)
-    expect(text).toContain('# Buracle commands in AGY CLI')
+    expect(text).toContain('# Buracle Stack commands in AGY CLI')
     expect(text).toContain('`/plan-build`')
     for (const cmd of ['buracle mem remember', 'buracle mem ui --open', 'buracle plan status --json']) expect(text).toContain(cmd)
     expect(text).not.toContain('{{')

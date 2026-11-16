@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import { checkBash, type BashGuardOptions } from '../../../src/core/policy/bash-guard'
 
-const INSTALL = "Buracle's own installation"
+const INSTALL = "Buracle Stack's own installation"
 const SHIM = '`buracle` command on PATH'
-const SOURCE = "Buracle's own source code"
+const SOURCE = "Buracle Stack's own source code"
 const home = '/Users/me'
 const repo = '/Users/me/Desktop/Buracle Plugin/buracle'
 
 const from = (cwd: string | undefined, cmd: string): string | undefined =>
   checkBash(cmd, { extraDeny: [], home, selfPaths: { repo }, ...(cwd !== undefined ? { cwd } : {}) } as BashGuardOptions).deny
 
-describe("checkBash: Buracle's checkout from an unrelated session", () => {
+describe("checkBash: Buracle Stack's checkout from an unrelated session", () => {
   test('shell writes, deletes, moves and permission changes in the checkout are refused', () => {
     const other = '/Users/me/code/app'
     for (const cmd of [
@@ -25,8 +25,8 @@ describe("checkBash: Buracle's checkout from an unrelated session", () => {
 
   test('the reason is one sentence that names the way out', () => {
     const reason = from('/Users/me/code/app', `echo x > '${repo}/src/cli/main.ts'`) as string
-    expect(reason).toContain('every Buracle hook runs')
-    expect(reason).toContain('a session opened in the Buracle repository')
+    expect(reason).toContain('every Buracle Stack hook runs')
+    expect(reason).toContain('a session opened in the Buracle Stack repository')
     expect(reason).toContain('ask the user')
     expect(reason.includes('\n')).toBe(false)
     expect(reason.trim().endsWith('.')).toBe(true)

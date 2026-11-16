@@ -73,7 +73,7 @@ describe('redact', () => {
     const benign = [
       'commit 9f3c2ab4d5e6f7081920a1b2c3d4e5f60718293a and session 3f2a9c1e-0000-4000-8000-000000000000',
       'see projects/buracle/decisions/2026-10-07-use-fts5-default-index-for-memory.md',
-      'https://github.com/burakarslan0110/buracle/blob/main/docs/research/09-memory.md',
+      'https://github.com/burakarslan0110/Buracle-Stack/blob/main/docs/research/09-memory.md',
       'api_key="${ENV:CONTEXT7_KEY}" and token: {{secret}}',
       'token: the user asked; Tokens: 123456789; TOKEN_COUNT=12345678; PWD=/Users/x/y',
       'use the Bearer authentication scheme; authenticated: successfully',

@@ -52,14 +52,14 @@ describe('OpenCode H20 consent dialog: the server waits while the TUI asks', () 
     const { f } = await runtime(root)
     const held = await f.trigger('permission.evaluate', shell('git push origin main'))
     expect(held.effect).toBe('deny')
-    expect(held.message).toStartWith('Buracle H20: ')
-    expect(held.message).toContain('call the `question` tool with one question whose text is exactly "Buracle consent: `git push origin main` pushes to a remote. Run it?" and the options "Allow once", "Allow for this session", "Refuse"')
+    expect(held.message).toStartWith('Buracle Stack H20: ')
+    expect(held.message).toContain('call the `question` tool with one question whose text is exactly "Buracle Stack consent: `git push origin main` pushes to a remote. Run it?" and the options "Allow once", "Allow for this session", "Refuse"')
     expect(openAsks(SID)).toEqual([])
   }))
 
-  test('without a TUI (web, desktop), the question tool asks: an allow for Buracle\'s question and options records the grant; anything else records none', () => withSandbox(async ({ root }) => {
+  test('without a TUI (web, desktop), the question tool asks: an allow for Buracle Stack\'s question and options records the grant; anything else records none', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root)
-    const text = 'Buracle consent: `git push origin main` pushes to a remote. Run it?'
+    const text = 'Buracle Stack consent: `git push origin main` pushes to a remote. Run it?'
     const options = ['Allow once', 'Allow for this session', 'Refuse'].map(label => ({ label, description: label }))
     const asked = (questions: unknown[], answers: string[][], id: string) => f.trigger('tool.execute.after', {
       tool: 'question', sessionID: SID, agent: 'build', messageID: 'm1', id, input: { questions },
@@ -85,7 +85,7 @@ describe('OpenCode H20 consent dialog: the server waits while the TUI asks', () 
     const [ev] = await Promise.all([f.trigger('permission.evaluate', shell('git push origin main')), answerWhenAsked('once', seen)])
     expect(ev.effect).toBe('allow')
     expect(ev.message).toBeUndefined()
-    expect(seen[0]).toBe('Buracle consent: `git push origin main` pushes to a remote. Run it?')
+    expect(seen[0]).toBe('Buracle Stack consent: `git push origin main` pushes to a remote. Run it?')
     expect(openAsks(SID)).toEqual([])
     writeTuiBeat(SID, Date.now(), 1)
     const [again] = await Promise.all([f.trigger('permission.evaluate', shell('git push origin feature')), answerWhenAsked('dismiss')])
@@ -146,10 +146,10 @@ describe('OpenCode TUI consent relay', () => {
     consentRelayTick(h, state)
     expect(tuiPresent(SID, Date.now())).toBe(true)
     expect(tuiPresent(SID, Date.now() + TUI_FRESH_MS + 1)).toBe(false)
-    postAsk(SID, { id: 'ask-0001', question: 'Buracle consent: `git push` pushes to a remote. Run it?', command: 'git push', at: 1 })
+    postAsk(SID, { id: 'ask-0001', question: 'Buracle Stack consent: `git push` pushes to a remote. Run it?', command: 'git push', at: 1 })
     consentRelayTick(h, state)
     consentRelayTick(h, state)
-    expect(titles).toEqual(['Buracle consent: `git push` pushes to a remote. Run it?'])
+    expect(titles).toEqual(['Buracle Stack consent: `git push` pushes to a remote. Run it?'])
     picks[0]?.('Allow for this session')
     await Bun.sleep(5)
     expect(readAnswer(SID, 'ask-0001')).toBe('session')

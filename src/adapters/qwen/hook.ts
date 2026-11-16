@@ -78,7 +78,7 @@ async function preToolUse(d: PipelineDeps, p: Record<string, unknown>, sid: stri
   if (r.action === 'deny') return denyOut(r.reason)
   const text = r.context.filter(l => l.trim() !== '').join('\n')
   // Qwen Code asks for a decision with the context: `allow` leaves its own permission checks as they are.
-  return text === '' ? QUIET : { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'Buracle', additionalContext: text } }) + '\n', exitCode: 0 }
+  return text === '' ? QUIET : { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'Buracle Stack', additionalContext: text } }) + '\n', exitCode: 0 }
 }
 
 async function postToolUse(d: PipelineDeps, p: Record<string, unknown>, sid: string, cwd: string, now: number): Promise<HookOutcome> {
@@ -114,6 +114,6 @@ async function subagentStop(d: PipelineDeps, p: Record<string, unknown>, sid: st
   await spool(d, sid, [{ ts: now, ev: 'note', tool: agent, excerpt: errors.length === 0 ? `${agent}: valid review report` : `${agent}: invalid review report: ${errors.slice(0, 5).join('; ')}` }])
   if (errors.length === 0) return QUIET
   const problems = `${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '; …' : ''}`
-  if (p['stop_hook_active'] !== true) return blockOut(`Buracle H19: your final message is not a valid review report (${problems}). Answer again with only the corrected JSON report your instructions define, with nothing before or after it.`)
-  return { stdout: JSON.stringify({ systemMessage: `Buracle H19: ${agent} returned an invalid review report again (${problems}); check its findings yourself before relying on them.` }) + '\n', exitCode: 0 }
+  if (p['stop_hook_active'] !== true) return blockOut(`Buracle Stack H19: your final message is not a valid review report (${problems}). Answer again with only the corrected JSON report your instructions define, with nothing before or after it.`)
+  return { stdout: JSON.stringify({ systemMessage: `Buracle Stack H19: ${agent} returned an invalid review report again (${problems}); check its findings yourself before relying on them.` }) + '\n', exitCode: 0 }
 }

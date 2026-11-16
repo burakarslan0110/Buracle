@@ -49,9 +49,9 @@ export function configFindings(text: string | undefined, expected: Record<string
   for (const [key, want] of Object.entries(expected)) {
     const got = getIn(doc ?? {}, key)
     if (!got.found) off.push(`${key} missing`)
-    else if (JSON.stringify(got.value) !== JSON.stringify(want)) off.push(`${key} = ${JSON.stringify(got.value)} (Buracle: ${JSON.stringify(want)})`)
+    else if (JSON.stringify(got.value) !== JSON.stringify(want)) off.push(`${key} = ${JSON.stringify(got.value)} (Buracle Stack: ${JSON.stringify(want)})`)
   }
-  if (off.length === 0) return [{ level: 'ok', check: 'omp config', detail: `${Object.keys(expected).length} Buracle keys set in ${file}` }]
+  if (off.length === 0) return [{ level: 'ok', check: 'omp config', detail: `${Object.keys(expected).length} Buracle Stack keys set in ${file}` }]
   return [{ level: 'warn', check: 'omp config', detail: `${file}: ${off.join('; ')}` }]
 }
 
@@ -80,7 +80,7 @@ export function mcpCommandFindings(mcpJsonText: string | undefined, env: Env, fi
     else errors.push(r.program !== undefined ? `${id}: ${r.program} does not exist or is not executable` : `${id}: cannot resolve the program of \`${s['command']}\``)
   }
   const out: DoctorFinding[] = []
-  if (errors.length > 0) out.push({ level: 'error', check: 'omp mcp', detail: `MCP server commands omp cannot start: ${errors.join('; ')}. Install Buracle again and make sure omp starts with the same BURACLE_HOME as this shell.` })
+  if (errors.length > 0) out.push({ level: 'error', check: 'omp mcp', detail: `MCP server commands omp cannot start: ${errors.join('; ')}. Install Buracle Stack again and make sure omp starts with the same BURACLE_HOME as this shell.` })
   if (warnings.length > 0) out.push({ level: 'warn', check: 'omp mcp', detail: `MCP package runners not found on PATH: ${warnings.join('; ')}` })
   if (out.length === 0) out.push({ level: 'ok', check: 'omp mcp', detail: `${Object.keys(servers).length} plugin MCP server commands resolve` })
   return out
@@ -88,7 +88,7 @@ export function mcpCommandFindings(mcpJsonText: string | undefined, env: Env, fi
 
 export function sharedAgentsFinding(block: string | undefined, sharedExists: boolean, agentsFile: string): DoctorFinding | undefined {
   if (block === undefined || !sharedExists || block.includes('@~/.agents/AGENTS.md')) return undefined
-  return { level: 'warn', check: 'omp AGENTS.md', detail: `~/.agents/AGENTS.md exists, but the Buracle block in ${agentsFile} does not import it, so omp shadows it (one user-level context file); run \`buracle install omp\` to add "${SHARED_AGENTS_IMPORT}"` }
+  return { level: 'warn', check: 'omp AGENTS.md', detail: `~/.agents/AGENTS.md exists, but the Buracle Stack block in ${agentsFile} does not import it, so omp shadows it (one user-level context file); run \`buracle install omp\` to add "${SHARED_AGENTS_IMPORT}"` }
 }
 
 function configDoc(text: string | undefined): unknown {
@@ -101,12 +101,12 @@ export function permissionFinding(doc: unknown, cfg: Pick<AdapterContext['config
   const got = getIn(doc ?? {}, APPROVAL_KEY)
   const check = 'omp permission mode'
   if (got.found && got.value === want) {
-    return { level: 'ok', check, detail: want === 'yolo' ? "tools.approvalMode yolo: omp runs tools without asking; Buracle's guards and consent gate still protect" : 'tools.approvalMode write (permissions.bypass is off)' }
+    return { level: 'ok', check, detail: want === 'yolo' ? "tools.approvalMode yolo: omp runs tools without asking; Buracle Stack's guards and consent gate still protect" : 'tools.approvalMode write (permissions.bypass is off)' }
   }
   const now = got.found ? `is ${JSON.stringify(got.value)}` : `is not set in ${file}`
   const fix = cfg.permissions.bypass && cfg.permissions.enforce
     ? 'run `buracle install` to write it back (permissions.enforce)'
-    : cfg.permissions.bypass ? 'permissions.enforce is off, so Buracle keeps that value; set it back yourself or run `buracle config set permissions.enforce true` and `buracle install`' : 'run `buracle install omp`'
+    : cfg.permissions.bypass ? 'permissions.enforce is off, so Buracle Stack keeps that value; set it back yourself or run `buracle config set permissions.enforce true` and `buracle install`' : 'run `buracle install omp`'
   return { level: 'warn', check, detail: `tools.approvalMode ${now}, not ${want} (permissions.bypass ${cfg.permissions.bypass ? 'on' : 'off'}); ${fix}` }
 }
 
@@ -167,13 +167,13 @@ export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promis
   try { block = mdBlockGet(readFileSync(agentsFile, 'utf8'), AGENTS_BLOCK_ID) } catch { block = undefined }
   const shadow = sharedAgentsFinding(block, existsSync(join(ctx.paths.agentsDir(), 'AGENTS.md')), agentsFile)
   out.push(shadow ?? (block !== undefined
-    ? { level: 'ok', check: 'omp AGENTS.md', detail: `Buracle block present in ${agentsFile}` }
-    : { level: 'warn', check: 'omp AGENTS.md', detail: `no Buracle block in ${agentsFile}` }))
+    ? { level: 'ok', check: 'omp AGENTS.md', detail: `Buracle Stack block present in ${agentsFile}` }
+    : { level: 'warn', check: 'omp AGENTS.md', detail: `no Buracle Stack block in ${agentsFile}` }))
 
   const where = await run([ompBin, 'config', 'path'], { timeoutMs: 15_000 })
   const used = where.code === 0 ? where.stdout.trim().split('\n').pop()?.trim() : undefined
   if (used === undefined || used === '') out.push({ level: 'warn', check: 'omp agent dir', detail: '`omp config path` printed nothing' })
-  else if (realOr(used) !== realOr(agentDir)) out.push({ level: 'warn', check: 'omp agent dir', detail: `omp uses ${used} but Buracle installs into ${agentDir} (PI_CODING_AGENT_DIR or OMP_PROFILE differs); rerun \`buracle install omp\` in the same environment` })
+  else if (realOr(used) !== realOr(agentDir)) out.push({ level: 'warn', check: 'omp agent dir', detail: `omp uses ${used} but Buracle Stack installs into ${agentDir} (PI_CODING_AGENT_DIR or OMP_PROFILE differs); rerun \`buracle install omp\` in the same environment` })
   else out.push({ level: 'ok', check: 'omp agent dir', detail: agentDir })
 
   const skillsDir = join(agentDir, 'skills')

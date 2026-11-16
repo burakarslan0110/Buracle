@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { findExecutable } from '../platform'
 
-// Linux has no package manager Buracle may drive: installing system packages needs root, so Buracle only tells the
+// Linux has no package manager Buracle Stack may drive: installing system packages needs root, so Buracle Stack only tells the
 // user which command installs a missing tool on their distribution. It never runs sudo or a package manager.
 // scripts/install.sh prints the same commands from its own table (a test keeps the two in step).
 

@@ -69,7 +69,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
       let stopped = false
       const notices = new TuiNotices({
         now: () => Date.now(),
-        toast: (message, variant) => { ctx.ui.toast?.show({ title: 'Buracle', message, variant, duration: variant === 'warning' ? 10_000 : 8_000 }) },
+        toast: (message, variant) => { ctx.ui.toast?.show({ title: 'Buracle Stack', message, variant, duration: variant === 'warning' ? 10_000 : 8_000 }) },
         band: sid => band.view(sid, FOLD_AFTER_SEC),
         bandOn: () => config.get().config.workflow.band,
         busy: sid => { const last = ctx.data.session.message.list(sid).at(-1); return last?.type === 'assistant' && last.status !== undefined && last.status !== 'completed' },
@@ -138,7 +138,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
         },
       }))
 
-      // One Buracle usage tip under OpenCode's home screen, a new one each time the TUI starts.
+      // One Buracle Stack usage tip under OpenCode's home screen, a new one each time the TUI starts.
       const tip = pickTip(baked.tips, Math.floor(Math.random() * 1_000_000))
       if (tip !== undefined) {
         offs.push(ctx.ui.slot({
@@ -212,7 +212,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
             onCleanup(() => clearInterval(ticker))
             const rows = createMemo<string[]>(() => {
               beat()
-              try { return lines() } catch { return ['Buracle could not read this view.'] }
+              try { return lines() } catch { return ['Buracle Stack could not read this view.'] }
             }, (a, b) => a.join('\n') === b.join('\n'))
             return (
               <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingBottom={1}>

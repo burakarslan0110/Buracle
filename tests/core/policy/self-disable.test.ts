@@ -6,10 +6,10 @@ import { isStartupFile, mentionsRelocation, renderPrintf } from '../../../src/co
 const home = '/Users/u'
 const opts: BashGuardOptions = { extraDeny: [], home, cwd: `${home}/code/app` }
 const denied = (cmd: string): string | undefined => checkBash(cmd, opts).deny
-const OFF = "would switch off Buracle's guards"
+const OFF = "would switch off Buracle Stack's guards"
 
-describe("G2: Buracle's CLI and the harness CLIs cannot switch the guards off", () => {
-  test("Buracle's CLI: uninstall and config keys that turn guards or hooks off, in every spelling", () => {
+describe("G2: Buracle Stack's CLI and the harness CLIs cannot switch the guards off", () => {
+  test("Buracle Stack's CLI: uninstall and config keys that turn guards or hooks off, in every spelling", () => {
     for (const cmd of [
       'buracle uninstall', 'buracle uninstall --yes --purge-state', '~/.buracle/bin/buracle uninstall', '"$BURACLE_HOME/bin/buracle" uninstall',
       '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" uninstall --force', 'bun src/cli/main.ts uninstall', 'bun run /opt/buracle/src/cli/main.ts uninstall --yes',
@@ -79,7 +79,7 @@ describe("G2: Buracle's CLI and the harness CLIs cannot switch the guards off", 
   })
 
   test('the denial tells the agent to have the user run it with `!`', () => {
-    expect(denied('buracle uninstall --yes')).toBe("`buracle uninstall --yes` would switch off Buracle's guards (it removes Buracle and its guard hooks from every harness); only the user may do that, so ask them to run it themselves by typing `! buracle uninstall --yes` in the prompt.")
+    expect(denied('buracle uninstall --yes')).toBe("`buracle uninstall --yes` would switch off Buracle Stack's guards (it removes Buracle Stack and its guard hooks from every harness); only the user may do that, so ask them to run it themselves by typing `! buracle uninstall --yes` in the prompt.")
   })
 
   test("the harness CLIs: plugin and marketplace removals, hook switches and one-run overrides", () => {
@@ -106,7 +106,7 @@ describe("G2: Buracle's CLI and the harness CLIs cannot switch the guards off", 
   })
 })
 
-describe('G3: Buracle and the harness settings cannot be relocated for later sessions', () => {
+describe('G3: Buracle Stack and the harness settings cannot be relocated for later sessions', () => {
   test('startup files that would set a relocation variable, in any spelling the shell reads', () => {
     for (const cmd of [
       "echo 'export BURACLE_HOME=/tmp/fb' >> ~/.zshrc", 'echo "export BURACLE_HOME=/tmp/fb" >> $HOME/.bash_profile', "echo 'export CLAUDE_CONFIG_DIR=/tmp/c' >> ~/.zprofile",
@@ -117,20 +117,20 @@ describe('G3: Buracle and the harness settings cannot be relocated for later ses
       "sed -i '' '1i\\\nexport BURACLE_HOME=/tmp/fb' ~/.zshrc", 'x=BURACLE; echo "export ${x}_HOME=/tmp/fb" >> ~/.zshrc', "echo 'export BURACLE_HOME=/tmp/fb' >> .envrc",
       `echo ${Buffer.from('export BURACLE_HOME=/tmp/fb').toString('base64')} | base64 -d >> ~/.zshrc`, "echo 'export BURACLE_HOME=/tmp' >> ~/.oh-my-zsh/custom/env.zsh",
       "sudo sh -c 'echo BURACLE_HOME=/tmp/fb >> /etc/environment'", "{ echo 'export BURACLE_HOME=/tmp/fb'; } >> ~/.zshrc",
-    ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringMatching(/shell startup file .* set a variable that relocates Buracle/) })
+    ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringMatching(/shell startup file .* set a variable that relocates Buracle Stack/) })
   })
 
   test('launchctl setenv, fish universal variables and systemd user environments; setx (Windows) is not read', () => {
     for (const cmd of [
       'launchctl setenv BURACLE_HOME /tmp/fb', 'launchctl setenv CLAUDE_CONFIG_DIR /tmp/c', 'launchctl setenv "$V" /tmp/fb', "fish -c 'set -Ux BURACLE_HOME /tmp/fb'",
       'set --universal CODEX_HOME /tmp/x', 'systemctl --user set-environment XDG_CONFIG_HOME=/tmp/x',
-    ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringContaining('relocates Buracle or the harness settings') })
+    ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringContaining('relocates Buracle Stack or the harness settings') })
     expect(denied('setx CODEX_HOME /tmp/x')).toBeUndefined()
   })
 
   test("writes into the shim's folder are refused (SEC-1 already covers $BURACLE_HOME/bin and ~/.buracle/bin)", () => {
     for (const cmd of ['echo x > ~/.buracle/bin/buracle', 'cp evil "$BURACLE_HOME/bin/buracle"', 'ln -sf /tmp/fb ~/.buracle/bin/buracle']) {
-      expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringContaining("Buracle's own installation") })
+      expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringContaining("Buracle Stack's own installation") })
     }
   })
 

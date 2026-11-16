@@ -10,7 +10,7 @@ import { clip, isMain, messageText, sessionOf } from '../../shared/pi-family/uti
 
 export { runawayNotice, stopReason }
 
-export const READ_ONLY_NOTICE = 'Buracle: Oh My Pi is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode to continue the plan.'
+export const READ_ONLY_NOTICE = 'Buracle Stack: Oh My Pi is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode to continue the plan.'
 
 export function planModeOn(ctx: OmpContext): boolean {
   try {

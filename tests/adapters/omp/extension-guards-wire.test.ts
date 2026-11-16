@@ -31,8 +31,8 @@ describe('omp H01 meets the write context (W1.1)', () => {
     await withEnv({ BURACLE_VAULT: join(root, 'elsewhere', 'vault') }, async () => {
       const call = setup(join(root, 'work'), ['secrets/**'])
       const r = await call('bash', { command: `find ${vault} -type f -delete` })
-      expect(r?.reason).toStartWith('Buracle H01: ')
-      expect(r?.reason).toContain('Buracle memory vault')
+      expect(r?.reason).toStartWith('Buracle Stack H01: ')
+      expect(r?.reason).toContain('Buracle Stack memory vault')
       expect((await call('bash', { command: 'echo x > secrets/a.txt' }))?.reason).toContain('guards.write.protect')
       const allowed = await call('bash', { command: 'echo x > notes/a.txt' }) as { block?: boolean, additionalContext?: string } | undefined
       expect(allowed?.block).toBeUndefined()
@@ -49,7 +49,7 @@ describe('omp H02 judges write and edit by what they leave in a guarded file (W1
     const call = setup(work)
     expect(await call('edit', { path: file, old_string: '"allow": []', new_string: '"allow": ["Bash(npm test:*)"]' })).toBeUndefined()
     const off = await call('edit', { path: file, old_string: '"allow": []', new_string: '"allow": [] }, "disableAllHooks": true, "x": {' })
-    expect(off?.reason).toStartWith('Buracle H02: ')
+    expect(off?.reason).toStartWith('Buracle Stack H02: ')
     expect(off?.reason).toContain('disableAllHooks')
     expect(await call('write', { path: '.claude/settings.local.json', content: '{ "permissions": { "allow": ["Read"] } }' })).toBeUndefined()
     expect((await call('write', { path: '.omp/config.yml', content: 'disabledExtensions:\n  - buracle\n' }))?.reason).toContain('disabledExtensions')
@@ -65,7 +65,7 @@ describe('omp MCP calls that name a file they write go through H02 (W1.3, G12)',
     const call = setup(join(root, 'work'))
     const ssh = join(home, '.ssh', 'authorized_keys')
     const r = await call('mcp__chrome_devtools_take_heapsnapshot', { filePath: ssh })
-    expect(r?.reason).toStartWith('Buracle H02: ')
+    expect(r?.reason).toStartWith('Buracle Stack H02: ')
     expect(r?.reason).toContain('SSH directory')
     expect((await call('mcp__myfiles_save', { path: ssh }))?.reason).toContain('SSH directory')
     expect((await call('write', { path: 'xd://mcp__myfiles_save', content: JSON.stringify({ path: ssh }) }))?.reason).toContain('SSH directory')
@@ -97,7 +97,7 @@ describe('omp H01 holds the review agents read-only (their bash tool)', () => {
     const reviewer = setup(work, [], { kind: 'sub', name: 'changes-review' })
     for (const command of ['git commit -am x', "sed -i 's/a/b/' src/app.ts", 'git stash', 'rm notes.md', 'git diff > out.patch']) {
       const r = await reviewer('bash', { command })
-      expect({ command, block: r?.block, reason: r?.reason }).toEqual({ command, block: true, reason: expect.stringMatching(/^Buracle H01: changes-review is a read-only reviewer/) })
+      expect({ command, block: r?.block, reason: r?.reason }).toEqual({ command, block: true, reason: expect.stringMatching(/^Buracle Stack H01: changes-review is a read-only reviewer/) })
     }
     for (const command of ['git diff HEAD~1', 'rg -n foo src', 'buracle review-scope --json']) expect({ command, r: await reviewer('bash', { command }) }).toEqual({ command, r: undefined })
     expect((await setup(work, [], { kind: 'sub', name: 'plan-build-review' })('bash', { command: 'git commit -am x' }))?.reason).toContain('read-only reviewer')

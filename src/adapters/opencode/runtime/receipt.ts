@@ -56,7 +56,7 @@ export class TurnReceipts {
       t.receipt = r.state
       alarm = r.alarm
     }
-    if (alarm !== undefined) this.host.post(sid, `Buracle: ${alarm}`, 'warning')
+    if (alarm !== undefined) this.host.post(sid, `Buracle Stack: ${alarm}`, 'warning')
   }
 
   end(sid: string): void {

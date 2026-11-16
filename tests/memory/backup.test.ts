@@ -141,7 +141,7 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test('a backup folder in the format of Buracle 0.5 (one copy per layer) is not a backup any more: not listed, not restored', async () => {
+  test('a backup folder in the format of Buracle Stack 0.5 (one copy per layer) is not a backup any more: not listed, not restored', async () => {
     await withBrain(async () => {
       const dir = join(brainBackupsDir(), '20261001-090000')
       mkdirSync(dir, { recursive: true })

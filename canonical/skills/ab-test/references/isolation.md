@@ -28,7 +28,7 @@ Seed the memories a case needs with the CLI under the arm's environment, from a 
 to the fixture's project:
 `BURACLE_HOME=<arm>/buracle BURACLE_CORTEXDB_BIN=… buracle mem write --type decision --title "<claim>" --summary "<one line>" --body "<text>"`.
 
-When the arm loads Buracle's hooks, copy `~/.buracle/config.yaml` to `<arm>/buracle/` and
+When the arm loads Buracle Stack's hooks, copy `~/.buracle/config.yaml` to `<arm>/buracle/` and
 `~/.buracle/state/runtime-config.json` to `<arm>/buracle/state/`; both hold settings, not secrets.
 
 The runner already removes the caller's session variables from the child environment
@@ -37,7 +37,7 @@ The runner already removes the caller's session variables from the child environ
 write into your own session's plan state. Because `CLAUDE_CODE_*` is stripped, pass
 `CLAUDE_CODE_OAUTH_TOKEN` explicitly with `--env`.
 
-Installing Buracle into an arm: with `HOME`, `BURACLE_HOME` and the harness variables pointing into
+Installing Buracle Stack into an arm: with `HOME`, `BURACLE_HOME` and the harness variables pointing into
 the arm, `buracle install <h> --dry-run` shows what would be written. Every path it lists
 must be inside `<root>`; only then repeat it without `--dry-run`.
 
@@ -46,7 +46,7 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 - **Isolate:** `CLAUDE_CONFIG_DIR=<arm>/claude`. Settings, user skills, rules, plugins and
   `.claude.json` all live there.
 - **Place the variant:**
-  - Buracle plugin: put each arm's rendered plugin at `<arm>/plugin` so both arms use the same
+  - Buracle Stack plugin: put each arm's rendered plugin at `<arm>/plugin` so both arms use the same
     flags, `--append-arg --plugin-dir --append-arg <arm>/plugin`. Baseline:
     `git archive <ref> harness/claude | tar -x -C <arm>`, then move `<arm>/harness/claude` to
     `<arm>/plugin`. Candidate: render it in a repo copy (SKILL.md phase 4), then copy
@@ -78,9 +78,9 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 - **Isolate:** `HOME=<arm>/home` (user skills come from `$HOME/.agents/skills`) and
   `CODEX_HOME=<arm>/home/.codex`; create that directory first, Codex requires it to exist.
 - **Place the variant:** the built skill `harness/agents-skills/<id>/` into
-  `<arm>/home/.agents/skills/<id>/`, where Buracle installs it; global guidance into `<arm>/home/.codex/AGENTS.md`; project
+  `<arm>/home/.agents/skills/<id>/`, where Buracle Stack installs it; global guidance into `<arm>/home/.codex/AGENTS.md`; project
   guidance into the fixture. MCP servers come from `<arm>/home/.codex/config.toml`; install them
-  with Buracle into the arm (above) rather than copying the real file.
+  with Buracle Stack into the arm (above) rather than copying the real file.
 - **Credentials:** `--env CODEX_API_KEY=…`, or, only with the user's consent, a copy of
   `~/.codex/auth.json` in `<arm>/home/.codex/` (mode 600, deleted with the temp root).
 - **Flags** (profile): `codex exec --json --ephemeral --skip-git-repo-check --sandbox workspace-write -C {work} "{prompt}"`.
@@ -94,7 +94,7 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 - **Isolate:** `HOME=<arm>/home`, `XDG_CONFIG_HOME=<arm>/home/.config`,
   `XDG_DATA_HOME=<arm>/home/.local/share`. OpenCode also reads `~/.claude/skills` and
   `~/.agents/skills`; the moved `HOME` covers both.
-- **Place the variant:** `<arm>/home/.config/opencode/skills/<id>/`, where Buracle installs it
+- **Place the variant:** `<arm>/home/.config/opencode/skills/<id>/`, where Buracle Stack installs it
   for OpenCode.
 - **Always `opencode run --standalone`:** without it the run attaches to the background service,
   which carries the user's real configuration.
@@ -108,7 +108,7 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 
 - **Isolate:** `HOME=<arm>/home` and `PI_CODING_AGENT_DIR=<arm>/home/.omp/agent`. omp reads
   `~/.agents` (skills and rules) by default, so the moved `HOME` matters.
-- **Place the variant:** `<arm>/home/.omp/agent/skills/<id>/`, where Buracle installs it for
+- **Place the variant:** `<arm>/home/.omp/agent/skills/<id>/`, where Buracle Stack installs it for
   omp; project rules in the fixture's
   `.agents/rules/` or `.omp/rules/` (omp does not read `.claude/rules/`).
 - **Flags** (profile): `omp -p --mode json --no-session --cwd {work} "{prompt}"`. A without-arm

@@ -57,7 +57,7 @@ describe('F20: install + uninstall is byte-restoring', () => {
     expect(read(p)).toBe(text)
   }))
 
-  test('a comment inside a TOML table Buracle owns survives an update (a pin bump)', () => withSandbox(async (sb) => {
+  test('a comment inside a TOML table Buracle Stack owns survives an update (a pin bump)', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex/config.toml')
     write(p, 'model = "m"\n')
     const op = (pin: string): Op => ({ kind: 'toml-tables', path: p, tables: { 'mcp_servers.context7': { command: 'npx', args: ['-y', `@upstash/context7-mcp@${pin}`] } }, owner: O })

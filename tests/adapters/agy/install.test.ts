@@ -94,7 +94,7 @@ describe('install into ~/.gemini/config', () => {
     })
   })
 
-  test('a Buracle server entry the user changed is kept, and a file that is not valid JSON is not touched', async () => {
+  test('a Buracle Stack server entry the user changed is kept, and a file that is not valid JSON is not touched', async () => {
     await withSandbox(async ({ home }) => {
       await install()
       const file = join(dir(home), 'mcp_config.json')
@@ -110,7 +110,7 @@ describe('install into ~/.gemini/config', () => {
     })
   })
 
-  test('uninstall removes what Buracle wrote and leaves the user\'s entries', async () => {
+  test('uninstall removes what Buracle Stack wrote and leaves the user\'s entries', async () => {
     await withSandbox(async ({ home }) => {
       mkdirSync(dir(home), { recursive: true })
       writeFileSync(join(dir(home), 'hooks.json'), JSON.stringify({ mine: { Stop: [{ command: '/my/stop.sh' }] } }))

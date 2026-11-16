@@ -31,7 +31,7 @@ describe('opencode runtime-config reader', () => {
     const snap = cache.get()
     expect(snap.config).toEqual(d)
     expect(snap.resolved).toBeUndefined()
-    expect(readFileSync(paths.logFile(), 'utf8')).toContain('runtime-config.json has version 2, this Buracle reads version 1')
+    expect(readFileSync(paths.logFile(), 'utf8')).toContain('runtime-config.json has version 2, this Buracle Stack reads version 1')
     writeSnapshot({ v: 1, config: { ...d, routing: { ...d.routing, strictness: 'off' } } }, 5_000)
     expect(cache.get().config.routing.strictness).toBe('off')
   }))

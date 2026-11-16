@@ -62,19 +62,19 @@ function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-const NO_CLI = 'The Buracle CLI was not found (~/.buracle/bin/buracle); run `buracle install` first.'
+const NO_CLI = 'The Buracle Stack CLI was not found (~/.buracle/bin/buracle); run `buracle install` first.'
 
 export async function remember(host: UtilityHost, input: string | undefined, name = 'remember'): Promise<void> {
   const text = (input ?? '').trim()
-  if (text === '') { host.toast(`Usage: /${name} <text>`, 'warning', 'Buracle'); return }
+  if (text === '') { host.toast(`Usage: /${name} <text>`, 'warning', 'Buracle Stack'); return }
   const cli = host.cli()
-  if (cli === undefined) { host.toast(NO_CLI, 'error', 'Buracle'); return }
+  if (cli === undefined) { host.toast(NO_CLI, 'error', 'Buracle Stack'); return }
   const r = await host.run([...cli, 'mem', 'remember', '--', text], 20_000)
   if (r.code === 0) {
     const said = firstLine(r.stdout).replace(/^saved as a capture:\s*/i, '').replace(/\s*\(.*\)$/, '')
-    host.toast(said !== '' ? `Remembered: ${said}` : 'Remembered.', 'success', 'Buracle')
+    host.toast(said !== '' ? `Remembered: ${said}` : 'Remembered.', 'success', 'Buracle Stack')
   } else {
-    host.toast(`Not saved (exit code ${r.code}): ${firstLine(r.stderr) || firstLine(r.stdout)}`, 'error', 'Buracle')
+    host.toast(`Not saved (exit code ${r.code}): ${firstLine(r.stderr) || firstLine(r.stdout)}`, 'error', 'Buracle Stack')
   }
 }
 
@@ -85,11 +85,11 @@ function memoryUiUrl(): string | undefined {
 
 export async function brain(host: UtilityHost, input = '', name = 'brain'): Promise<void> {
   const page = brainPageArg(input)
-  if (page === undefined) { host.toast(`Usage: /${name} [review]`, 'warning', 'Buracle'); return }
+  if (page === undefined) { host.toast(`Usage: /${name} [review]`, 'warning', 'Buracle Stack'); return }
   const cli = host.cli()
-  if (cli === undefined) { host.toast(NO_CLI, 'error', 'Buracle'); return }
+  if (cli === undefined) { host.toast(NO_CLI, 'error', 'Buracle Stack'); return }
   const r = await host.run([...cli, 'mem', 'ui', '--open', ...(page === 'review' ? ['--page', 'review'] : []), '--json'], 15_000)
-  if (r.code !== 0) { host.toast(`Could not open the memory UI (exit code ${r.code}): ${firstLine(r.stderr) || firstLine(r.stdout)}`, 'error', 'Buracle'); return }
+  if (r.code !== 0) { host.toast(`Could not open the memory UI (exit code ${r.code}): ${firstLine(r.stderr) || firstLine(r.stdout)}`, 'error', 'Buracle Stack'); return }
   let url: string | undefined
   try {
     const j = JSON.parse(r.stdout) as { url?: unknown, page?: unknown }
@@ -97,7 +97,7 @@ export async function brain(host: UtilityHost, input = '', name = 'brain'): Prom
     else if (typeof j.url === 'string') url = j.url
   } catch {  }
   url ??= memoryUiUrl()
-  host.toast(url !== undefined ? `${page === 'review' ? 'Review page' : 'Memory UI'}: ${url}` : 'The memory UI is starting.', 'success', 'Buracle')
+  host.toast(url !== undefined ? `${page === 'review' ? 'Review page' : 'Memory UI'}: ${url}` : 'The memory UI is starting.', 'success', 'Buracle Stack')
 }
 
 export function statusLines(host: UtilityHost): string[] {
@@ -105,9 +105,9 @@ export function statusLines(host: UtilityHost): string[] {
   const about = host.about()
   const sid = host.sessionID()
   const lines = [
-    `Buracle on OpenCode${about.opencode !== undefined && about.opencode !== '' ? ` ${about.opencode}` : ''}`,
+    `Buracle Stack on OpenCode${about.opencode !== undefined && about.opencode !== '' ? ` ${about.opencode}` : ''}`,
     `session: ${sid ?? '-'}`,
-    `permissions: ${cfg.permissions.bypass ? "no approval prompts (Buracle's guards and consent gate still deny)" : 'as OpenCode is configured'}`,
+    `permissions: ${cfg.permissions.bypass ? "no approval prompts (Buracle Stack's guards and consent gate still deny)" : 'as OpenCode is configured'}`,
     `routing: ${cfg.routing.strictness} · workflow band: ${cfg.workflow.band ? 'on' : 'off'}`,
     `workflows: ${about.workflows.map(w => `/${w}`).join(' ')}`,
   ]
@@ -122,18 +122,18 @@ export async function status(host: UtilityHost, input: string | undefined): Prom
   let title: string
   let lines: string[]
   if (what === '' || what === 'status') {
-    title = 'Buracle status'
+    title = 'Buracle Stack status'
     lines = statusLines(host)
   } else if (what === 'memory' || what === 'mem' || what === 'plan') {
-    title = what === 'plan' ? 'Buracle plan' : 'Buracle memory'
+    title = what === 'plan' ? 'Buracle Stack plan' : 'Buracle Stack memory'
     const live = what === 'plan' ? () => planLines(host, sid) : () => memoryLines()
     if (host.pane?.(title, live) === true) return
     lines = live()
   } else if (what === 'flow') {
-    title = 'Buracle workflow'
+    title = 'Buracle Stack workflow'
     lines = bandText(host.band(sid))
   } else {
-    host.toast('Usage: /buracle-status [status|memory|plan|flow]', 'warning', 'Buracle')
+    host.toast('Usage: /buracle-status [status|memory|plan|flow]', 'warning', 'Buracle Stack')
     return
   }
   await host.alert(title, lines.join('\n'))
@@ -153,40 +153,40 @@ export function planLines(host: Pick<UtilityHost, 'band'>, sid: string | undefin
 export async function aside(host: UtilityHost, input: string | undefined, name = 'aside'): Promise<void> {
   const btw = host.slashCommand(BTW_COMMAND)
   if (btw === undefined) {
-    host.toast(`/${name} hands the question to OpenCode's /${BTW_COMMAND}, which this OpenCode does not offer to plugins: type /${BTW_COMMAND} <question>.`, 'warning', 'Buracle')
+    host.toast(`/${name} hands the question to OpenCode's /${BTW_COMMAND}, which this OpenCode does not offer to plugins: type /${BTW_COMMAND} <question>.`, 'warning', 'Buracle Stack')
     return
   }
   await btw((input ?? '').trim())
 }
 
 export function ping(host: UtilityHost): void {
-  host.toast('pong', 'success', 'Buracle')
+  host.toast('pong', 'success', 'Buracle Stack')
 }
 
 export function utilityCommands(host: UtilityHost, names: UtilityNames): TuiKeymapCommand[] {
   const guarded = (what: string, fn: (input: string | undefined) => Promise<void> | void) => async (input?: string): Promise<void> => {
-    try { await fn(input) } catch (e) { host.toast(`${what} failed: ${errText(e)}`, 'error', 'Buracle') }
+    try { await fn(input) } catch (e) { host.toast(`${what} failed: ${errText(e)}`, 'error', 'Buracle Stack') }
   }
   return [
     {
-      id: 'buracle.remember', title: 'Remember', description: 'Buracle: save the text as a note in the memory inbox', group: 'Buracle', palette: true,
+      id: 'buracle.remember', title: 'Remember', description: 'Buracle Stack: save the text as a note in the memory inbox', group: 'Buracle Stack', palette: true,
       slash: { name: names.remember, arguments: true }, run: guarded(`/${names.remember}`, input => remember(host, input, names.remember)),
     },
     {
-      id: 'buracle.brain', title: 'Open the Buracle Console', description: 'Buracle: start and open the Buracle Console (review: the plan and change review page)', group: 'Buracle', palette: true,
+      id: 'buracle.brain', title: 'Open the Buracle Stack Console', description: 'Buracle Stack: start and open the Buracle Stack Console (review: the plan and change review page)', group: 'Buracle Stack', palette: true,
       slash: { name: names.brain, arguments: true }, run: guarded(`/${names.brain}`, input => brain(host, input ?? '', names.brain)),
     },
     {
-      id: 'buracle.aside', title: 'Ask a side question', description: 'Buracle: a read-only side question, answered by /btw (never added to the session)', group: 'Buracle', palette: true,
+      id: 'buracle.aside', title: 'Ask a side question', description: 'Buracle Stack: a read-only side question, answered by /btw (never added to the session)', group: 'Buracle Stack', palette: true,
       slash: { name: names.aside, arguments: true }, run: guarded(`/${names.aside}`, input => aside(host, input, names.aside)),
     },
     {
-      id: 'buracle.status', title: 'Buracle status', description: 'Buracle status: status, memory, plan or flow', group: 'Buracle', palette: true,
+      id: 'buracle.status', title: 'Buracle Stack status', description: 'Buracle Stack status: status, memory, plan or flow', group: 'Buracle Stack', palette: true,
       slash: { name: names.status, ...(names.statusAliases.length > 0 ? { aliases: [...names.statusAliases] } : {}), arguments: true },
       run: guarded(`/${names.status}`, input => status(host, input)),
     },
     {
-      id: 'buracle.ping', title: 'Buracle ping', description: 'Buracle: liveness check (no model turn)', group: 'Buracle', palette: true,
+      id: 'buracle.ping', title: 'Buracle Stack ping', description: 'Buracle Stack: liveness check (no model turn)', group: 'Buracle Stack', palette: true,
       slash: { name: names.ping, arguments: true }, run: guarded(`/${names.ping}`, () => ping(host)),
     },
   ]

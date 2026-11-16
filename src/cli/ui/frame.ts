@@ -1,6 +1,6 @@
 import { sanitizeText, textWidth, truncateToWidth } from '../../core/status/format'
 import type { ColorLevel, Style } from './style'
-import { ICON, paintLogo, padEnd, stripAnsi, TAGLINE, visibleWidth, wordmark } from './style'
+import { ICON, paintLogo, padEnd, PRODUCT_WORD, stripAnsi, TAGLINE, visibleWidth, wordmark } from './style'
 
 // One frame for every screen of the interactive CLI: the logo header (in one of three sizes) with the status line
 // under it, the screen's own lines, and one key-hint line at the bottom. Every screen at one terminal size and color
@@ -17,7 +17,7 @@ export interface HeaderView { version: string; columns: number; rows: number; su
 
 export interface Hint { key: string; word: string; drop?: number; shrink?: boolean } // drop: the order in which hints go when the line is too narrow; shrink: this word is cut before the line is
 
-const LOGO_MIN = { columns: 55, rows: 20 } as const // the 51-column logo, its margin and room to spare
+const LOGO_MIN = { columns: 96, rows: 20 } as const // the 92-column logo, its margin and room to spare
 const ICON_MIN_COLUMNS = 43
 const ICON_WIDTH = 8
 const ICON_GAP = '   '
@@ -54,7 +54,7 @@ function wrapWords(text: string, width: number, maxLines: number): string[] | un
 }
 
 function titleLine(st: Style, version: string, width: number): string {
-  const head = `${MARGIN}${st.level === 0 ? st.bold('buracle') : wordmark(st)}${version === '' ? '' : ` ${st.muted(`v${version}`)}`}`
+  const head = `${MARGIN}${st.level === 0 ? st.bold(PRODUCT_WORD) : wordmark(st)}${version === '' ? '' : ` ${st.muted(`v${version}`)}`}`
   const full = `${head}${st.muted(` · ${TAGLINE}`)}`
   return visibleWidth(full) <= width ? full : head
 }
@@ -86,7 +86,7 @@ function logoLines(st: Style, version: string, width: number): string[] {
 function iconLines(st: Style, version: string, width: number): string[] {
   const room = width - MARGIN.length - ICON_WIDTH - ICON_GAP.length
   const tagline = wrapWords(TAGLINE, room, 2) ?? []
-  const beside = ['', '', st.bold(st.gradient('buracle')), st.muted(`v${version}`), ...tagline.map(l => st.muted(l)), '']
+  const beside = ['', '', st.bold(st.gradient(PRODUCT_WORD)), st.muted(`v${version}`), ...tagline.map(l => st.muted(l)), '']
   return paintLogo(st, ICON).map((l, i) => {
     const text = beside[i] ?? ''
     return text === '' ? `${MARGIN}${l}` : `${MARGIN}${padEnd(l, ICON_WIDTH)}${ICON_GAP}${text}`
@@ -118,7 +118,7 @@ export function headerLines(st: Style, view: HeaderView): string[] {
 /** The first line of a command's output in a terminal: the wordmark, the version and the command. */
 export function commandHeader(st: Style, version: string, command: string): string {
   const v = clean(version)
-  return `${MARGIN}${st.level === 0 ? st.bold('buracle') : wordmark(st)}${v === '' ? '' : ` ${st.muted(`v${v}`)}`}${st.muted(` · ${clean(command)}`)}`
+  return `${MARGIN}${st.level === 0 ? st.bold(PRODUCT_WORD) : wordmark(st)}${v === '' ? '' : ` ${st.muted(`v${v}`)}`}${st.muted(` · ${clean(command)}`)}`
 }
 
 /** A section title over the rows of one group in command output. */

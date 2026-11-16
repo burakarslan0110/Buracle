@@ -6,7 +6,7 @@ describe('the runtime snapshot', () => {
     const defaults = defaultConfig()
     const other = runtimeSnapshotConfig({ v: 2, config: { routing: { strictness: 'off' } } }, defaults)
     expect(other.config).toEqual(defaults)
-    expect(other.warnings).toEqual(['runtime-config.json has version 2, this Buracle reads version 1: the defaults apply until `buracle install` writes it again'])
+    expect(other.warnings).toEqual(['runtime-config.json has version 2, this Buracle Stack reads version 1: the defaults apply until `buracle install` writes it again'])
     const ok = runtimeSnapshotConfig({ v: 1, config: { routing: { strictness: 'off' } } }, defaults)
     expect(ok.config.routing.strictness).toBe('off')
     expect(ok.warnings).toEqual([])

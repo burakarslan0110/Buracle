@@ -101,7 +101,7 @@ describe('w2 plan state on OpenCode: progress, read-only mode and background wor
     clock += 120_000
     await cycle(rt, 'The tests passed. I will report when it finishes.')
     expect(f.prompts.length).toBe(1)
-    expect(f.prompts[0]?.text).toStartWith('Buracle stop guard:')
+    expect(f.prompts[0]?.text).toStartWith('Buracle Stack stop guard:')
   }))
 
   test('a background dev server holds nothing: the stop guard still continues the plan', () => withSandbox(async ({ root }) => {
@@ -149,7 +149,7 @@ describe('w2 plan state on OpenCode: progress, read-only mode and background wor
     clock += 120_000
     await cycle(rt, waiting)
     expect(f.prompts.length).toBe(1)
-    expect(f.prompts[0]?.text).toStartWith('Buracle stop guard:')
+    expect(f.prompts[0]?.text).toStartWith('Buracle Stack stop guard:')
   }))
 })
 
@@ -161,7 +161,7 @@ describe('w2 plan state on OpenCode: the lane guard and the H08 receipt', () => 
     const lane = evaluation('shell', ['buracle plan resume'], child)
     await f.trigger('permission.evaluate', lane)
     expect(lane.effect).toBe('deny')
-    expect(lane.message).toContain('Buracle H01: a subagent does not run')
+    expect(lane.message).toContain('Buracle Stack H01: a subagent does not run')
     const status = evaluation('shell', ['buracle plan status --json'], child)
     await f.trigger('permission.evaluate', status)
     expect(status.effect).toBe('allow')
@@ -198,11 +198,11 @@ describe('w2 plan state on OpenCode: the lane guard and the H08 receipt', () => 
     const texts = (r: ToolExecuteAfter): string[] => (r.status === 'completed' ? (r.result.content as unknown as Array<{ text: string }> | undefined ?? []).map(c => c.text) : [])
     const main = texts(await ask(SID, 'call_r1'))
     expect(main[0]).toContain('="SQLite"')
-    expect(main.filter(t => t.startsWith('Buracle H09: the plan is running, not paused.') && t.includes('buracle plan pause --kind decision'))).toHaveLength(1)
+    expect(main.filter(t => t.startsWith('Buracle Stack H09: the plan is running, not paused.') && t.includes('buracle plan pause --kind decision'))).toHaveLength(1)
     const child = 'ses_lane3'
     saveState('opencode', child, planState())
     await rt.handleEvent({ type: 'session.created', data: { sessionID: child, parentID: SID, location: { directory: root } } })
-    expect(texts(await ask(child, 'call_r2')).join('\n')).not.toContain('Buracle H09')
+    expect(texts(await ask(child, 'call_r2')).join('\n')).not.toContain('Buracle Stack H09')
   }))
 })
 

@@ -7,10 +7,10 @@ const BRAND = '\u001b[38;2;139;92;246m'
 const BRAND_END = '\u001b[38;2;217;70;239m'
 
 describe('logo', () => {
-  test('the art: six rows of 51 columns drawn only with blocks; the icon is the first letter, 8 by 6, with the eye in its bowl', () => {
+  test('the art: six rows of 92 columns drawn only with blocks; the icon is the first letter, 8 by 6, with the eye in its bowl', () => {
     expect(LOGO).toHaveLength(6)
     for (const row of LOGO) {
-      expect([...row]).toHaveLength(51)
+      expect([...row]).toHaveLength(92)
       expect(row).toMatch(/^[█▀▄ ]+$/)
     }
     expect(ICON).toEqual(LOGO.map(r => r.slice(0, 8)))
@@ -24,6 +24,6 @@ describe('logo', () => {
     const eye = rows.flatMap(r => [...r.matchAll(new RegExp(`${EYE.replace('[', '\\[')}(.)`, 'gu'))].map(m => m[1]))
     expect(eye).toEqual(['█', '█', '█', '█'])
     expect(rows[0]!.startsWith(`${BRAND}█`)).toBe(true)
-    expect(paintLogo(color)[3]!.endsWith(`${BRAND_END}█\u001b[39m`)).toBe(true)
+    expect(paintLogo(color)[5]!.endsWith(`${BRAND_END}█\u001b[39m`)).toBe(true)
   })
 })

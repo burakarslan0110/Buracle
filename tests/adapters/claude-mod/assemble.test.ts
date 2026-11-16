@@ -81,7 +81,7 @@ describe('dev-assemble', () => {
     }
   })
 
-  test('the critical MCP tools the mod undefers are anchored to Buracle\'s own plugin servers', () => {
+  test('the critical MCP tools the mod undefers are anchored to Buracle Stack\'s own plugin servers', () => {
     const catalog = assembleFiles(REPO).find(f => f.path === 'hooks/generated/catalog.ts')?.content ?? ''
     const literal = catalog.slice(catalog.indexOf('= {') + 2).replace(/\s+as\s+[^\n]+\s*$/, '').trim()
     const patterns = (JSON.parse(literal) as { criticalToolPatterns: string[] }).criticalToolPatterns.map(p => new RegExp(p))

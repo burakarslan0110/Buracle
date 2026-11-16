@@ -76,7 +76,7 @@ smoke('the real Pi (isolated home and agent folder)', () => {
       const r = await runPi(sb, agent, ['-p', '--no-session', '--no-skills', '--no-context-files', '--no-prompt-templates', '--no-mcp', '--model', 'fake/m', 'push the branch'], work)
       expect(r.out).not.toContain('Failed to load extension')
       const toolMessage = model.requests.flatMap(q => q.messages ?? []).find(m => m.role === 'tool')
-      expect(JSON.stringify(toolMessage?.content ?? '')).toContain('Buracle H20')
+      expect(JSON.stringify(toolMessage?.content ?? '')).toContain('Buracle Stack H20')
       // The session start ran through the shared pipeline: Pi's session is recorded under the sandbox's BURACLE_HOME.
       expect(readdirSync(join(sb.buracleHome, 'sessions', 'pi')).length).toBeGreaterThan(0)
     } finally {
@@ -116,7 +116,7 @@ smoke('the real Pi (isolated home and agent folder)', () => {
       writeFileSync(join(agent, 'models.json'), JSON.stringify({ providers: { fake: { baseUrl: model.url, api: 'openai-completions', apiKey: 'unused', models: [{ id: 'm', contextWindow: 8000 }] } } }))
       const r = await runPi(sb, agent, ['-p', '--no-session', '--no-skills', '--no-prompt-templates', '--no-mcp', '--model', 'fake/m', 'hello'], work)
       expect(r.code).toBe(0)
-      expect(JSON.stringify(model.requests[0]?.messages ?? [])).toContain('Managed by Buracle')
+      expect(JSON.stringify(model.requests[0]?.messages ?? [])).toContain('Managed by Buracle Stack')
     } finally {
       model.stop()
     }
@@ -142,7 +142,7 @@ smoke('the real Pi (isolated home and agent folder)', () => {
     }
   }), 120_000)
 
-  test('the MCP entries Buracle writes are valid for Pi: `pi mcp list` reads them (servers off, so none starts)', () => withSandbox(async sb => {
+  test('the MCP entries Buracle Stack writes are valid for Pi: `pi mcp list` reads them (servers off, so none starts)', () => withSandbox(async sb => {
     const agent = join(sb.root, 'agent')
     mkdirSync(agent, { recursive: true })
     const c = devContext(REPO)

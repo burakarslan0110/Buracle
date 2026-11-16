@@ -52,7 +52,7 @@ export async function runToolchainLive(opts: Omit<ToolchainOptions, 'onEvent' | 
   const progress = toolchainProgress(io, view)
   try {
     const r = await opsDeps.runToolchain(b.bundle, { ...opts, onEvent: progress.onEvent, nowMs: opsDeps.now })
-    if (r === undefined) return { error: 'another Buracle process is installing the toolchain; try again in a moment' }
+    if (r === undefined) return { error: 'another Buracle Stack process is installing the toolchain; try again in a moment' }
     return r
   } finally {
     progress.stop()

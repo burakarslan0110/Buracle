@@ -23,7 +23,7 @@ process.exit(${UNDO_KEPT_EXIT})
 const NOOP = [process.execPath, '-e', '0']
 
 describe('undo commands that keep their target on purpose', () => {
-  test('the protocol: exit 3 from a Buracle helper script only', () => {
+  test('the protocol: exit 3 from a Buracle Stack helper script only', () => {
     expect(KEPT_EXIT).toBe(UNDO_KEPT_EXIT)
     expect(undoKeptOnPurpose(['/opt/homebrew/bin/bun', '/r/src/adapters/claude/check.ts', '--claude', 'claude', 'remove-marketplace', 'm'], 3)).toBe(true)
     expect(undoKeptOnPurpose(['/opt/homebrew/bin/bun', '/r/src/adapters/claude/check.ts', 'remove-marketplace', 'm'], 1)).toBe(false)

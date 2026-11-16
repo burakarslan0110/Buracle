@@ -22,7 +22,7 @@ export const usage = `Usage: buracle worktree <subcommand> [args…] [--json]
   detect             {inWorktree, path, branch, base} for the current directory
   diff <slug>        commits, files and stats of the worktree branch against its base
   cleanup <slug> [--force|--discard]
-                     remove the worktree and its branch. Buracle does not merge: merge the branch
+                     remove the worktree and its branch. Buracle Stack does not merge: merge the branch
                      into its base with git first (a merge or a squash-merge; then no flag is
                      needed). --force deletes a branch whose commits landed another way; --discard
                      also deletes uncommitted and unmerged work (in phase verify, a discard of the

@@ -442,7 +442,7 @@ export function validatePlan(markdown: string, opts?: { strict?: boolean }): Fin
   }
 
   if (type === 'Feature' || type === 'Bugfix') out.push(...authoringFindings(outlineOf(doc)))
-  // A captured native plan (type Plan) holds the harness's own text and is not a Buracle document.
+  // A captured native plan (type Plan) holds the harness's own text and is not a Buracle Stack document.
   if (type === 'Feature' || type === 'Bugfix' || type === 'Build') out.push(...documentFindings(outlineOf(doc)))
 
   const skeleton = skeletonPlaceholders()

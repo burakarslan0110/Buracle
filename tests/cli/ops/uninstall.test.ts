@@ -52,7 +52,7 @@ describe('buracle uninstall', () => {
     })
   }))
 
-  test('folders Buracle created are removed once empty; folders the user had or filled stay', () => withSandbox(async ({ root, home }) => {
+  test('folders Buracle Stack created are removed once empty; folders the user had or filled stay', () => withSandbox(async ({ root, home }) => {
     const env = setup(root, home)
     mkdirSync(join(home, '.codex'), { recursive: true })
     const plan: Plan = {
@@ -92,7 +92,7 @@ describe('buracle uninstall', () => {
       const io = memoryIO({ ttyOut: true })
       expect(await uninstallRun(['--yes'], io)).toBe(0)
       const lines = strip(io.out()).split('\n').filter(l => l.trim() !== '')
-      expect(lines[0]).toBe(`  ◉ buracle v${cliVersion()} · uninstall`)
+      expect(lines[0]).toBe(`  ◉ buracle stack v${cliVersion()} · uninstall`)
       expect(lines.some(l => /^ {2}✔ Removed \d+ change\(s\)/.test(l))).toBe(true)
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
       const piped = memoryIO()
@@ -102,7 +102,7 @@ describe('buracle uninstall', () => {
     }))
   }))
 
-  test('removes what Buracle wrote, undoes its commands once, keeps user data and the vault', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('removes what Buracle Stack wrote, undoes its commands once, keeps user data and the vault', () => withSandbox(async ({ root, home, buracleHome }) => {
     const env = setup(root, home)
     mkdirSync(join(home, '.codex'), { recursive: true })
     writeFileSync(join(home, '.codex/settings.json'), '{"theme":"dark"}\n')
@@ -125,7 +125,7 @@ describe('buracle uninstall', () => {
 
       const again = memoryIO()
       expect(await uninstallRun(['--yes'], again)).toBe(0)
-      expect(again.out()).toContain('Nothing owned by Buracle needed removing.')
+      expect(again.out()).toContain('Nothing owned by Buracle Stack needed removing.')
       expect(read(env.log)).toBe('add plugin\nremove plugin\n')
     })
   }))
@@ -172,7 +172,7 @@ describe('buracle uninstall', () => {
     })
   }))
 
-  test('--purge-state removes Buracle state but keeps config.yaml and the vault; a failed undo blocks the purge', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('--purge-state removes Buracle Stack state but keeps config.yaml and the vault; a failed undo blocks the purge', () => withSandbox(async ({ root, home, buracleHome }) => {
     const env = setup(root, home)
     let failUndo = true
     const codex = fakeAdapter('codex', {
@@ -223,7 +223,7 @@ describe('buracle uninstall', () => {
         const out = memoryIO({ json: true })
         expect(await uninstallRun(['--yes', '--purge-state', '--json'], out)).toBe(2)
         expect(readdirSync(shared)).toEqual(['notes.txt'])
-        expect((JSON.parse(out.out()) as { purgeKept: string[] }).purgeKept).toContain('~/tools/context-mode (not Buracle\'s: notes.txt)')
+        expect((JSON.parse(out.out()) as { purgeKept: string[] }).purgeKept).toContain('~/tools/context-mode (not Buracle Stack\'s: notes.txt)')
       })
     })
   }))
@@ -257,8 +257,8 @@ describe('buracle uninstall', () => {
         expect(readdirSync(join(tools, 'runtime'))).toEqual(['my-notes.txt'])
         expect(readdirSync(join(tools, 'cache'))).toEqual(['other.json'])
         const kept = (JSON.parse(io.out()) as { purgeKept: string[] }).purgeKept
-        expect(kept).toContain('~/tools/runtime (not Buracle\'s: my-notes.txt)')
-        expect(kept).toContain('~/tools/cache (not Buracle\'s: other.json)')
+        expect(kept).toContain('~/tools/runtime (not Buracle Stack\'s: my-notes.txt)')
+        expect(kept).toContain('~/tools/cache (not Buracle Stack\'s: other.json)')
         expect(kept.filter(k => k.includes('mcp'))).toEqual([])
         for (const gone of [join(tools, 'state', 'mcp-cache'), join(tools, 'run', 'mcp'), join(tools, 'logs', 'mcp-web-search.log')]) expect(existsSync(gone)).toBe(false)
       })
@@ -327,7 +327,7 @@ describe('buracle uninstall', () => {
       const before = omp.calls.filter(c => c === 'uninstallPlan').length
       const again = memoryIO()
       expect(await uninstallRun(['--yes'], again)).toBe(0)
-      expect(again.out()).toContain('Nothing owned by Buracle needed removing.')
+      expect(again.out()).toContain('Nothing owned by Buracle Stack needed removing.')
       expect(omp.calls.filter(c => c === 'uninstallPlan').length).toBe(before)
       expect(read(env.log)).toBe('link omp\nunlink omp\n')
       const rb = await rollbackTxn(installTxn)

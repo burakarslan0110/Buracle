@@ -633,7 +633,7 @@ describe('the live stream', () => {
     expect(w).toEqual({ at: 'x', op: 'write', layer: 'project', project: 'alpha', id: 'gotcha-a', kind: 'gotcha', region: 'warnings' })
     expect(parseEventLine(JSON.stringify({ at: 'x', op: 'write', layer: 'project', project: 'alpha', id: 'gotcha-a', by: 'buracle-reflect' }))?.by).toBe('buracle-reflect')
     expect(parseEventLine(JSON.stringify({ at: 'x', op: 'recall', layer: 'person', by: 'codex' }))).toEqual({ at: 'x', op: 'recall', layer: 'person', by: 'codex' })
-    for (const by of ['Buracle', 'buracle reflect', '<b>x</b>', '-x', 'x'.repeat(41), 7, null, ['codex']]) {
+    for (const by of ['Buracle Stack', 'buracle reflect', '<b>x</b>', '-x', 'x'.repeat(41), 7, null, ['codex']]) {
       expect(parseEventLine(JSON.stringify({ at: 'x', op: 'recall', layer: 'person', by }))).toEqual({ at: 'x', op: 'recall', layer: 'person' })
     }
     const alpha = { kind: 'project' as const, key: 'project:alpha', slug: 'alpha', ref: { layer: 'project' as const, db: '' } }

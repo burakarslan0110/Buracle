@@ -36,7 +36,7 @@ describe('F04: YAML merge keys and aliases are the user\'s values', () => {
     const p = join(sb.home, '.omp', 'agent', 'config.yml')
     write(p, anchored)
     const r = await applyPlans([plan([{ kind: 'yaml-merge', path: p, set: { 'tools.approvalMode': 'write', 'memory.backend': 'off' }, owner: 'omp' }])])
-    expect(r.conflicts.map(c => c.detail)).toEqual([`${p} tools.approvalMode: tools.approvalMode is inherited through a YAML merge key (<<: *anchor); Buracle does not override inherited values; keeping the user's value`])
+    expect(r.conflicts.map(c => c.detail)).toEqual([`${p} tools.approvalMode: tools.approvalMode is inherited through a YAML merge key (<<: *anchor); Buracle Stack does not override inherited values; keeping the user's value`])
     expect((Bun.YAML.parse(read(p)) as { tools: unknown }).tools).toEqual({ approvalMode: 'always-ask', bash: { timeout: 120 } })
     expect((yamlParse(read(p)) as { memory: unknown }).memory).toEqual({ backend: 'off' })
     expect((await readLedger())[ledgerKey(p, 'tools.approvalMode')]).toBeUndefined()
@@ -57,7 +57,7 @@ describe('F04: YAML merge keys and aliases are the user\'s values', () => {
 })
 
 describe('F07: an in-process rollback never discards what someone else changed meanwhile', () => {
-  test('a merged file: only Buracle\'s key is undone; a concurrent writer\'s keys survive', () => withSandbox(async (sb) => {
+  test('a merged file: only Buracle Stack\'s key is undone; a concurrent writer\'s keys survive', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "model": "opus"\n}\n')
     const timer = setTimeout(() => {
@@ -206,7 +206,7 @@ describe('F13: items the user removed stay removed', () => {
     const r = await applyPlans([plan(ops)])
     expect(r.applied).toBe(0)
     expect(r.conflicts).toHaveLength(4)
-    for (const c of r.conflicts) expect(c.detail).toContain('removed since Buracle installed it; not re-creating it')
+    for (const c of r.conflicts) expect(c.detail).toContain('removed since Buracle Stack installed it; not re-creating it')
     expect(read(settings)).toBe('{\n  "model": "opus"\n}\n')
     expect(read(toml)).toBe('model = "x"\n')
     expect(existsSync(md)).toBe(false)
@@ -312,7 +312,7 @@ describe('F06: an interrupted transaction', () => {
     }
   }, 60_000)
 
-  test('after SIGKILL, recovery undoes Buracle\'s keys in a file the command rewrote; the next install owns its value (not adopted)', () => withSandbox(async (sb) => {
+  test('after SIGKILL, recovery undoes Buracle Stack\'s keys in a file the command rewrote; the next install owns its value (not adopted)', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "model": "opus"\n}\n')
     const op: Op = { kind: 'json-merge', path: p, set: { statusLine: STATUS }, owner: O }
@@ -336,7 +336,7 @@ describe('F06: an interrupted transaction', () => {
     expect(JSON.parse(read(p))).toEqual({ model: 'opus' })
   }), 30_000)
 
-  test('a value recovery cannot undo stays recorded as Buracle\'s (pending), so it is never adopted', () => withSandbox(async (sb) => {
+  test('a value recovery cannot undo stays recorded as Buracle Stack\'s (pending), so it is never adopted', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "model": "opus"\n}\n')
     const op: Op = { kind: 'json-merge', path: p, set: { statusLine: STATUS }, owner: O }
@@ -360,7 +360,7 @@ describe('F06: an interrupted transaction', () => {
 })
 
 describe('rollbackTxn after the user edited a merged file', () => {
-  test('Buracle\'s keys are undone; the user\'s later edits stay', () => withSandbox(async (sb) => {
+  test('Buracle Stack\'s keys are undone; the user\'s later edits stay', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "model": "opus"\n}\n')
     const r = await applyPlans([plan([{ kind: 'json-merge', path: p, set: { statusLine: STATUS, 'env.A': '1' }, owner: O }])])
@@ -440,7 +440,7 @@ describe('F12: a lost ownership ledger', () => {
     expect(JSON.parse(read(p))).toEqual({})
   }))
 
-  test('takeOwnership records values equal to Buracle\'s as Buracle\'s (when no journal is left)', () => withSandbox(async (sb) => {
+  test('takeOwnership records values equal to Buracle Stack\'s as Buracle Stack\'s (when no journal is left)', () => withSandbox(async (sb) => {
     const f = join(sb.home, '.codex', 'rules', 'buracle.rules')
     write(f, 'rules\n')
     await applyPlans([plan([{ kind: 'file', path: f, content: 'rules\n', owner: 'codex' }])], { takeOwnership: true })

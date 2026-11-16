@@ -446,7 +446,7 @@ describe('update in a terminal: one header line, the shared symbols; a pipe keep
       await withEnv({ PATH: narrowPath(bin), ...{ TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined } }, async () => {
         const io = memoryIO({ tty: true, liveErr: true, ttyOut: true })
         expect(await updateRun(['tools'], io)).toBe(0)
-        expect(strip(io.err()).split('\n').find(l => l.trim() !== '')).toBe(`  ◉ buracle v${cliVersion()} · update`)
+        expect(strip(io.err()).split('\n').find(l => l.trim() !== '')).toBe(`  ◉ buracle stack v${cliVersion()} · update`)
         expect(strip(io.out())).toBe('\n  ✔ 1 updated · 0 skipped · 0 failed\n')
       })
     })
@@ -461,7 +461,7 @@ describe('update in a terminal: one header line, the shared symbols; a pipe keep
         const io = memoryIO({ tty: true, liveErr: true, ttyOut: true })
         expect(await updateRun(['tools'], io)).toBe(0)
         expect(io.err() + io.out()).not.toContain('\u001b')
-        expect(io.out().split('\n').find(l => l.trim() !== '')).toBe(`  buracle v${cliVersion()} · update`)
+        expect(io.out().split('\n').find(l => l.trim() !== '')).toBe(`  buracle stack v${cliVersion()} · update`)
         expect(io.out()).toContain('  + applied  tools rg')
       })
     })

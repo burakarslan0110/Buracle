@@ -3,10 +3,10 @@ import { catalogMcp, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 
 export const OWNER = 'agy'
 
-/** The one named hook of hooks.json that Buracle owns; the user's own hooks are other names and stay. */
+/** The one named hook of hooks.json that Buracle Stack owns; the user's own hooks are other names and stay. */
 export const HOOK_NAME = 'buracle'
 
-/** The one command every hook runs; the event is its only argument, so the entries survive Buracle updates. */
+/** The one command every hook runs; the event is its only argument, so the entries survive Buracle Stack updates. */
 export const HOOK_COMMAND_PREFIX = '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" hook agy '
 
 /**
@@ -81,12 +81,12 @@ export function agyMcpServers(c: Pick<CanonicalBundle, 'mcp'>, buracle: string):
   return out
 }
 
-/** The files `harness/agy/` shows: what Buracle owns in hooks.json and in mcp_config.json (`{buracle}` stands for the shim's path). */
+/** The files `harness/agy/` shows: what Buracle Stack owns in hooks.json and in mcp_config.json (`{buracle}` stands for the shim's path). */
 export function hooksFragment(c: Pick<CanonicalBundle, 'hooks'>): string {
   return JSON.stringify({ [HOOK_NAME]: agyHooks(c) }, null, 2) + '\n'
 }
 
-/** What Buracle owns in AGY's settings.json (`~/.gemini/antigravity-cli/settings.json`). */
+/** What Buracle Stack owns in AGY's settings.json (`~/.gemini/antigravity-cli/settings.json`). */
 export function settingsFragment(): string {
   return JSON.stringify({ statusLine: STATUS_LINE_VALUE }, null, 2) + '\n'
 }

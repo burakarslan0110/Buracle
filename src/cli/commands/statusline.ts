@@ -33,7 +33,7 @@ Options:
   --width N   columns available (default: $COLUMNS - 1, else 120); segments are shortened, then
               dropped, lowest priority first
   --format    ansi (default) or plain
-  --style     buracle (two lines: model/context/usage/git and Buracle/harness/memory UI, with the
+  --style     buracle (two lines: model/context/usage/git and Buracle Stack/harness/memory UI, with the
               running workflow between them while one runs), full or compact
               segment rows (default: config statusline.style)
   --json      {harness, quiet, text, rows, bar} instead of text`

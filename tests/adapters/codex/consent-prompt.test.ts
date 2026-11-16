@@ -136,7 +136,7 @@ describe('Codex H20: a held command asks in Codex\'s own approval prompt', () =>
     expect(await Bun.file(join(root, 'done.txt')).text()).toBe('ok\n')
     const again = io()
     expect(await runConsent(['run', ID, "echo 'ok' > done.txt"], again, Date.now(), CODEX_ENV)).toBe(1)
-    expect(again.err()).toContain('Buracle holds no such command')
+    expect(again.err()).toContain('Buracle Stack holds no such command')
   }))
 
   test('consent run refuses a question that never reached the user, a changed command and an expired one', () => withSandbox(async () => {
@@ -188,12 +188,12 @@ describe('Codex H20: a held command asks in Codex\'s own approval prompt', () =>
     ]) {
       const r = out((await handleCodexHook('PreToolUse', bash(c), hctx(), withId(ID, guarded))).stdout)
       expect({ c, decision: r['permissionDecision'] }).toEqual({ c, decision: 'deny' })
-      expect(String(r['permissionDecisionReason'])).toStartWith('Buracle H01: `buracle consent run` is Buracle\'s own wrapper')
+      expect(String(r['permissionDecisionReason'])).toStartWith('Buracle Stack H01: `buracle consent run` is Buracle Stack\'s own wrapper')
     }
     expect(out((await handleCodexHook('PreToolUse', bash('npm publish'), hctx(), withId('dddddddddddd'))).stdout)['permissionDecision']).toBe('allow')
     const retry = out((await handleCodexHook('PreToolUse', bash('npm publish'), hctx(), withId('eeeeeeeeeeee'))).stdout)
     expect(retry['permissionDecision']).toBe('deny')
-    expect(String(retry['permissionDecisionReason'])).toContain('Buracle H20')
+    expect(String(retry['permissionDecisionReason'])).toContain('Buracle Stack H20')
   }))
 
   test('a declined question is spent: the next PreToolUse whose rollout shows the call\'s result drops the hold, so no wrapper can redeem it', () => withSandbox(async ({ root }) => {
@@ -203,7 +203,7 @@ describe('Codex H20: a held command asks in Codex\'s own approval prompt', () =>
     expect(readConsentAsk(ID)).toBeUndefined()
     const t = io()
     expect(await runConsent(['run', ID, 'git push origin main'], t, Date.now(), CODEX_ENV)).toBe(1)
-    expect(t.err()).toContain('Buracle holds no such command')
+    expect(t.err()).toContain('Buracle Stack holds no such command')
   }))
 
   test('a hold still waiting for the user survives a parallel call\'s PreToolUse; the turn\'s end, the next prompt or a missing rollout drop it', () => withSandbox(async ({ root }) => {
@@ -243,12 +243,12 @@ describe('Codex H20: a held command asks in Codex\'s own approval prompt', () =>
     try {
       expect(await runConsent(['run', ID, forged], t, now, CODEX_ENV)).toBe(1)
     } finally { process.chdir(cwd) }
-    expect(t.err()).toContain('nothing ran, because Buracle H01 refuses it')
+    expect(t.err()).toContain('nothing ran, because Buracle Stack H01 refuses it')
     expect(existsSync(marker)).toBe(false)
     expect(existsSync(paths.home())).toBe(true)
   }))
 
-  test('MCP approvals are answered allow while permissions.bypass is on and Buracle\'s policy is live (as approval_policy "never" did); other Bash prompts stay the user\'s', () => withSandbox(async () => {
+  test('MCP approvals are answered allow while permissions.bypass is on and Buracle Stack\'s policy is live (as approval_policy "never" did); other Bash prompts stay the user\'s', () => withSandbox(async () => {
     const config = join(paths.codexHome(), 'config.toml')
     mkdirSync(paths.codexHome(), { recursive: true })
     writeFileSync(config, 'approval_policy = "on-request"\n')

@@ -52,7 +52,7 @@ function explained(rel: string, line: string): number {
 
 // Sentences that bound a document, a heading, a report or a review to English, or that asked for a
 // diagram in a chat reply. A document, a report and a review follow the user's language with only the
-// markers Buracle reads in English (PRD 2026-11-06), and a reply shows a flow as a list or a table.
+// markers Buracle Stack reads in English (PRD 2026-11-06), and a reply shows a flow as a list or a table.
 const DOCUMENT_BINDINGS: ReadonlyArray<RegExp> = [
   /\bis English\b/,
   /English section titles/,

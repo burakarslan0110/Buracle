@@ -43,7 +43,7 @@ describe('canonical/statusline.yaml', () => {
     }
   })
 
-  test('rows only use Buracle segment ids or window labels', () => {
+  test('rows only use Buracle Stack segment ids or window labels', () => {
     const known = new Set<string>([...SEGMENT_IDS, ...WINDOW_LABELS])
     for (const h of HARNESSES) {
       const l = doc[h] as StatusLayout
@@ -58,7 +58,7 @@ describe('canonical/statusline.yaml', () => {
     expect(doc.claude?.compact?.length).toBe(1)
   })
 
-  test('O3: every layout (rows and compact) carries Buracle\'s hook health, which shows only while something is wrong', () => {
+  test('O3: every layout (rows and compact) carries Buracle Stack\'s hook health, which shows only while something is wrong', () => {
     for (const h of HARNESSES) {
       const l = doc[h] as StatusLayout
       for (const [which, rowsOf] of [['rows', l.rows], ['compact', l.compact]] as const) {

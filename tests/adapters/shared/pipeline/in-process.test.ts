@@ -30,7 +30,7 @@ describe('pipeline: a harness in its own process', () => {
     const verdict = await usageVerdict({ call: call() }, d, mcpHealth(d.ctx, H, NOW))
     expect(verdict).toEqual({ context: 'load the skill' })
     expect(await preTool({ call: call(), now: NOW, subagent: false, usage: verdict }, d)).toEqual({ action: 'allow', context: ['load the skill'] })
-    expect(await preTool({ call: call(), now: NOW, subagent: false, usage: { deny: 'Buracle: read the path rule first' } }, d)).toEqual({ action: 'deny', hook: 'H03', reason: 'Buracle H03: read the path rule first' })
+    expect(await preTool({ call: call(), now: NOW, subagent: false, usage: { deny: 'Buracle Stack: read the path rule first' } }, d)).toEqual({ action: 'deny', hook: 'H03', reason: 'Buracle Stack H03: read the path rule first' })
     expect({ counted, turn: loadLedger(H, SID).turn }).toEqual({ counted: 1, turn: 1 })
   }))
 
@@ -54,7 +54,7 @@ describe('pipeline: a harness in its own process', () => {
     expect((await sessionStart(input, { ...fakeDeps(o), ...ports, version: () => '9.9.0' })).notice?.user).toContain('Hello from a newer build.')
   })))
 
-  test('the bash guard gets the Buracle repository the command runs in, and fails closed when it cannot be found', () => withSandbox(async () => {
+  test('the bash guard gets the Buracle Stack repository the command runs in, and fails closed when it cannot be found', () => withSandbox(async () => {
     const seen: Array<string | undefined> = []
     const core = { checkBash: (_c: string, o?: BashGuardOptions) => { seen.push(o?.buracleRepo); return {} } }
     await preTool({ call: call(), now: NOW, subagent: false, usage: false }, preToolDeps({ core }, {}))

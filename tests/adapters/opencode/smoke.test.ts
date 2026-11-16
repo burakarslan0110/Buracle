@@ -248,7 +248,7 @@ describe('opencode smoke (real binary, isolated)', () => {
       const specText = lastUserText(specReq)
       expect(specText).toContain('<skill_content name="plan-build">')
       expect(JSON.stringify(specReq['tools'] ?? [])).toContain('"todowrite"')
-      expect(specText).toContain('Run this with the Buracle plan-build workflow')
+      expect(specText).toContain('Run this with the Buracle Stack plan-build workflow')
       await until(() => latestWindows('opencode', Date.now()).length === 2, 15_000)
       expect(latestWindows('opencode', Date.now()).map(w => `${w.label} ${w.pct}`)).toEqual(['5h 42', '7d 18'])
 
@@ -256,12 +256,12 @@ describe('opencode smoke (real binary, isolated)', () => {
       await api(server, 'POST', `/api/session/${s2}/prompt`, project, { text: '$research compare bun and node for scripts' })
       const askReq = await requestWith(provider, t => t.includes('compare bun and node for scripts'))
       expect(lastUserText(askReq)).toContain('<skill_content name="research">')
-      expect(systemTexts(askReq).join('\n')).toContain('Buracle routing for this prompt:')
+      expect(systemTexts(askReq).join('\n')).toContain('Buracle Stack routing for this prompt:')
       expect(readFlow('opencode', s2)?.stack[0]).toMatchObject({ workflow: 'research', source: 'prompt' })
 
       const s4 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s4}/prompt`, project, { text: `${REVIEW_MARK} please` })
-      await until(() => provider.requests.some(r => primary(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle H19: the plan-build-review report is not valid review JSON')), 30_000)
+      await until(() => provider.requests.some(r => primary(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle Stack H19: the plan-build-review report is not valid review JSON')), 30_000)
 
       const s5 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s5}/prompt`, project, { text: `${BUSY_MARK} please start` })
@@ -290,7 +290,7 @@ describe('opencode smoke (real binary, isolated)', () => {
   }), 180_000)
 
   test.skipIf(!available)('H20 without a TUI (opencode serve): the denial names the question tool; "Allow once" in the question form records the grant and the retried push runs', () => withSandbox(async ({ root, home, buracleHome }) => {
-    const question = 'Buracle consent: `git push origin main` pushes to a remote. Run it?'
+    const question = 'Buracle Stack consent: `git push origin main` pushes to a remote. Run it?'
     const push = { command: 'git push origin main', description: 'Push the branch' }
     const { project, provider, server } = await launch(root, home, buracleHome, [
       { when: t => t.includes('PUSH_FIRST'), name: 'shell', input: push, then: { name: 'question', input: { questions: [{ question, header: 'Consent', options: CONSENT_OPTIONS.map(label => ({ label, description: label })) }] } } },
@@ -309,7 +309,7 @@ describe('opencode smoke (real binary, isolated)', () => {
     try {
       const sid = await newSession(server, project)
       const denied = await resultAfter(await prompt(sid, 'PUSH_FIRST please'))
-      expect(denied).toContain('Buracle H20: ')
+      expect(denied).toContain('Buracle Stack H20: ')
       expect(denied).toContain('call the `question` tool')
       let forms: any[] = []
       for (let i = 0; i < 120 && forms.length === 0; i++) {
@@ -323,7 +323,7 @@ describe('opencode smoke (real binary, isolated)', () => {
       await until(() => readConsentState('opencode', sid).grants.length > 0, 15_000)
       expect(readConsentState('opencode', sid).grants.map(g => [g.kind, g.source])).toEqual([['push', 'ask']])
       const ran = await resultAfter(await prompt(sid, 'PUSH_AGAIN please'))
-      expect(ran).not.toContain('Buracle H20')
+      expect(ran).not.toContain('Buracle Stack H20')
       expect(ran.toLowerCase()).toContain('not a git repository')
     } catch (e) {
       throw new Error(`${e instanceof Error ? e.message : String(e)}\n--- opencode output ---\n${server.log().slice(-4000)}\n--- requests ---\n${provider.requests.map(r => `${r.path} ${lastUserText(r.body).slice(0, 160)} ${JSON.stringify((r.body?.['messages'] as unknown[] | undefined)?.slice(-1) ?? []).slice(0, 400)}`).join('\n')}`)
@@ -346,7 +346,7 @@ describe('opencode smoke (real binary, isolated)', () => {
   test.skipIf(!available)('PARITY-6: after an edit, the plugin asks the running `buracle lsp mcp` bridge and the tool result carries the language server\'s diagnostics of the edited file', () => withSandbox(async sb => {
     const content = 'package main\nvar y = 2 // ERROR: declared and not used: y\n'
     await withLspServer(sb, 'package main\n', [{ when: t => t.includes('LSP_EDIT'), name: 'write', input: { path: 'main.go', content }, offered: true }], async ({ provider, project, prompt }) => {
-      const answered = () => provider.requests.find(r => endsWithToolResult(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle language server diagnostics (H04)'))
+      const answered = () => provider.requests.find(r => endsWithToolResult(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle Stack language server diagnostics (H04)'))
       await prompt('LSP_EDIT write main.go', 'write', () => answered() !== undefined)
       expect(readFileSync(join(project, 'main.go'), 'utf8')).toBe(content)
       const seen = JSON.stringify(answered()?.body?.['messages'] ?? [])

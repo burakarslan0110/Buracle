@@ -20,8 +20,8 @@ const BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 /**
  * Links for the harness programs the user's shells cannot find by name. A harness installed with `bun add -g` (omp) sits
- * in ~/.bun/bin, which Homebrew's bun does not put on PATH, and Buracle's own checks find it there anyway; so `omp` ran
- * for Buracle and printed "command not found" for the user. Such a program gets a link in ~/.local/bin, the folder the
+ * in ~/.bun/bin, which Homebrew's bun does not put on PATH, and Buracle Stack's own checks find it there anyway; so `omp` ran
+ * for Buracle Stack and printed "command not found" for the user. Such a program gets a link in ~/.local/bin, the folder the
  * install already puts on PATH. A program PATH finds, or one that already lives in ~/.local/bin, needs none.
  */
 export function harnessLinks(

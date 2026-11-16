@@ -16,7 +16,7 @@ export const piProfile: HarnessProfile = {
   relocationEnv: ['PI_CODING_AGENT_DIR'],
   sessionEnv: ['PI_SESSION_ID'],
   protectedDirs: [{ key: 'piAgentDir', under: '.pi/agent', entries: ['settings.json', 'mcp.json', 'extensions/'] }],
-  selfText: { what: "Pi's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use Pi's own commands (`pi install …`, `pi remove …`, `pi mcp …`, `/mcp`)" },
+  selfText: { what: "Pi's own configuration, which loads Buracle Stack's guard extension", remedy: "ask the user to make this change themselves, or use Pi's own commands (`pi install …`, `pi remove …`, `pi mcp …`, `/mcp`)" },
   skills: {
     readsAgentsDir: true,
     readsClaudeUserDir: false,

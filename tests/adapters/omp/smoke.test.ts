@@ -47,7 +47,7 @@ function offlineAgentDir(sb: Sandbox): void {
   mkdirSync(agent, { recursive: true })
   writeFileSync(join(agent, 'models.yml'), [
     'providers:', '  buracle-smoke:', '    baseUrl: http://127.0.0.1:9/v1', '    apiKey: BURACLE_SMOKE_DUMMY_KEY', '    api: openai-completions',
-    '    models:', '      - id: offline', '        name: Buracle smoke (offline)', '        reasoning: false', '        input: [text]',
+    '    models:', '      - id: offline', '        name: Buracle Stack smoke (offline)', '        reasoning: false', '        input: [text]',
     '        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }', '        contextWindow: 200000', '        maxTokens: 1024', '',
   ].join('\n'))
   const ids = Object.keys(devContext(REPO).canonical.mcp.servers).filter(id => id !== 'buracle-memory')
@@ -159,7 +159,7 @@ async function planYolo(sb: Sandbox, userConfig: string | undefined): Promise<{ 
 }
 
 smoke('omp smoke (real binary, sandboxed)', () => {
-  test('H12: the plan-mode text and settings Buracle relies on are in this omp (the execution prompt, the approving tool results, the local:// root, plan.autosave)', () => {
+  test('H12: the plan-mode text and settings Buracle Stack relies on are in this omp (the execution prompt, the approving tool results, the local:// root, plan.autosave)', () => {
     const bin = readFileSync(realpathSync(OMP as string))
     for (const text of [`${OMP_PLAN_APPROVED}\n{{#if contextPreserved}}`, `${OMP_PLAN_OPEN}{{planFilePath}}">\n{{planContent}}\n${OMP_PLAN_CLOSE}`, 'Plan approved. Implementing now with ', 'Plan approved at ', 'planExists: true', 'sessionManager: this.sessionManager,', 'Session-scoped scratch space for large intermediate data', 'Invalid URL encoding in local:// path', 'id: "plan.autosave"', 'id: "plan.autosaveDir"', 'Empty uses <project>/.omp/plans/.']) {
       expect({ text, found: bin.includes(Buffer.from(text, 'utf8')) }).toEqual({ text, found: true })
@@ -212,7 +212,7 @@ smoke('omp smoke (real binary, sandboxed)', () => {
       const names = frames.find(f => f.id === 'c1' && f.type === 'response')?.data?.commands?.map(c => c.name) ?? []
       for (const n of [...ompCommandNames(ctx.canonical), ...OMP_UTILITY_COMMANDS]) expect(names).toContain(n)
       const notices = frames.filter(f => f.type === 'extension_ui_request' && f.method === 'notify').map(f => f.message ?? '')
-      expect(notices[0]).toStartWith(`Buracle ${buracleVersion(REPO)} · Oh My Pi`)
+      expect(notices[0]).toStartWith(`Buracle Stack ${buracleVersion(REPO)} · Oh My Pi`)
       expect(notices[0]?.split('\n')[0]).not.toMatch(/tested|minimum/i)
       expect(notices).toContain('Remembered: capture-smoke-note')
       expect(notices).toContain('Memory UI: http://127.0.0.1:41777')
@@ -255,7 +255,7 @@ smoke('omp smoke (real binary, sandboxed)', () => {
       const frames = await rpc(sb, [{ id: 's1', type: 'get_state' }], work)
       const system = JSON.stringify(frames.find(f => f.id === 's1' && f.type === 'response')?.data?.systemPrompt ?? '')
       expect(system).toContain('SHARED-MARKER-XYZ')
-      expect(system).toContain('Buracle is active through the')
+      expect(system).toContain('Buracle Stack is active through the')
       await rollbackTxn(first.txn)
     })
   }), 240_000)
@@ -388,7 +388,7 @@ smoke('omp smoke (real binary, sandboxed)', () => {
     expect(JSON.stringify(requests.at(-1)?.messages ?? [])).toContain('(H12)')
   }), 240_000)
 
-  test('H12 with --plan-yolo and Buracle\'s autosave keys: omp writes its copy into the staging folder, the plan is saved once and the identical copy is removed', () => withSandbox(async sb => {
+  test('H12 with --plan-yolo and Buracle Stack\'s autosave keys: omp writes its copy into the staging folder, the plan is saved once and the identical copy is removed', () => withSandbox(async sb => {
     const { files } = await planYolo(sb, undefined)
     expect(files.map(f => f.replace(/^\d{4}-\d{2}-\d{2}-/, ''))).toEqual(['add-a-cache.md'])
     const staging = paths.ompPlanStagingDir()

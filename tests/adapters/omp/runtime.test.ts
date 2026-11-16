@@ -55,9 +55,9 @@ describe('omp runtime: memory bridge', () => {
 
   test('contextText reads `buracle mem context --json`; failures yield undefined', async () => {
     const argvs: string[][] = []
-    let reply = { code: 0, stdout: JSON.stringify({ text: '# Buracle memory\n- x\n' }), stderr: '', timedOut: false }
+    let reply = { code: 0, stdout: JSON.stringify({ text: '# Buracle Stack memory\n- x\n' }), stderr: '', timedOut: false }
     const bridge = createMemoryBridge({ cli: () => ['bun', '/r/src/cli/main.ts'], run: async a => { argvs.push(a); return reply } })
-    expect(await bridge.contextText('/work')).toBe('# Buracle memory\n- x')
+    expect(await bridge.contextText('/work')).toBe('# Buracle Stack memory\n- x')
     expect(argvs).toEqual([['bun', '/r/src/cli/main.ts', 'mem', 'context', '--harness', 'omp', '--cwd', '/work', '--json']])
     reply = { code: 2, stdout: '', stderr: 'no vault', timedOut: false }
     expect(await bridge.contextText('/work')).toBeUndefined()
@@ -106,7 +106,7 @@ describe('omp runtime: live config and MCP health', () => {
     expect(other.source).toBe('defaults')
     expect(other.config).toEqual(d)
     expect(other.repoRoot).toBeUndefined()
-    expect(readFileSync(paths.logFile(), 'utf8')).toContain('runtime-config.json has version 2, this Buracle reads version 1')
+    expect(readFileSync(paths.logFile(), 'utf8')).toContain('runtime-config.json has version 2, this Buracle Stack reads version 1')
     expect(() => parseRuntimeConfig('[]', d)).toThrow(/expected an object/)
   }))
 

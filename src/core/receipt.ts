@@ -182,7 +182,7 @@ export function receiptLine(s: ReceiptState): ReceiptSummary | undefined {
     parts.push(lastCheck.failed ? '✗ last check failed' : '✓ checked')
     if (lastCheck.failed) warn = true
   }
-  return { line: `Buracle · ${parts.join(' · ')}`, warn }
+  return { line: `Buracle Stack · ${parts.join(' · ')}`, warn }
 }
 
 function text(x: unknown): string {

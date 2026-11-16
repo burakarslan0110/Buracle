@@ -102,7 +102,7 @@ describe('pathRuleNote', () => {
     expect(n?.inlined).toEqual(['typescript', 'backend'])
     expect(n?.pointed).toEqual(['mobile'])
     expect(n?.delivered).toEqual(['typescript', 'backend', 'mobile'])
-    expect(n?.text.startsWith('Buracle: src/api/a.ts matches the path rules `typescript`, `backend`, `mobile`')).toBe(true)
+    expect(n?.text.startsWith('Buracle Stack: src/api/a.ts matches the path rules `typescript`, `backend`, `mobile`')).toBe(true)
     expect(n?.text).toContain('retry the edit; the retry is allowed')
     expect(n?.text).toContain('`/h/.buracle/rules/paths/mobile.md`')
     expect(n?.text).not.toContain('paths: []')

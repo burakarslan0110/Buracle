@@ -37,7 +37,7 @@ async function installed(): Promise<void> {
 }
 
 describe(`the real agy program${NOTE}`, () => {
-  live('lists every MCP server Buracle wrote, enabled', () => withSandbox(async ({ home }) => {
+  live('lists every MCP server Buracle Stack wrote, enabled', () => withSandbox(async ({ home }) => {
     await installed()
     const list = await run([AGY as string, 'mcp', 'list'], { cwd: home, env: agyEnv(home), timeoutMs: 60_000 })
     expect(list.code).toBe(0)
@@ -77,6 +77,6 @@ describe(`the real agy program${NOTE}`, () => {
     const r = await run(['/bin/sh', '-c', command], { stdin: payload, cwd: join(home, '.gemini', 'config'), env: agyEnv(home), timeoutMs: 60_000 })
     expect(r.code).toBe(0)
     expect(JSON.parse(r.stdout)).toMatchObject({ decision: 'deny' })
-    expect(String((JSON.parse(r.stdout) as { reason: string }).reason)).toStartWith('Buracle H01: ')
+    expect(String((JSON.parse(r.stdout) as { reason: string }).reason)).toStartWith('Buracle Stack H01: ')
   }), 120_000)
 })

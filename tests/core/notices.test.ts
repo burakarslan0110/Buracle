@@ -32,9 +32,9 @@ describe('pendingNotices: what a session start still has to show', () => {
 describe('noticeTexts: one line for the user, one instruction for the model', () => {
   test('the user line names the version; the model is told to pass it on without asking', () => {
     const t = noticeTexts([{ id: 'x', since: '0.5.0', message: 'Projects\n  sync now.' }])
-    expect(t?.user).toBe('Buracle 0.5.0: Projects sync now.')
+    expect(t?.user).toBe('Buracle Stack 0.5.0: Projects sync now.')
     expect(t?.model.split('\n')).toEqual([
-      'Buracle notice, shown once on this machine. Tell the user in one short line at the start of your next reply, do not ask anything about it, and carry on with their request:',
+      'Buracle Stack notice, shown once on this machine. Tell the user in one short line at the start of your next reply, do not ask anything about it, and carry on with their request:',
       '- Projects sync now.',
     ])
     expect(noticeTexts([])).toBeUndefined()

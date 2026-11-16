@@ -16,7 +16,7 @@ const handler = (e: string, timeout: number, extra: Record<string, unknown> = {}
 const OURS: Record<string, unknown[]> = {
   PreToolUse: [{ matcher: 'Bash|apply_patch', hooks: [handler('PreToolUse', 10)] }],
   PostToolUse: [
-    { matcher: 'apply_patch', hooks: [handler('PostToolUse', 45, { statusMessage: 'Buracle: checking edited files' })] },
+    { matcher: 'apply_patch', hooks: [handler('PostToolUse', 45, { statusMessage: 'Buracle Stack: checking edited files' })] },
     { matcher: 'Bash', hooks: [handler('PostToolUse', 15, { async: true })] },
   ],
 }
@@ -156,7 +156,7 @@ describe('json-list-merge', () => {
     expect(read(p)).toBe(USER_HOOKS)
   }))
 
-  test("an update replaces Buracle's item in place; items it dropped go, new ones are appended", () => withSandbox(async (sb) => {
+  test("an update replaces Buracle Stack's item in place; items it dropped go, new ones are appended", () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'hooks.json')
     write(p, USER_HOOKS)
     await applyPlans([plan(listOps(p, OURS))])
@@ -176,18 +176,18 @@ describe('json-list-merge', () => {
     expect(items.map(i => i.id)).toEqual(v2Post.map(g => listIdentity(ID)(g) as string))
   }))
 
-  test('a user-modified item of Buracle is kept and reported, never duplicated; reverting it hands it back', () => withSandbox(async (sb) => {
+  test('a user-modified item of Buracle Stack is kept and reported, never duplicated; reverting it hands it back', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'hooks.json')
     await applyPlans([plan(listOps(p, { PreToolUse: OURS['PreToolUse'] ?? [] }))])
     const original = read(p)
     write(p, original.replace('"timeout": 10', '"timeout": 99'))
     const v2 = [{ matcher: 'Bash|apply_patch', hooks: [handler('PreToolUse', 12)] }]
     const r = await applyPlans([plan(listOps(p, { PreToolUse: v2 }))])
-    expect(r.conflicts.map(c => c.detail)).toEqual([expect.stringContaining('modified outside Buracle; keeping the user') as unknown as string])
+    expect(r.conflicts.map(c => c.detail)).toEqual([expect.stringContaining('modified outside Buracle Stack; keeping the user') as unknown as string])
     expect(hooksOf(p)['PreToolUse']?.length).toBe(1)
     expect(read(p)).toContain('"timeout": 99')
     const u = await applyPlans([plan(removeOps(p, ['PreToolUse']))])
-    expect(u.conflicts.map(c => c.detail)).toEqual([expect.stringContaining('was modified outside Buracle; not removing it') as unknown as string])
+    expect(u.conflicts.map(c => c.detail)).toEqual([expect.stringContaining('was modified outside Buracle Stack; not removing it') as unknown as string])
     expect(read(p)).toContain('"timeout": 99')
     expect((await readLedger())[listLedgerKey(p, 'hooks.PreToolUse')]).toBeDefined()
     write(p, original)
@@ -204,7 +204,7 @@ describe('json-list-merge', () => {
     expect((await readLedger())[listLedgerKey(p, 'hooks.PreToolUse')]?.items?.[0]?.adopted).toBe(true)
     const v2 = [{ matcher: 'Bash|apply_patch', hooks: [handler('PreToolUse', 12)] }]
     const upd = await applyPlans([plan(listOps(p, { PreToolUse: v2 }))])
-    expect(upd.conflicts.map(c => c.detail)).toEqual([expect.stringContaining('set by the user before Buracle') as unknown as string])
+    expect(upd.conflicts.map(c => c.detail)).toEqual([expect.stringContaining('set by the user before Buracle Stack') as unknown as string])
     expect(hooksOf(p)['PreToolUse']).toEqual(OURS['PreToolUse'])
     const before = read(p)
     const u = await applyPlans([plan(removeOps(p, ['PreToolUse']))])
@@ -213,7 +213,7 @@ describe('json-list-merge', () => {
     expect((await readLedger())[listLedgerKey(p, 'hooks.PreToolUse')]).toBeUndefined()
   }))
 
-  test("the user's own item with Buracle's identity is a conflict; nothing is added", () => withSandbox(async (sb) => {
+  test("the user's own item with Buracle Stack's identity is a conflict; nothing is added", () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'hooks.json')
     const theirs = { matcher: 'Bash|apply_patch', hooks: [handler('PreToolUse', 3)] }
     write(p, JSON.stringify({ hooks: { PreToolUse: [theirs] } }, null, 2) + '\n')
@@ -250,7 +250,7 @@ describe('json-list-merge', () => {
     expect(other.conflicts[0]?.detail).toContain('managed by codex, not opencode')
   }))
 
-  test('an empty item list removes what Buracle manages there', () => withSandbox(async (sb) => {
+  test('an empty item list removes what Buracle Stack manages there', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'hooks.json')
     write(p, USER_HOOKS)
     await applyPlans([plan(listOps(p, OURS))])
@@ -260,7 +260,7 @@ describe('json-list-merge', () => {
     expect(Object.keys(await readLedger()).filter(k => k.startsWith(p))).toEqual([])
   }))
 
-  test('hash identity: a changed item is a new item; it takes the place of the one Buracle no longer ships', () => withSandbox(async (sb) => {
+  test('hash identity: a changed item is a new item; it takes the place of the one Buracle Stack no longer ships', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'hooks.json')
     write(p, USER_HOOKS)
     const v1 = OURS['PostToolUse'] ?? []
@@ -275,7 +275,7 @@ describe('json-list-merge', () => {
     expect(hooksOf(p)['PostToolUse']).toBeUndefined()
   }))
 
-  test('F03: when a Buracle group changes its identity, the user\'s later groups keep their indexes (and so their /hooks trust)', () => withSandbox(async (sb) => {
+  test('F03: when a Buracle Stack group changes its identity, the user\'s later groups keep their indexes (and so their /hooks trust)', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'hooks.json')
     write(p, USER_HOOKS)
     const ours = OURS['PreToolUse'] ?? []

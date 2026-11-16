@@ -47,8 +47,8 @@ function questionsOf(input: Record<string, unknown>): Question[] {
   return out
 }
 
-export const QUESTION_PAUSE_NOTE = 'Buracle H09: the plan is running, not paused. If the answer to this question may come in a later turn, run `buracle plan pause --kind decision --reason "<question>"` first; after the answer, run `buracle plan resume`.'
-export const ASYNC_QUESTION_PAUSED = 'Buracle H09: this question returns before the user answers, so Buracle recorded a decision pause for it. The answer arrives as the user\'s next message: act on it and run `buracle plan resume`.'
+export const QUESTION_PAUSE_NOTE = 'Buracle Stack H09: the plan is running, not paused. If the answer to this question may come in a later turn, run `buracle plan pause --kind decision --reason "<question>"` first; after the answer, run `buracle plan resume`.'
+export const ASYNC_QUESTION_PAUSED = 'Buracle Stack H09: this question returns before the user answers, so Buracle Stack recorded a decision pause for it. The answer arrives as the user\'s next message: act on it and run `buracle plan resume`.'
 
 function clip(s: string, max: number): string {
   const t = s.replace(/\s+/g, ' ').trim()

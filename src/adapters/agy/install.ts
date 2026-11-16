@@ -8,7 +8,7 @@ import { agyPluginFiles, packageVersion, PLUGIN_DIR } from './plugin'
 export const hooksPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(ctx.paths.harnessConfigDir('agy'), 'hooks.json')
 export const mcpConfigPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(ctx.paths.harnessConfigDir('agy'), 'mcp_config.json')
 
-/** The folder of Buracle's plugin (rules and review agents) in the customization root. */
+/** The folder of Buracle Stack's plugin (rules and review agents) in the customization root. */
 export const pluginPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(ctx.paths.harnessConfigDir('agy'), PLUGIN_DIR)
 
 /** The CLI's own settings file sits beside the customization root (`~/.gemini/antigravity-cli/settings.json`; the root is `~/.gemini/config`). */
@@ -34,7 +34,7 @@ export async function agyInstallPlan(ctx: AdapterContext): Promise<Plan> {
   return { id: 'agy', harness: 'agy', ops }
 }
 
-/** Everything the ledger records as Buracle's in AGY's folder goes; a key or file the user changed is kept by the engine. */
+/** Everything the ledger records as Buracle Stack's in AGY's folder goes; a key or file the user changed is kept by the engine. */
 export async function agyUninstallPlan(_ctx: AdapterContext, opts: { ledger?: Ledger } = {}): Promise<Plan> {
   let ledger = opts.ledger
   if (ledger === undefined) {

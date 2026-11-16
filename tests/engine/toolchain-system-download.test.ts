@@ -73,7 +73,7 @@ describe('install sources with a download', () => {
   test('a package manager comes first; without one the pinned download is the source', () => {
     expect(installSources(node, 'linux', () => false, 'x64').map(s => s.kind)).toEqual(['download'])
     expect(installSources(node, 'linux', c => c === 'brew', 'x64').map(s => s.kind)).toEqual(['brew', 'download'])
-    expect(installSources(node, 'darwin', () => false, 'arm64').map(s => s.label)).toEqual([`node ${SYSTEM_TOOL_PINS.node.version} download (Buracle toolchain)`])
+    expect(installSources(node, 'darwin', () => false, 'arm64').map(s => s.label)).toEqual([`node ${SYSTEM_TOOL_PINS.node.version} download (Buracle Stack toolchain)`])
   })
 
   test('no pin for the platform: no download source; the advice stays the package manager command', () => {

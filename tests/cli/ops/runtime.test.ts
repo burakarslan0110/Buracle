@@ -71,7 +71,7 @@ describe('the frozen runtime', () => {
       expect(io.out()).toContain('Hooks and the CLI now run the runtime')
       const shim = join(buracleHome, 'bin', 'buracle')
       expect(await preToolUse(shim, 'claude', 'rm -rf ~')).toMatchObject({ code: 0, decision: 'deny' })
-      expect((await preToolUse(shim, 'claude', 'rm -rf ~')).reason).not.toContain('Buracle blocked this tool call')
+      expect((await preToolUse(shim, 'claude', 'rm -rf ~')).reason).not.toContain('Buracle Stack blocked this tool call')
       expect(runtimeHealth(repo).drift).toBe('current')
 
       const canonicalTs = join(repo, 'src', 'engine', 'canonical.ts')
@@ -80,7 +80,7 @@ describe('the frozen runtime', () => {
       for (const h of ['claude', 'codex']) {
         const deny = await preToolUse(shim, h, 'rm -rf ~')
         expect(deny.decision).toBe('deny')
-        expect(deny.reason).not.toContain('Buracle blocked this tool call')
+        expect(deny.reason).not.toContain('Buracle Stack blocked this tool call')
         expect((await preToolUse(shim, h, 'ls')).decision).not.toBe('deny')
       }
       const drift = runtimeHealth(repo)
@@ -131,7 +131,7 @@ describe('the frozen runtime', () => {
     try {
       const build = await procRun([SH, shim, 'build', '--check'], { timeoutMs: 30_000 })
       expect(build.code).toBe(1)
-      expect(build.stderr).toContain('no Buracle checkout was found')
+      expect(build.stderr).toContain('no Buracle Stack checkout was found')
       const rules = await procRun([SH, shim, 'rules', '--help'], { timeoutMs: 30_000 })
       expect(rules.code).toBe(0)
       expect(rules.stderr).toContain('running it from the live runtime')
@@ -151,7 +151,7 @@ describe('the frozen runtime', () => {
     writeFileSync(join(dir, 'src', 'cli', 'router.ts'), '<<<<<<< HEAD\n')
     const deny = await preToolUse(shim, 'claude', 'ls')
     expect(deny).toMatchObject({ code: 0, decision: 'deny' })
-    expect(deny.reason).toContain('Buracle blocked this tool call')
+    expect(deny.reason).toContain('Buracle Stack blocked this tool call')
     expect(deny.reason).toContain('buracle doctor')
     const stop = await procRun([SH, shim, 'hook', 'codex', 'Stop'], { stdin: '{}', timeoutMs: 30_000, env: PROBE_ENV })
     expect(stop.stdout).toBe('')
@@ -164,7 +164,7 @@ describe('the frozen runtime', () => {
     expect(runtimeDirOf(shimOf(buracleHome))).toBe(dir)
     const repaired = await preToolUse(shim, 'claude', 'rm -rf ~')
     expect(repaired.decision).toBe('deny')
-    expect(repaired.reason).not.toContain('Buracle blocked this tool call')
+    expect(repaired.reason).not.toContain('Buracle Stack blocked this tool call')
     writeFileSync(join(dir, 'src', 'cli', 'router.ts'), '<<<<<<< HEAD\n')
     renameSync(dir, `${dir}-gone`)
     expect((await preToolUse(shim, 'codex', 'ls')).decision).toBe('deny')

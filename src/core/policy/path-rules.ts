@@ -124,10 +124,10 @@ export function pathRuleNote(what: 'deny' | 'edit' | 'read', file: string, ids: 
   const rule = one ? 'the path rule' : 'the path rules'
   const it = one ? 'it' : 'them'
   const lead = what === 'deny'
-    ? `Buracle: ${file} matches ${rule} ${names}, which this session has not read yet. Follow ${it}, then retry the edit; the retry is allowed.`
+    ? `Buracle Stack: ${file} matches ${rule} ${names}, which this session has not read yet. Follow ${it}, then retry the edit; the retry is allowed.`
     : what === 'edit'
-      ? `Buracle: ${file} matches ${rule} ${names}; follow ${it} for this change.`
-      : `Buracle: ${file} matches ${rule} ${names}; follow ${it} when you change files like this one.`
+      ? `Buracle Stack: ${file} matches ${rule} ${names}; follow ${it} for this change.`
+      : `Buracle Stack: ${file} matches ${rule} ${names}; follow ${it} when you change files like this one.`
   const parts: string[] = [lead]
   const inlined: string[] = []
   const pointed: string[] = []

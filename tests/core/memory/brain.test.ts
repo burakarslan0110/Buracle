@@ -57,7 +57,7 @@ describe('record encoding', () => {
     expect(toCortexSave(item({ id: 'decision-y', title: 'Y' }))['metadata']).not.toHaveProperty('contradicted_at')
   })
 
-  test('a record without Buracle metadata is not a memory of Buracle', () => {
+  test('a record without Buracle Stack metadata is not a memory of Buracle Stack', () => {
     expect(fromCortex({ id: 'x', content: 'y', metadata: { kind: 'memory' } }, 'project')).toBeUndefined()
   })
 

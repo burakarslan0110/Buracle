@@ -38,7 +38,7 @@ describe('omp extension: registration', () => {
       expect(fp.handlers.get(ev)?.length ?? 0).toBe(1)
     }
     expect([...fp.commands.keys()].sort()).toEqual(['aside', 'brain', 'buracle', 'buracle-ping', 'buracle-status', 'remember'])
-    expect(fp.labels).toEqual(['Buracle'])
+    expect(fp.labels).toEqual(['Buracle Stack'])
   }))
 })
 
@@ -55,9 +55,9 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     } })
     const bash = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'ls' } }, ctx) as { block?: boolean, reason?: string }
     expect(bash.block).toBe(true)
-    expect(bash.reason).toStartWith('Buracle H01: the bash guard could not check this command (boom)')
+    expect(bash.reason).toStartWith('Buracle Stack H01: the bash guard could not check this command (boom)')
     const write = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'write', input: { path: 'a.ts', content: 'x' } }, ctx) as { block?: boolean, reason?: string }
-    expect(write.reason).toStartWith('Buracle H02: the write guard could not check the files of this edit (boom)')
+    expect(write.reason).toStartWith('Buracle Stack H02: the write guard could not check the files of this edit (boom)')
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'ask', input: { questions: [] } }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '4', toolName: 'web_search', input: { query: 'x' } }, ctx)).toBeUndefined()
   }))
@@ -70,15 +70,15 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: null }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'edit', input: { edits: 'nope' } }, ctx)).toBeUndefined()
-    expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'bash', input: { command: 'rm -rf /' } }, ctx)).toEqual({ block: true, reason: 'Buracle H01: no' })
+    expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'bash', input: { command: 'rm -rf /' } }, ctx)).toEqual({ block: true, reason: 'Buracle Stack H01: no' })
     expect(seen).toEqual([{ ...testGenerated().config.guards.bash, home: sb.home, selfPaths: sandboxSelfPaths(sb), cwd, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], realpath: expect.any(Function) }])
   }))
 
-  test('H01 blocks a denied shell command with a Buracle reason', () => withSandbox(async sb => {
+  test('H01 blocks a denied shell command with a Buracle Stack reason', () => withSandbox(async sb => {
     const seen: string[] = []
     const { fp, ctx } = setup(sb, { policy: { ...testDeps().deps.policy!, checkBash: (cmd: string) => { seen.push(cmd); return cmd.includes('push --force') ? { deny: 'force push to the default branch' } : {} }, routeTool: () => ({ action: 'allow' }) } })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'git push --force origin main' } }, ctx))
-      .toEqual({ block: true, reason: 'Buracle H01: force push to the default branch' })
+      .toEqual({ block: true, reason: 'Buracle Stack H01: force push to the default branch' })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'bash', input: { command: 'ls -la' } }, ctx)).toBeUndefined()
     expect(seen).toEqual(['git push --force origin main', 'ls -la'])
   }))
@@ -87,7 +87,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     const { fp, ctx } = setup(sb, { policy: { ...testDeps().deps.policy!, checkBash: () => ({}), routeTool: () => ({ action: 'allow' }), detectIntent: () => null, isGuardContinuation: () => false } })
     const held = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'git push origin main' } }, ctx) as { block?: boolean, reason?: string }
     expect(held.block).toBe(true)
-    expect(held.reason).toStartWith('Buracle H20: ')
+    expect(held.reason).toStartWith('Buracle Stack H20: ')
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'bash', input: { command: 'git status' } }, ctx)).toBeUndefined()
     await fp.emit('input', { type: 'input', text: 'evet, pushla' }, ctx)
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'bash', input: { command: 'git push origin main' } }, ctx)).toBeUndefined()
@@ -97,12 +97,12 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     let got: unknown
     const { fp, ctx, cwd } = setup(sb, { policy: { ...testDeps().deps.policy!, checkWrite: (paths: string[], c: unknown) => { got = { paths, c }; return paths.some(p => /[\\/]\.env$/.test(p)) ? { deny: 'secrets file' } : {} }, routeTool: () => ({ action: 'allow' }) } })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'write', input: { path: '.env', content: 'A=1' } }, ctx))
-      .toEqual({ block: true, reason: 'Buracle H02: secrets file' })
+      .toEqual({ block: true, reason: 'Buracle Stack H02: secrets file' })
     expect(got).toEqual({ paths: [join(cwd, '.env')], c: { cwd, home: sb.home, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], realpath: expect.any(Function), selfPaths: sandboxSelfPaths(sb), parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } } })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'edit', input: { path: 'src/a.ts', edits: [] } }, ctx)).toBeUndefined()
   }))
 
-  test('H02 passes buracleRepo inside a Buracle checkout (CONTRACTS §5.2), with the configured repo as a hint', () => withSandbox(async sb => {
+  test('H02 passes buracleRepo inside a Buracle Stack checkout (CONTRACTS §5.2), with the configured repo as a hint', () => withSandbox(async sb => {
     const contexts: unknown[] = []
     const asked: unknown[] = []
     const live = (d: Parameters<ExtensionDeps['config']>[0]) => ({ config: d, vault: '/v', shim: '/s', repoRoot: '/configured/buracle', source: 'runtime-config' as const })
@@ -116,7 +116,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     expect(contexts).toEqual([{ cwd, home: sb.home, vault: '/v', protect: [], realpath: expect.any(Function), selfPaths: sandboxSelfPaths(sb), buracleRepo: '/repo/buracle', parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } }])
   }))
 
-  test('H02 with the real guard and repo lookup: all of harness/** is protected in a Buracle checkout only', () => withSandbox(async sb => {
+  test('H02 with the real guard and repo lookup: all of harness/** is protected in a Buracle Stack checkout only', () => withSandbox(async sb => {
     const repo = join(sb.root, 'buracle-clone')
     mkdirSync(join(repo, '.git'), { recursive: true })
     writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'buracle' }))
@@ -139,9 +139,9 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
       policy: { ...testDeps().deps.policy!, routeTool: () => ({ action: 'allow' }) },
     })
     const py = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'eval', input: { language: 'py', code: "import shutil,os; shutil.rmtree(os.path.expanduser('~/Documents'))" } }, ctx)
-    expect(py).toEqual({ block: true, reason: 'Buracle H01: the cell deletes or overwrites protected files' })
+    expect(py).toEqual({ block: true, reason: 'Buracle Stack H01: the cell deletes or overwrites protected files' })
     const js = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'eval', input: { code: "require('fs').writeFileSync('.env','X=1')" } }, ctx)
-    expect(js).toEqual({ block: true, reason: 'Buracle H01: the cell deletes or overwrites protected files' })
+    expect(js).toEqual({ block: true, reason: 'Buracle Stack H01: the cell deletes or overwrites protected files' })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'eval', input: { language: 'js', code: '1 + 1' } }, ctx)).toBeUndefined()
     expect(seen.map(x => x.language)).toEqual(['py', 'js', 'js'])
     expect(seen[0]?.ctx).toMatchObject({ cwd, home: sb.home, protect: [] })
@@ -152,7 +152,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
       const { fp, ctx } = setup(sb, { evalGuard, policy: { ...testDeps().deps.policy!, routeTool: () => ({ action: 'allow' }) } })
       const r = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'eval', input: { language: 'py', code: 'print(1)' } }, ctx) as { block?: boolean, reason?: string }
       expect(r.block).toBe(true)
-      expect(r.reason).toStartWith('Buracle H01: the bash guard could not check this command')
+      expect(r.reason).toStartWith('Buracle Stack H01: the bash guard could not check this command')
     }
   }))
 
@@ -161,10 +161,10 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     const call = (input: Record<string, unknown>) => fp.emit('tool_call', { type: 'tool_call', toolCallId: 'x', toolName: 'eval', input }, ctx) as Promise<{ block?: boolean } | undefined>
     const env = await call({ language: 'js', code: "require('fs').writeFileSync('.env', 'X=1')" }) as { block?: boolean, reason?: string } | undefined
     expect(env?.block).toBe(true)
-    expect(env?.reason).toStartWith('Buracle H02:')
+    expect(env?.reason).toStartWith('Buracle Stack H02:')
     const rm = await call({ language: 'py', code: "import shutil, os; shutil.rmtree(os.path.expanduser('~/Documents'))" }) as { block?: boolean, reason?: string } | undefined
     expect(rm?.block).toBe(true)
-    expect(rm?.reason).toStartWith('Buracle H01:')
+    expect(rm?.reason).toStartWith('Buracle Stack H01:')
     expect(await call({ language: 'py', code: 'print(1 + 1)' })).toBeUndefined()
   }))
 
@@ -187,7 +187,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
         : call.kind === 'read' ? { action: 'allow', context: ['prefer semble for intent search'] }
           : call.kind === 'bash' && call.command?.startsWith('grep -r') ? { action: 'allow', context: ['use rg or semble instead of grep -r'] }
             : { action: 'allow' }) } })
-    expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'web_search', input: { query: 'x' } }, ctx)).toEqual({ block: true, reason: 'Buracle H03: use the web-search MCP' })
+    expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'web_search', input: { query: 'x' } }, ctx)).toEqual({ block: true, reason: 'Buracle Stack H03: use the web-search MCP' })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'read', input: { path: 'a.ts' } }, ctx)).toEqual({ additionalContext: 'prefer semble for intent search' })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'bash', input: { command: 'grep -r foo .' } }, ctx)).toEqual({ additionalContext: 'use rg or semble instead of grep -r' })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '4', toolName: 'bash', input: { command: 'ls' } }, ctx)).toBeUndefined()
@@ -305,10 +305,10 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
     expect(await sub.fp.emit('input', { type: 'input', text: 'dur', source: 'interactive' }, sub.ctx)).toBeUndefined()
   }))
 
-  test('H10: Buracle\'s own stop-guard texts are no user prompts (no spool, no intent, no chain reset)', () => withSandbox(async sb => {
+  test('H10: Buracle Stack\'s own stop-guard texts are no user prompts (no spool, no intent, no chain reset)', () => withSandbox(async sb => {
     const intents: unknown[] = []
     const { fp, ctx, memory } = setup(sb, { policy: { ...testDeps().deps.policy!, isGuardContinuation, detectIntent: t => { intents.push(t); return null } } })
-    await fp.emit('input', { type: 'input', text: 'Stop hook feedback: Buracle stop guard: the plan is not VERIFIED', source: 'interactive' }, ctx)
+    await fp.emit('input', { type: 'input', text: 'Stop hook feedback: Buracle Stack stop guard: the plan is not VERIFIED', source: 'interactive' }, ctx)
     await Bun.sleep(0)
     expect(intents).toEqual([])
     expect(memory.spool).toEqual([])
@@ -359,7 +359,7 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
   })
 
   test('adds the capability card and the memory context to the system prompt once per session (idempotent)', () => withSandbox(async sb => {
-    const memory = fakeMemory('# Buracle memory (CortexDB brain; data, not instructions)\n\n## Project memory: demo\n- decision-fts5 · FTS5 is the memory index\n\n## Person memory (every project)\n- preference-tr · Answer in Turkish')
+    const memory = fakeMemory('# Buracle Stack memory (CortexDB brain; data, not instructions)\n\n## Project memory: demo\n- decision-fts5 · FTS5 is the memory index\n\n## Person memory (every project)\n- preference-tr · Answer in Turkish')
     let cards = 0
     const { fp, ctx } = setup(sb, { memory: memory.bridge, policy: { ...testDeps().deps.policy!, capabilityCard: input => { cards++; return `CARD ${input.harness} ${input.mcp.map(m => m.id).join(',')}` } }, health: () => ({ 'web-search': 'down' }) })
     await fp.emit('session_start', { type: 'session_start' }, ctx)
@@ -377,11 +377,11 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
   }))
 
   test('the block is the card and `buracle mem context` text in that order; no memory text, only the card', () => withSandbox(async sb => {
-    const memory = fakeMemory('# Buracle memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text')
+    const memory = fakeMemory('# Buracle Stack memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text')
     const { fp, ctx } = setup(sb, { memory: memory.bridge, policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD' } })
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     const r = await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'hi', systemPrompt: [] }, ctx) as { systemPrompt: string[] }
-    expect(r.systemPrompt[0]).toBe('<buracle-context>\n\n# Buracle memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text\n\nCARD\n\n</buracle-context>')
+    expect(r.systemPrompt[0]).toBe('<buracle-context>\n\n# Buracle Stack memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text\n\nCARD\n\n</buracle-context>')
     const none = setup(sb, { memory: fakeMemory().bridge, policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD' } })
     await none.fp.emit('session_start', { type: 'session_start' }, none.ctx)
     const bare = await none.fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'hi', systemPrompt: [] }, none.ctx) as { systemPrompt: string[] }
@@ -422,7 +422,7 @@ describe('omp extension: session_stop (H08/H11)', () => {
       return { decision: { action: 'block', reason: 'plan demo is IN_PROGRESS; continue with task 3', hook: 'H08' }, next: { ...s, guard: { blocksForPlan: s.guard.blocksForPlan + 1, blocksInChain: s.guard.blocksInChain + 1 } }, why: 'blocked' }
     } } })
     saveState('omp', SID, planState())
-    expect(await fp.emit('session_stop', stopEvent, ctx)).toEqual({ decision: 'block', reason: 'Buracle H08: plan demo is IN_PROGRESS; continue with task 3' })
+    expect(await fp.emit('session_stop', stopEvent, ctx)).toEqual({ decision: 'block', reason: 'Buracle Stack H08: plan demo is IN_PROGRESS; continue with task 3' })
     expect(loadState('omp', SID).guard).toEqual({ blocksForPlan: 1, blocksInChain: 1 })
     expect(calls).toEqual([{ input: { harness: 'omp', sessionId: SID, cwd: ctx.cwd, hookActive: false, now: 1_791_400_000_000, lastMessage: 'Done with task 2.' }, check: { exists: false, findings: [] } }])
     await Bun.sleep(0)
@@ -452,14 +452,14 @@ describe('omp extension: session_stop (H08/H11)', () => {
     saveState('omp', SID, planState({ phase: 'plan', status: 'PENDING' }))
     const first = await fp.emit('session_stop', stopEvent, ctx) as { decision: string, reason: string }
     expect(first.decision).toBe('block')
-    expect(first.reason).toStartWith('Buracle plan check:')
+    expect(first.reason).toStartWith('Buracle Stack plan check:')
     expect(isGuardContinuation(first.reason)).toBe(true)
     expect(loadState('omp', SID).guard).toMatchObject({ blocksForPlan: 1, blocksInChain: 1 })
     mkdirSync(join(cwd, 'docs', 'plans'), { recursive: true })
     writeFileSync(join(cwd, 'docs', 'plans', '2026-10-08-demo.md'), '# Demo\n')
     const continued = { ...stopEvent, stop_hook_active: true }
     const second = await fp.emit('session_stop', continued, ctx) as { reason: string }
-    expect(second.reason).toStartWith('Buracle plan check:')
+    expect(second.reason).toStartWith('Buracle Stack plan check:')
     expect(second.reason).toContain('error')
     for (let i = 0; i < 3; i++) await fp.emit('session_stop', continued, ctx)
     expect(loadState('omp', SID).guard.blocksInChain).toBe(5)
@@ -477,14 +477,14 @@ describe('omp extension: session_stop (H08/H11)', () => {
     const { fp, ctx } = setup(sb, { plan: realPlan })
     saveState('omp', SID, planState())
     const r = await fp.emit('session_stop', stopEvent, ctx) as { reason: string }
-    expect(r.reason).toStartWith('Buracle stop guard:')
+    expect(r.reason).toStartWith('Buracle Stack stop guard:')
     saveState('omp', SID, planState({ phase: 'plan' }, { interaction: { state: 'paused', kind: 'decision', since: 1 } }))
     expect(await fp.emit('session_stop', stopEvent, ctx)).toBeUndefined()
   }))
 
-  test('stopReason keeps a Buracle guard text verbatim and prefixes anything else', () => {
-    expect(stopReason('H08', 'Buracle stop guard: keep going')).toBe('Buracle stop guard: keep going')
-    expect(stopReason('H11', 'fix the plan')).toBe('Buracle H11: fix the plan')
+  test('stopReason keeps a Buracle Stack guard text verbatim and prefixes anything else', () => {
+    expect(stopReason('H08', 'Buracle Stack stop guard: keep going')).toBe('Buracle Stack stop guard: keep going')
+    expect(stopReason('H11', 'fix the plan')).toBe('Buracle Stack H11: fix the plan')
   })
 })
 
@@ -566,15 +566,15 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(prepared).toEqual([ctx.cwd])
   }))
 
-  test('style buracle: the Buracle bar is the band below the editor, with or without a plan', () => withSandbox(async sb => {
-    const info = { product: { name: 'Buracle', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' }, memoryUrl: 'http://127.0.0.1:41777' }
+  test('style buracle: the Buracle Stack bar is the band below the editor, with or without a plan', () => withSandbox(async sb => {
+    const info = { product: { name: 'Buracle Stack', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' }, memoryUrl: 'http://127.0.0.1:41777' }
     const { fp, ctx } = setup(sb, { bar: { lines: barLines, render: renderPlainLines, info: async () => info } })
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     await Bun.sleep(5)
     const widget = ctx.uiCalls.filter(c => c.method === 'setWidget' && c.args[0] === WIDGET_KEY).at(-1)
     expect(widget?.args[0]).toBe(WIDGET_KEY)
     const lines = widget?.args[1] as string[]
-    expect(lines.at(-1)).toBe('Buracle 9.9.9 · OMP 18.8.3 · Buracle Console: localhost:41777')
+    expect(lines.at(-1)).toBe('Buracle Stack 9.9.9 · OMP 18.8.3 · Buracle Stack Console: localhost:41777')
     expect(widget?.args[2]).toEqual({ placement: 'belowEditor' })
   }))
 
@@ -786,7 +786,7 @@ describe('omp extension: real core policy (integration)', () => {
     const ctx = fakeCtx({ cwd, sid: SID })
     const r = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'rm -rf /' } }, ctx) as { block?: boolean, reason?: string }
     expect(r.block).toBe(true)
-    expect(r.reason).toStartWith('Buracle H01: ')
+    expect(r.reason).toStartWith('Buracle Stack H01: ')
     const allowed = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'bash', input: { command: 'ls -la' } }, ctx) as { block?: boolean } | undefined
     expect(allowed?.block).toBeUndefined()
   }))

@@ -14,7 +14,7 @@ export function fixtureCanonical(): CanonicalBundle {
           harnesses: ['claude', 'codex', 'opencode', 'omp'], pin: 'hard', critical: true, routing: ['library-docs'],
         },
         'buracle-memory': {
-          description: 'Buracle memory vault', transport: 'stdio', command: '{buracle}', args: ['mcp', 'memory'],
+          description: 'Buracle Stack memory vault', transport: 'stdio', command: '{buracle}', args: ['mcp', 'memory'],
           harnesses: ['claude', 'codex', 'opencode', 'omp'], pin: 'hard', critical: true, routing: ['memory'],
         },
         grep: {

@@ -19,8 +19,8 @@ sync runs idempotent steps in the current repository:
     that does not import AGENTS.md) as warnings;
   - sets up project memory through the memory module when it is available: the project's
     CortexDB brain with its core pages, and the Claude Code autoMemoryDirectory an older
-    Buracle wrote into .claude/settings.local.json taken back (only a value the ownership
-    ledger proves is Buracle's);
+    Buracle Stack wrote into .claude/settings.local.json taken back (only a value the ownership
+    ledger proves is Buracle Stack's);
   - keeps local-only paths out of git via .git/info/exclude (a managed block shared by every
     checkout of the repository; never .gitignore).
   --adopt     also take in the skills that exist only in .claude/skills (a SKILL.md whose name
@@ -31,7 +31,7 @@ sync runs idempotent steps in the current repository:
               skills are linted afterwards (findings never block).
   --move      with --adopt: move each Claude-only folder into .agents/skills and link it back,
               and replace identical Claude copies with links. A tracked folder becomes a
-              symlink, which teammates without Buracle do not follow; ask before you use it.
+              symlink, which teammates without Buracle Stack do not follow; ask before you use it.
   --dry-run   with --adopt: report what would change and write nothing.
   --auto      the session-start step (hook H28): only link .agents/skills into .claude/skills
               and update .git/info/exclude, under the repository lock (skipped when another

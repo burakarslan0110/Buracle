@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { tomlParse } from '../../src/engine/merge'
 import { tomlHoistDotted } from '../../src/engine/toml-hoist'
 
-// The file herdr's Codex integration left behind: Buracle had written `features.memories` as a dotted root key, and herdr
+// The file herdr's Codex integration left behind: Buracle Stack had written `features.memories` as a dotted root key, and herdr
 // then appended a [features] table. TOML does not allow both, so Codex refused to start ("duplicate key").
 const COLLIDED = `# my codex
 model = "gpt-x"   # keep

@@ -12,7 +12,7 @@ export const usage = `Usage: buracle index [status] [--cwd <dir>] [--json]
        buracle index rebuild [--cwd <dir>] [--force] [--json]
 
 status   the state of the project's code indexes (ready, building, failed, not built yet), when
-         Buracle last built or refreshed them, and the last error
+         Buracle Stack last built or refreshed them, and the last error
 ensure   build what is missing (codegraph init), refresh what exists (codegraph sync, which a
          running codegraph server already does by itself; references an interrupted run left
          unresolved are resolved) and warm semble's caches (code, and all content). A new plan
@@ -51,7 +51,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   const now = Date.now()
   if (roots.length === 0) {
     const msg = target.excluded !== undefined
-      ? `${target.cwd} is ${target.excluded}: Buracle never indexes it`
+      ? `${target.cwd} is ${target.excluded}: Buracle Stack never indexes it`
       : `${target.cwd} is not a project (no git repository and no project manifest) and holds no projects`
     if (json) writeJson(io.stdout, { ok: false, cwd: target.cwd, ...(target.excluded !== undefined ? { excluded: target.excluded } : {}), error: msg })
     else if (!quiet) io.stderr.write(`buracle index: ${msg}\n`)

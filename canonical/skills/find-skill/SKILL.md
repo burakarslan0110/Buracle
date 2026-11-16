@@ -83,13 +83,13 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
    from the user? Does `allowed-tools` grant more than the task needs?
 3. A red flag is a stop: tell the user what you found, with the file and line, and take the next
    candidate. Never install around it with `--force`.
-4. Dependencies the skill needs (a CLI, a Python package, an API key): list them; Buracle installs
+4. Dependencies the skill needs (a CLI, a Python package, an API key): list them; Buracle Stack installs
    none of them. If the toolchain lacks one, say how to add it or pick another candidate.
 
 ## Phase 4: Install
 
 1. The same line without `--dry-run`: `buracle skills add <owner/repo> --skill <id>`. `--id`
-   renames a skill whose id clashes with one of Buracle's own (the command refuses to replace
+   renames a skill whose id clashes with one of Buracle Stack's own (the command refuses to replace
    those).
 2. The folder is `~/.agents/skills/<id>` for Codex, OpenCode and Oh My Pi, and
    `~/.claude/skills/<id>` links to it for Claude Code. OpenCode and Oh My Pi see the same skill
@@ -104,8 +104,8 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 
 - `buracle skills update` re-fetches every git source and reinstalls what changed upstream; a copy
   with local edits is kept unless `--force`. Run it when the user asks, or when a skill misbehaves.
-- `buracle skills remove <id>` removes a skill Buracle installed, with its Claude Code link.
-- A skill that belongs in the Buracle repository itself (the user wants to edit and version it) is
+- `buracle skills remove <id>` removes a skill Buracle Stack installed, with its Claude Code link.
+- A skill that belongs in the Buracle Stack repository itself (the user wants to edit and version it) is
   a job for the `new-skill` skill after it is installed: copy, then adapt.
 
 ## Done when
@@ -121,8 +121,8 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 | `buracle skills find` exits 1 | skills.sh is unreachable; its local matches still print; use the fallback sources and say so |
 | GitHub rate limit warning in `find` | license and freshness are missing for some rows; read them on the repository page, or set `GITHUB_TOKEN` |
 | `buracle skills add` exits 1 with lint errors | the skill does not follow the format; read the errors; take another candidate, or `--force` only when the errors are cosmetic (an unknown frontmatter key) and the user agrees |
-| `a Buracle skill has this id` | pick another id with `--id <name>` |
-| `exists and was not installed by Buracle` | a folder of the user's own is there; ask before `--force` |
+| `a Buracle Stack skill has this id` | pick another id with `--id <name>` |
+| `exists and was not installed by Buracle Stack` | a folder of the user's own is there; ask before `--force` |
 | the repository needs credentials or is private | ask the user for a token-free way (a fork, a local clone passed as a folder) |
 | grep or web-search is down | use the fallback the tooling rules name and say so |
 | the skill needs an MCP server | add the server to `canonical/mcp.yaml` through the `new-skill` skill or tell the user; do not install the skill alone |
@@ -132,7 +132,7 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 User: "Is there a skill for finding unused code in this repository?"
 
 1. `buracle skills find unused dead code --json`: the local matches list `dead-code`
-   (Buracle ships it); it covers the need. Say so, run it, stop.
+   (Buracle Stack ships it); it covers the need. Say so, run it, stop.
 
 User: "Find a skill that writes Stripe webhooks correctly."
 

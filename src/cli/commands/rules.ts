@@ -10,7 +10,7 @@ export const usage = `Usage: buracle rules lint [<rules-dir>] [--strict] [--json
 Checks canonical/rules (or <rules-dir>):
   always/*.md  no frontmatter; at most 200 lines each; at most 8,000 bytes together
   paths/*.md   frontmatter paths: ["<glob>", …] only, with valid globs
-  all rules    no Buracle placeholders or harness blocks (rules are not rendered), documented
+  all rules    no Buracle Stack placeholders or harness blocks (rules are not rendered), documented
                'buracle' commands only, no relative links (rules are installed elsewhere)
   routing list the routing table (| Need | Use first | Fallback |) names only MCP servers of
                mcp.yaml and tools of tools.yaml, and every server routing.yaml routes to (the

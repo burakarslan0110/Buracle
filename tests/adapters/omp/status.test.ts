@@ -93,7 +93,7 @@ describe('omp status band: the index segment', () => {
   }))
 
   test('buracle style: the footer line carries the index state, with or without a plan', () => withSandbox(async sb => {
-    const info = { product: { name: 'Buracle', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
+    const info = { product: { name: 'Buracle Stack', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
     const r = rig(sb, () => defaultConfig(), { bar: { lines: barLines, render: renderPlainLines, info: async () => info } })
     await r.refresh()
     expect(r.band()?.at(-1)).toContain('idx building')
@@ -109,14 +109,14 @@ describe('omp status band: the index segment', () => {
   }))
 })
 
-describe('omp status band: the Buracle bar footer', () => {
-  const INFO = { product: { name: 'Buracle', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
+describe('omp status band: the Buracle Stack bar footer', () => {
+  const INFO = { product: { name: 'Buracle Stack', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
 
-  test('buracle style: the footer names Buracle and the harness, never the retired `cm` segment', () => withSandbox(async sb => {
+  test('buracle style: the footer names Buracle Stack and the harness, never the retired `cm` segment', () => withSandbox(async sb => {
     const cfg = defaultConfig()
     const rigged = rig(sb, () => cfg, { bar: { lines: barLines, render: renderPlainLines, info: async () => INFO } })
     await rigged.refresh()
-    expect(rigged.band()?.at(-1)).toContain('Buracle 9.9.9')
+    expect(rigged.band()?.at(-1)).toContain('Buracle Stack 9.9.9')
     expect(rigged.band()?.join('\n') ?? '').not.toContain('cm ')
   }))
 })
@@ -138,7 +138,7 @@ describe('omp status band: the flow segment', () => {
 
   test('buracle style: the workflow line appears between the bar lines only while the band is off', () => withSandbox(async sb => {
     let cfg = defaultConfig()
-    const info = { product: { name: 'Buracle', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
+    const info = { product: { name: 'Buracle Stack', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
     const r = rig(sb, () => cfg, { bar: { lines: barLines, render: renderPlainLines, info: async () => info } })
     recordFlowStart('omp', SID, { workflow: 'bugfix', title: 'login bug', source: 'command' }, T0 - 60_000)
     await r.refresh()
@@ -153,12 +153,12 @@ describe('omp status band: the flow segment', () => {
   }))
 })
 
-describe('omp status: Buracle\'s hook health (O3)', () => {
-  test('the buracle.hooks status text and the Buracle bar footer show failing hooks; the key is cleared while all is well', () => withSandbox(async sb => {
+describe('omp status: Buracle Stack\'s hook health (O3)', () => {
+  test('the buracle.hooks status text and the Buracle Stack bar footer show failing hooks; the key is cleared while all is well', () => withSandbox(async sb => {
     const cwd = join(sb.root, 'work')
     mkdirSync(cwd, { recursive: true })
     let health = { failures: 0, failClosed: 0 }
-    const info = { product: { name: 'Buracle', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
+    const info = { product: { name: 'Buracle Stack', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
     const deps: ExtensionDeps = { ...defaultDeps(), ...testDeps({ now: () => T0, status: { rows, renderPlain }, bar: { lines: barLines, render: renderPlainLines, info: async () => info } }).deps }
     const bands = new Map<string, string | undefined>()
     const texts = createStatusTexts({

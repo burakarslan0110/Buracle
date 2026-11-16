@@ -293,7 +293,7 @@ export function hooksJson(classic: readonly ClassicHook[], withModule: boolean):
     ;(hooks[h.event] ??= []).push(group)
   }
   const out: Record<string, unknown> = {
-    description: 'Buracle: command hooks are the backbone (guards, consent, stop guard, prompt routing, usage ledger, workflow tracking, memory, compaction, file checks, code indexes); the mod adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands',
+    description: 'Buracle Stack: command hooks are the backbone (guards, consent, stop guard, prompt routing, usage ledger, workflow tracking, memory, compaction, file checks, code indexes); the mod adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands',
   }
   if (withModule) out['modules'] = ['./register.tsx']
   out['hooks'] = hooks
@@ -337,7 +337,7 @@ export function generatedModules(c: CanonicalBundle, buracleVersion: string): Ge
       path: 'hooks/generated/meta.ts',
       content: tsModule({
         name: 'META', type: '{ buracleVersion: string, contentHash: string }', value: meta,
-        note: 'The Buracle version; contentHash is the sha256 of the parsed canonical/ tree.',
+        note: 'The Buracle Stack version; contentHash is the sha256 of the parsed canonical/ tree.',
       }),
     },
     {
@@ -355,7 +355,7 @@ export function pluginJson(withTypes: boolean, version: string): Record<string, 
   const out: Record<string, unknown> = {
     name: PLUGIN_NAME,
     version,
-    description: 'Buracle for Claude Code. One engineering setup, one memory, every coding agent: command hooks for guards, consent, the stop guard, prompt routing, workflow tracking, memory and code indexes; a mod that adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands; plan-build/goal-build/bugfix workflows and other skills; read-only review agents; MCP servers and language servers from Buracle\'s toolchain; the buracle CLI on PATH',
+    description: 'Buracle Stack for Claude Code. One engineering setup, one memory, every coding agent: command hooks for guards, consent, the stop guard, prompt routing, workflow tracking, memory and code indexes; a mod that adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands; plan-build/goal-build/bugfix workflows and other skills; read-only review agents; MCP servers and language servers from Buracle Stack\'s toolchain; the buracle CLI on PATH',
     author: { name: OWNER_NAME },
   }
   if (withTypes) out['types'] = './types/index.d.ts'
@@ -366,14 +366,14 @@ export const SETTINGS_JSON = {
   subagentStatusLine: { type: 'command', command: `"${SHIM_SH}" statusline claude --subagent` },
 }
 
-export const LAUNCHER_DENY = denyJson('Buracle blocked this tool call: the buracle shim (~/.buracle/bin/buracle) and bun are both missing, so its guards (H01, H02, H20) cannot run. Ask the user to install bun and run `bun src/cli/main.ts install` in the Buracle checkout, or to remove Buracle\'s plugin with `claude plugin uninstall buracle@buracle`.').trimEnd()
+export const LAUNCHER_DENY = denyJson('Buracle Stack blocked this tool call: the buracle shim (~/.buracle/bin/buracle) and bun are both missing, so its guards (H01, H02, H20) cannot run. Ask the user to install bun and run `bun src/cli/main.ts install` in the Buracle Stack checkout, or to remove Buracle Stack\'s plugin with `claude plugin uninstall buracle@buracle`.').trimEnd()
 
 function shSingleQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`
 }
 
 export const BIN_BURACLE = `#!/bin/sh
-# Buracle's launcher in the plugin: the buracle CLI on the Bash tool's PATH while the plugin is
+# Buracle Stack's launcher in the plugin: the buracle CLI on the Bash tool's PATH while the plugin is
 # enabled (the command hooks run bin/buracle.ts with bun, no shell). Runs the shim \`buracle install\` writes
 # (~/.buracle/bin/buracle, or $BURACLE_HOME/bin/buracle; it names bun by its absolute path), else bun
 # with bin/buracle.ts next to this file when the shim is missing.
@@ -381,14 +381,14 @@ b="${SHIM_SH}"
 if [ -x "$b" ]; then exec "$b" "$@"; fi
 d=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if command -v bun >/dev/null 2>&1; then exec bun "$d/buracle.ts" "$@"; fi
-# Neither the shim nor bun: nothing of Buracle can run. A guard hook (PreToolUse) denies the call
+# Neither the shim nor bun: nothing of Buracle Stack can run. A guard hook (PreToolUse) denies the call
 # (fail closed; \`buracle uninstall\` removes this plugin, so only a broken install gets here);
 # every other hook does nothing.
 if [ "$1" = hook ]; then
   if [ "$3" = PreToolUse ]; then printf '%s\\n' ${shSingleQuote(LAUNCHER_DENY)}; fi
   exit 0
 fi
-echo "buracle: $b not found and bun is not on PATH; run 'bun src/cli/main.ts install' in the Buracle repository" >&2
+echo "buracle: $b not found and bun is not on PATH; run 'bun src/cli/main.ts install' in the Buracle Stack repository" >&2
 exit 127
 `
 
@@ -396,8 +396,8 @@ const [REASON_PRE, REASON_POST] = failClosedReason('\u0000').split('\u0000') as 
 
 export const BIN_BURACLE_TS = `#!/usr/bin/env bun
 // GENERATED by \`buracle build\` (src/adapters/claude/plugin.ts). Do not edit.
-// Buracle's launcher inside the Claude Code plugin: \`bun <plugin>/bin/buracle.ts <args>\` runs the
-// Buracle CLI in this process: the frozen runtime the shim runs, else the checkout. The command hooks,
+// Buracle Stack's launcher inside the Claude Code plugin: \`bun <plugin>/bin/buracle.ts <args>\` runs the
+// Buracle Stack CLI in this process: the frozen runtime the shim runs, else the checkout. The command hooks,
 // MCP servers and language servers use it, and bin/buracle when there is no shim.
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -451,8 +451,8 @@ function failHook(detail: string): never {
 
 const root = shimTree() ?? checkout()
 if (root === undefined) {
-  if (argv[0] === 'hook') failHook('no Buracle runtime or checkout was found')
-  process.stderr.write("buracle: the Buracle checkout was not found; run 'bun src/cli/main.ts install' in it\\n")
+  if (argv[0] === 'hook') failHook('no Buracle Stack runtime or checkout was found')
+  process.stderr.write("buracle: the Buracle Stack checkout was not found; run 'bun src/cli/main.ts install' in it\\n")
   process.exit(127)
 }
 let runProcess: (argv: readonly string[]) => Promise<number>
@@ -460,7 +460,7 @@ try {
   ({ runProcess } = (await import(join(root, 'src', 'cli', 'router.ts'))) as { runProcess(argv: readonly string[]): Promise<number> })
 } catch (e) {
   const why = String(e instanceof Error ? e.message : e).split('\\n')[0] ?? ''
-  if (argv[0] === 'hook') failHook(\`Buracle's CLI in \${root} cannot load: \${why}\`)
+  if (argv[0] === 'hook') failHook(\`Buracle Stack's CLI in \${root} cannot load: \${why}\`)
   process.stderr.write(\`buracle: the CLI in \${root} cannot load: \${why}\\n\`)
   process.exit(1)
 }
@@ -481,13 +481,13 @@ plugin in place from this folder (\`claude plugin marketplace add <repo>\` and
 \`claude plugin install buracle@buracle --scope user\`; \`buracle install claude\` runs both).
 
 - Needs Claude Code ${MIN_CLAUDE} or newer.
-- \`hooks/hooks.json\`: the command hooks, Buracle's backbone (${fallbacks}); each runs
+- \`hooks/hooks.json\`: the command hooks, Buracle Stack's backbone (${fallbacks}); each runs
   \`bun \${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts hook claude <Event>\` in exec form (no shell) and always runs; PreToolUse blocks the tool call when the hook cannot start or times out.
 - \`hooks/register.tsx\`: the mod, the experience layer (the workflow band above the prompt, the consent dialog, turn receipts, output masking, commands, panes)${hasTemplate ? '' : '; there is no template yet, so this build loads no mod'}.
 - \`hooks/core/\`: a copy of \`src/core\`; \`hooks/generated/\`: the capability catalog and the versions the mod reads.
-- Skills (\`/<id>\`, the bare alias Buracle's texts use; \`/buracle:<id>\` always works, also when another command took the bare name): ${skills.join(', ')}.
+- Skills (\`/<id>\`, the bare alias Buracle Stack's texts use; \`/buracle:<id>\` always works, also when another command took the bare name): ${skills.join(', ')}.
 - Agents (\`buracle:<id>\`, read-only): ${agents.join(', ')}.
-- MCP servers (\`mcp__plugin_buracle_<server>__*\`): ${servers.join(', ')}; \`.lsp.json\`: language servers (from Buracle's toolchain).
+- MCP servers (\`mcp__plugin_buracle_<server>__*\`): ${servers.join(', ')}; \`.lsp.json\`: language servers (from Buracle Stack's toolchain).
 - \`bin/\`: \`buracle\` (on the Bash tool's PATH), \`buracle.ts\` (the launcher of the hooks, the MCP and the language servers).
 - \`settings.json\`: \`subagentStatusLine\` (plugin settings accept only \`agent\` and \`subagentStatusLine\`).
 

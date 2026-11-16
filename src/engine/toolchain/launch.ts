@@ -82,7 +82,7 @@ export function launchPlan(id: string, spec: McpServerSpec, state: ToolchainStat
   const version = pkg.version === '' ? 'latest' : pkg.version
   if (pkg.registry === 'npm') {
     const npx = opts.npx ?? findExecutable('npx', { extra: paths.toolchainBinDirs() })
-    if (npx === undefined) return { error: `${id}: neither Buracle's toolchain nor npx can start ${pkg.name} (install Node.js, then run \`buracle install\`)` }
+    if (npx === undefined) return { error: `${id}: neither Buracle Stack's toolchain nor npx can start ${pkg.name} (install Node.js, then run \`buracle install\`)` }
     return {
       argv: [npx, '--yes', `--package=${pkg.name}@${version}`, bin, ...args],
       env: { ...env, npm_config_cache: fallbackNpmCache(), npm_config_update_notifier: 'false', npm_config_fund: 'false' },
@@ -90,7 +90,7 @@ export function launchPlan(id: string, spec: McpServerSpec, state: ToolchainStat
     }
   }
   const uvx = opts.uvx ?? findExecutable('uvx', { extra: paths.toolchainBinDirs() })
-  if (uvx === undefined) return { error: `${id}: neither Buracle's toolchain nor uvx can start ${pkg.name} (install uv, then run \`buracle install\`)` }
+  if (uvx === undefined) return { error: `${id}: neither Buracle Stack's toolchain nor uvx can start ${pkg.name} (install uv, then run \`buracle install\`)` }
   return {
     argv: [uvx, '--python', UV_PYTHON, '--from', pypiSpec(pkg.name, pkg.extras, version), bin, ...args],
     env: { ...env, UV_NO_PROGRESS: '1', UV_TOOL_DIR: toolchainEnv()['UV_TOOL_DIR'] as string },

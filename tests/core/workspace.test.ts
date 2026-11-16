@@ -32,15 +32,15 @@ describe('paths', () => {
   })
 })
 
-describe('indexExclusion: folders Buracle never indexes', () => {
-  test('the filesystem root, the home folder and its parents, the vault and Buracle state', () => {
+describe('indexExclusion: folders Buracle Stack never indexes', () => {
+  test('the filesystem root, the home folder and its parents, the vault and Buracle Stack state', () => {
     expect(indexExclusion('/', ctx())).toBe('the filesystem root')
     expect(indexExclusion('D:\\', ctx())).toBeUndefined()
     expect(indexExclusion('/Users/burak', ctx())).toBe('your home folder')
     expect(indexExclusion('/Users', ctx())).toBe('a parent of your home folder')
     expect(indexExclusion('/Users/burak/Documents/Buracle', ctx())).toBe('inside the memory vault')
     expect(indexExclusion('/Users/burak/Documents/Buracle/projects/x', ctx())).toBe('inside the memory vault')
-    expect(indexExclusion('/Users/burak/.buracle/toolchain', ctx())).toBe("inside Buracle's state folder")
+    expect(indexExclusion('/Users/burak/.buracle/toolchain', ctx())).toBe("inside Buracle Stack's state folder")
     expect(indexExclusion('/Users/burak/code/app', ctx())).toBeUndefined()
     expect(indexExclusion('/Users/burak/Documents/BuracleNotes', ctx())).toBeUndefined()
   })
@@ -148,13 +148,13 @@ describe('index states and the retry backoff', () => {
 const ready: ProjectIndex = { codegraph: { state: 'ready', at: 1 }, semble: { state: 'ready', at: 1 } }
 
 describe('workspaceContext: what the agent is told at a session start', () => {
-  test('a project: the root to pass, the index state, and that indexing is Buracle\'s job', () => {
+  test('a project: the root to pass, the index state, and that indexing is Buracle Stack\'s job', () => {
     const text = workspaceContext({ cwd: '/w/app/src', root: '/w/app', children: [], index: ready }, 'claude')
     const lines = text.split('\n')
     expect(lines).toHaveLength(3)
     expect(lines[0]).toBe('Project root: /w/app. Pass it as codegraph `projectPath` and semble `repo` (not a subfolder, a parent folder or your home folder).')
     expect(lines[1]).toContain('codegraph ready, semble ready')
-    expect(lines[2]).toContain("Indexing is Buracle's job, not the user's decision")
+    expect(lines[2]).toContain("Indexing is Buracle Stack's job, not the user's decision")
     expect(lines[2]).toContain('`buracle index ensure --cwd <project>`')
     expect(lines[2]).toContain('never stop using codegraph for the session')
   })
@@ -187,7 +187,7 @@ describe('workspaceContext: what the agent is told at a session start', () => {
     expect(lines).toHaveLength(3)
     expect(lines[0]).toBe('/w is not a project; it holds 2 projects: api, web. Pass the one you work in (/w/<name>) as codegraph `projectPath` and semble `repo`, never this folder or your home folder.')
     expect(lines[1]).toContain('api: codegraph ready, semble ready; web: codegraph building now, semble not built yet')
-    expect(lines[2]).toContain("Indexing is Buracle's job")
+    expect(lines[2]).toContain("Indexing is Buracle Stack's job")
     expect(workspaceContext({ ...info, children: ['/w/api'], childIndex: { '/w/api': ready } }, 'claude')).toContain('it holds one project: api. Pass it (/w/<name>)')
     const win = workspaceContext({ cwd: 'C:\\w', children: ['C:\\w\\api'], index: info.index, childIndex: { 'C:\\w\\api': ready } }, 'claude')
     expect(win).toContain('C:\\w is not a project; it holds one project: api. Pass it (C:\\w\\<name>)')
@@ -196,7 +196,7 @@ describe('workspaceContext: what the agent is told at a session start', () => {
   test('home, an excluded folder, or no project at all: never pass this folder', () => {
     const idle: ProjectIndex = { codegraph: { state: 'none' }, semble: { state: 'none' } }
     const home = workspaceContext({ cwd: '/Users/burak', children: [], excluded: 'your home folder', index: idle }, 'claude')
-    expect(home.split('\n')[0]).toBe('/Users/burak is your home folder: Buracle does not index it. Pass the project folder you work in as codegraph `projectPath` and semble `repo`, never this folder.')
+    expect(home.split('\n')[0]).toBe('/Users/burak is your home folder: Buracle Stack does not index it. Pass the project folder you work in as codegraph `projectPath` and semble `repo`, never this folder.')
     const excluded = workspaceContext({ cwd: '/x/Vendor Kit', children: [], excluded: 'excluded by index.exclude (/x/Vendor Kit)', index: idle }, 'claude')
     expect(excluded).toContain('never this folder or anything inside it.')
     const plain = workspaceContext({ cwd: '/tmp/notes', children: [], index: idle }, 'claude')

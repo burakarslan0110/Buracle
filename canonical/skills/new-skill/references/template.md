@@ -1,6 +1,6 @@
 # Skill template
 
-## Canonical SKILL.md (Buracle repo or personal skills source)
+## Canonical SKILL.md (Buracle Stack repo or personal skills source)
 
 ```markdown
 ---
@@ -64,7 +64,7 @@ Field rules (`buracle skills lint` enforces them):
 
 ## Calling a bundled script
 
-Scripts live in `scripts/` and are called by absolute path. Buracle installs one copy of a skill
+Scripts live in `scripts/` and are called by absolute path. Buracle Stack installs one copy of a skill
 for every harness, so name that path and keep the fallback:
 
 ```markdown

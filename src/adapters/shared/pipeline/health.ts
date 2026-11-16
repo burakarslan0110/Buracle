@@ -19,7 +19,7 @@ export function readMcpHealth(ctx: Pick<AdapterContext, 'paths'>, nowMs: number 
 }
 
 /**
- * health.json with the servers that are off folded in (which nothing turns back on): Buracle's `mcp.off.<harness>`
+ * health.json with the servers that are off folded in (which nothing turns back on): Buracle Stack's `mcp.off.<harness>`
  * and, in `nativeOff`, the harness's own settings. With `sid`, the session's own failures count too. An adapter
  * reads its native settings only for the calls whose route depends on them (web search and fetch, the capability
  * card, the routing note).

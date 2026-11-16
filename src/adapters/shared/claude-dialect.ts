@@ -1,7 +1,7 @@
 import { contextJson } from './pipeline/types'
 
 // The command-hook dialect Claude Code and Qwen Code share: the payload is one JSON object on stdin, the answer is
-// JSON on stdout with exit 0 (a non-zero exit is the host's own error path, never Buracle's way to block).
+// JSON on stdout with exit 0 (a non-zero exit is the host's own error path, never Buracle Stack's way to block).
 
 export interface HookOutcome { stdout: string; exitCode: number }
 

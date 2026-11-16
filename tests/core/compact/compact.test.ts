@@ -232,7 +232,7 @@ describe('restoreContext', () => {
   test('open todos are inlined only when there is no handoff memory to point at, at most ten', () => {
     const todos = Array.from({ length: 12 }, (_, i) => `step ${i + 1}`)
     const inlined = restoreContext(emptyState(), undefined, ['  ', ...todos]) as string
-    expect(inlined.split('\n')).toEqual(['Buracle: the context was compacted.', 'Open todos at compaction time (no handoff memory was written):', ...todos.slice(0, 10).map(t => `- ${t}`)])
+    expect(inlined.split('\n')).toEqual(['Buracle Stack: the context was compacted.', 'Open todos at compaction time (no handoff memory was written):', ...todos.slice(0, 10).map(t => `- ${t}`)])
     const withPlanToo = restoreContext(withPlan(), undefined, ['step 1']) as string
     expect(withPlanToo).toContain('Re-read the whole plan file')
     expect(withPlanToo).toContain('- step 1')

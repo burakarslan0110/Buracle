@@ -109,14 +109,14 @@ describe('omp workflow detection (H25)', () => {
     const body = workflowCommandBody('bugfix').replace('$ARGUMENTS', 'the parser crashes on empty input')
     expect(workflowOfExpanded(body)).toEqual({ workflow: 'bugfix', args: 'the parser crashes on empty input' })
     expect(workflowOfExpanded('Run the tests please')).toBeUndefined()
-    expect(workflowOfExpanded("Run Buracle's `nope` workflow for the request below;")).toBeUndefined()
+    expect(workflowOfExpanded("Run Buracle Stack's `nope` workflow for the request below;")).toBeUndefined()
     const file = renderCommand({ id: 'bugfix', dir: 'skills/bugfix', frontmatter: { name: 'bugfix', description: 'Fix a bug.' }, body: '', files: [] })
     expect(file.content.endsWith(workflowCommandBody('bugfix'))).toBe(true)
   })
 })
 
 describe('omp prompt parts (H10, H22)', () => {
-  test('no-turn commands: omp built-ins (split at whitespace or `:`) and Buracle utility commands', () => {
+  test('no-turn commands: omp built-ins (split at whitespace or `:`) and Buracle Stack utility commands', () => {
     for (const t of ['/model', '/model:probe y', '/compact keep it', '/remember x', '/brain', '/buracle-status flow', '/buracle', '/aside what is 2+2', '/buracle-ping']) expect(noTurnCommand(t)).toBe(true)
     for (const t of ['/plan-build x', '/skill:research y', 'hello', '/research']) expect(noTurnCommand(t)).toBe(false)
     expect(isModelPrompt('!ls -la')).toBe(false)
@@ -137,7 +137,7 @@ describe('omp prompt parts (H10, H22)', () => {
 describe('omp review gate (H19)', () => {
   const valid = { verdict: 'pass', summary: 'docs/plans/x.md looks complete', findings: [] }
 
-  test('only Buracle review agents; yield data as JSON or text; errors are not reports', () => {
+  test('only Buracle Stack review agents; yield data as JSON or text; errors are not reports', () => {
     expect(reviewAgentOf('changes-review')).toBe('changes-review')
     expect(reviewAgentOf('buracle:plan-build-review')).toBe('plan-build-review')
     expect(reviewAgentOf('task')).toBeUndefined()
@@ -181,8 +181,8 @@ describe('omp routing helpers (H03, H22, H24)', () => {
     const folder: WorkspaceInfo = { cwd: '/h/code', children: ['/h/code/a', '/h/code/b'], index: { codegraph: { state: 'none' }, semble: { state: 'none' } } }
     expect(rootProblem('/h/code', folder, env)).toBe('a folder of projects, not a project')
     const call = (input: Record<string, unknown>): ToolCall => ({ harness: 'omp', sessionId: 's', cwd: '/h/code/app', tool: 'mcp__semble_search', kind: 'mcp', input, paths: [], mcp: { server: 'semble', tool: 'search' } })
-    expect(rootCheck(call({ repo: '/h' }), info, 'enforce', env).deny).toBe('Buracle: semble `repo` is /h, your home folder; indexing it is slow and searches the wrong tree. Pass the project root /h/code/app instead.')
-    expect(rootCheck(call({ repo: '/h' }), info, 'nudge', env).context).toStartWith('Buracle: semble `repo` is /h')
+    expect(rootCheck(call({ repo: '/h' }), info, 'enforce', env).deny).toBe('Buracle Stack: semble `repo` is /h, your home folder; indexing it is slow and searches the wrong tree. Pass the project root /h/code/app instead.')
+    expect(rootCheck(call({ repo: '/h' }), info, 'nudge', env).context).toStartWith('Buracle Stack: semble `repo` is /h')
     expect(rootCheck(call({ repo: '/h' }), info, 'off', env)).toEqual({})
     expect(rootCheck(call({ repo: '/h/code' }), folder, 'enforce', env).deny).toContain('Pass one of its projects instead (a, b), as /h/code/<name>.')
     expect(rootCheck(call({ query: 'x' }), info, 'enforce', env)).toEqual({})

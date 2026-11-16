@@ -85,9 +85,9 @@ export function hooksNotice(ctx: AdapterContext, health: HookHealth | undefined)
   const n = Math.max(0, Math.round(health.failures))
   const closed = Math.max(0, Math.round(health.failClosed))
   const parts: string[] = []
-  if (n > 0) parts.push(`${n} Buracle hook ${n === 1 ? 'run' : 'runs'} failed in the last 24 h${closed > 0 ? ` (${closed} denied a call)` : ''}; run \`buracle doctor codex\``)
-  if (health.runtimeBehind === true) parts.push('the installed Buracle runtime is behind the checkout; run `buracle install`')
-  return `Buracle: ${parts.join('; ')}.`
+  if (n > 0) parts.push(`${n} Buracle Stack hook ${n === 1 ? 'run' : 'runs'} failed in the last 24 h${closed > 0 ? ` (${closed} denied a call)` : ''}; run \`buracle doctor codex\``)
+  if (health.runtimeBehind === true) parts.push('the installed Buracle Stack runtime is behind the checkout; run `buracle install`')
+  return `Buracle Stack: ${parts.join('; ')}.`
 }
 
 export function joinNotices(...parts: ReadonlyArray<string | undefined>): string | undefined {

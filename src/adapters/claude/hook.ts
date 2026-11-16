@@ -158,7 +158,7 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
   const r = await sessionStartEvent({ harness: H, sessionId: sid, cwd, source, subagent: isSubagent(p), now, ...(model !== undefined ? { model } : {}) }, {
     ...pipelineDeps(ctx, d),
     capabilityCard: () => capabilityCardText(ctx, mcpHealth(ctx, H, now, { sid, nativeOff: claudeOffServers(cwd, pluginRoot(ctx.repoRoot, d.env)) })),
-    profileNote: finding => `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`,
+    profileNote: finding => `Buracle Stack setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`,
     sessionMaint: (nowMs, keep) => { d.sessionMaint(nowMs, keep) },
   })
   return contextOut('SessionStart', r.context)
@@ -219,8 +219,8 @@ function contextWarning(_ctx: AdapterContext, sid: string, now: number): string 
   if (w.band === 'ok') for (const b of WARNED_BANDS) rmSync(join(dir, `context-warned-${b}.claim`), { force: true })
   if (w.warn === undefined || w.band === undefined || !claimBand(dir, w.band)) return undefined
   return w.band === 'critical'
-    ? `Buracle: the context window is ${Math.round(pct)}% full and Claude Code will compact soon. Finish the current atomic step and keep the plan file and todo list current; Buracle saves the plan state before compaction and restores it afterwards. Do not skip verification.`
-    : `Buracle: the context window is ${Math.round(pct)}% full. Keep the plan file and todo list current so work survives compaction; read narrow line ranges instead of whole files.`
+    ? `Buracle Stack: the context window is ${Math.round(pct)}% full and Claude Code will compact soon. Finish the current atomic step and keep the plan file and todo list current; Buracle Stack saves the plan state before compaction and restores it afterwards. Do not skip verification.`
+    : `Buracle Stack: the context window is ${Math.round(pct)}% full. Keep the plan file and todo list current so work survives compaction; read narrow line ranges instead of whole files.`
 }
 
 async function promptRoute(prompt: string, signals: PromptSignals, sid: string, ctx: AdapterContext, d: HookDeps, now: number, cwd?: string): Promise<PromptRouting> {
@@ -371,7 +371,7 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
         const saved = await step('H12 plan capture', undefined as Awaited<ReturnType<typeof captureSessionPlan>>, () => captureSessionPlan({ plan, cwd, now, harness: H, sid }))
         if (saved !== undefined) {
           entries.push({ ts: now, ev: 'note', paths: [saved.path] })
-          parts.push(saved.note ?? `Buracle: the approved plan was saved to ${shownPath(saved.path, cwd)} (H12).`)
+          parts.push(saved.note ?? `Buracle Stack: the approved plan was saved to ${shownPath(saved.path, cwd)} (H12).`)
         }
       }
     } else if (tool === 'TodoWrite' || tool === 'TaskCreate' || tool === 'TaskUpdate') {
@@ -392,7 +392,7 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
     ...(cls !== undefined ? { edit: { ok: !failed(response), paths: cls.paths, added: addedText(tool, input, cls.paths), removed: () => removedText(tool, input, cls.paths) } } : {}),
     ...(tool.startsWith(PLUGIN_MCP_PREFIX) ? { mcp: { server: () => mcpServer(tool, input, cwd, ctx, d), ok: true } } : {}),
   }, { ...pipelineDeps(ctx, d), fileChecks: { now: d.now, run: d.run }, editBudgetMs: POST_EDIT_BUDGET_MS })
-  if (r.fileNotes.length > 0) parts.push(`Buracle file checks:\n\n${r.fileNotes.join('\n\n')}`)
+  if (r.fileNotes.length > 0) parts.push(`Buracle Stack file checks:\n\n${r.fileNotes.join('\n\n')}`)
   if (r.assets !== undefined) parts.push(r.assets)
   return contextOut('PostToolUse', parts)
 }

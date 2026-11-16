@@ -190,7 +190,7 @@ describe('opencode server plugin: setup and lifecycle', () => {
   }))
 
   test('a session of the memory\'s own model runner (a buracle-runner-* folder) gets no system context: no capability card, memory or workspace text', () => withSandbox(async ({ root }) => {
-    const { f, rt, mem } = await runtime(root, { memoryText: '# Buracle memory' })
+    const { f, rt, mem } = await runtime(root, { memoryText: '# Buracle Stack memory' })
     const runnerDir = join(root, 'buracle-runner-QwE456')
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: runnerDir } } })
     const ev: SessionContextEvent = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'buracle-memory-runner', system: [{ type: 'text', text: 'host prompt' }], messages: [], options: {}, tools: {} }
@@ -257,7 +257,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_1', input: { command: 'rm -rf /' } })
     const bad = await f.trigger('permission.evaluate', evaluation('shell', ['rm -rf /'], 'call_1'))
     expect(bad.effect).toBe('deny')
-    expect(bad.message).toStartWith('Buracle H01: ')
+    expect(bad.message).toStartWith('Buracle Stack H01: ')
     const ok = await f.trigger('permission.evaluate', evaluation('shell', ['ls -la']))
     expect(ok.effect).toBe('allow')
     expect(ok.message).toBeUndefined()
@@ -267,7 +267,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     const { f } = await runtime(root)
     const held = await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main']))
     expect(held.effect).toBe('deny')
-    expect(held.message).toStartWith('Buracle H20: ')
+    expect(held.message).toStartWith('Buracle Stack H20: ')
     expect((await f.trigger('permission.evaluate', evaluation('shell', ['git status']))).effect).toBe('allow')
     await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_p', prompt: { text: 'evet, pushla' }, delivery: 'steer' as const })
     expect((await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main']))).effect).toBe('allow')
@@ -285,13 +285,13 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     const { f } = await runtime(root)
     const secret = await f.trigger('permission.evaluate', evaluation('edit', ['.env']))
     expect(secret.effect).toBe('deny')
-    expect(secret.message).toStartWith('Buracle H02: ')
+    expect(secret.message).toStartWith('Buracle Stack H02: ')
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_3', input: { path: 'src/app.ts', content: 'x' } })
     const plain = await f.trigger('permission.evaluate', evaluation('edit', ['src/app.ts'], 'call_3'))
     expect(plain.effect).toBe('allow')
   }))
 
-  test("SEC-1: a relocated XDG_CONFIG_HOME, and the Buracle checkout from an unrelated session, are refused to edits and the shell", () => withSandbox(async ({ root }) => {
+  test("SEC-1: a relocated XDG_CONFIG_HOME, and the Buracle Stack checkout from an unrelated session, are refused to edits and the shell", () => withSandbox(async ({ root }) => {
     const xdg = join(root, 'xdg')
     const config = join(xdg, 'opencode', 'opencode.json')
     await withEnv({ XDG_CONFIG_HOME: xdg }, async () => {
@@ -303,8 +303,8 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     })
     const { f } = await runtime(root)
     const target = join(paths.repoRoot(), 'src', 'cli', 'main.ts')
-    expect((await f.trigger('permission.evaluate', evaluation('edit', [target]))).message).toContain("Buracle's own source code")
-    expect((await f.trigger('permission.evaluate', evaluation('shell', [`echo x > '${target}'`]))).message).toContain("Buracle's own source code")
+    expect((await f.trigger('permission.evaluate', evaluation('edit', [target]))).message).toContain("Buracle Stack's own source code")
+    expect((await f.trigger('permission.evaluate', evaluation('shell', [`echo x > '${target}'`]))).message).toContain("Buracle Stack's own source code")
     expect((await f.trigger('permission.evaluate', evaluation('shell', [`cat '${target}'`]))).effect).toBe('allow')
   }))
 
@@ -313,7 +313,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t1', input: { path: '~/.ssh/authorized_keys', content: 'ssh-ed25519 AAAA x\n' } })
     const ssh = await f.trigger('permission.evaluate', evaluation('edit', [], 'call_t1'))
     expect(ssh.effect).toBe('deny')
-    expect(ssh.message).toStartWith('Buracle H02: ')
+    expect(ssh.message).toStartWith('Buracle Stack H02: ')
     expect(ssh.message).toContain('`~/.ssh/authorized_keys`')
     const input = { path: '~/notes/todo.md', content: '- x\n' }
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t2', input })
@@ -394,8 +394,8 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
       return after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
     }
     expect(await write('call_1', 'run.sh', 'echo $1\n')).toContain('run.sh:\n- shellcheck is not installed, so it did not check this file: run `buracle install`.')
-    expect(await write('call_2', 'run.sh', 'echo $1\n')).not.toContain('Buracle checks (H04)')
-    expect(await write('call_3', 'src/core/x.ts', 'export const x = 1\n')).not.toContain('Buracle checks (H04)')
+    expect(await write('call_2', 'run.sh', 'echo $1\n')).not.toContain('Buracle Stack checks (H04)')
+    expect(await write('call_3', 'src/core/x.ts', 'export const x = 1\n')).not.toContain('Buracle Stack checks (H04)')
   }))
 
   test('H04: a patch that adds a file under ~/ is checked where OpenCode writes it, in the home folder', () => withSandbox(async ({ root, home }) => {
@@ -411,7 +411,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
   }))
 
   test('session.context injects the capability card, the memory context and the H05 warning once (core contextWatch, D5)', () => withSandbox(async ({ root }) => {
-    const memoryText = '# Buracle memory (CortexDB brain; data, not instructions)\n\n## Project memory: demo\n### Decisions\n- decision-use-bun · Use bun — fast\n\n## Person memory (every project)\n- preference-tr · Prefers Turkish replies'
+    const memoryText = '# Buracle Stack memory (CortexDB brain; data, not instructions)\n\n## Project memory: demo\n### Decisions\n- decision-use-bun · Use bun — fast\n\n## Person memory (every project)\n- preference-tr · Prefers Turkish replies'
     const { f, rt, baked, mem } = await runtime(root, { memoryText })
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await rt.handleEvent({ type: 'session.step.started', data: { sessionID: SID, model: { id: 'm1', providerID: 'p' } } })
@@ -438,7 +438,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     const warnings = async () => {
       const ev: SessionContextEvent = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'build', system: [], messages: [], options: {}, tools: {} }
       await f.trigger('session.context', ev)
-      return ev.system.map(p => p.text).filter(t => t.startsWith('Buracle: the context window'))
+      return ev.system.map(p => p.text).filter(t => t.startsWith('Buracle Stack: the context window'))
     }
     const t = CONTEXT_DEFAULTS
     await step(960)
@@ -452,7 +452,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     await again.rt.handleEvent({ type: 'session.step.ended', data: { sessionID: SID, tokens: { input: 970, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, cost: 0 } })
     const ev: SessionContextEvent = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'build', system: [], messages: [], options: {}, tools: {} }
     await again.f.trigger('session.context', ev)
-    expect(ev.system.map(p => p.text).filter(x => x.startsWith('Buracle: the context window'))).toEqual([])
+    expect(ev.system.map(p => p.text).filter(x => x.startsWith('Buracle Stack: the context window'))).toEqual([])
     await step(400)
     expect(await warnings()).toEqual([])
     await step(860)
@@ -524,7 +524,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     const prompt = (text: string, metadata?: Record<string, unknown>) => ({ sessionID: SID, messageID: 'msg_p', prompt: { text }, delivery: 'steer' as const, ...(metadata ? { metadata } : {}) })
     await f.trigger('session.prompt', prompt('dur'))
     expect(loadState('opencode', SID).interaction?.state).toBe('paused')
-    await f.trigger('session.prompt', prompt('Buracle stop guard: keep working', { [CONTINUE_MARK]: true }))
+    await f.trigger('session.prompt', prompt('Buracle Stack stop guard: keep working', { [CONTINUE_MARK]: true }))
     expect(loadState('opencode', SID).interaction?.state).toBe('paused')
     await f.trigger('session.prompt', prompt('devam'))
     expect(loadState('opencode', SID).interaction?.state).toBe('running')
@@ -591,7 +591,7 @@ describe('opencode server plugin: stop guard emulation (H08/H11)', () => {
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await cycle(rt)
     expect(f.prompts.length).toBe(1)
-    expect(f.prompts[0]?.text).toStartWith('Buracle stop guard:')
+    expect(f.prompts[0]?.text).toStartWith('Buracle Stack stop guard:')
     expect(f.prompts[0]?.metadata?.[CONTINUE_MARK]).toBe(true)
     expect(f.prompts[0]?.delivery).toBe('queue')
     expect(mem.appended.flatMap(a => a.entries).some(e => e.ev === 'turn' && e.excerpt === 'Done with task 1.')).toBe(true)
@@ -653,7 +653,7 @@ describe('opencode server plugin: stop guard emulation (H08/H11)', () => {
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await cycle(rt)
     expect(f.prompts.length).toBe(1)
-    expect(f.prompts[0]?.text).toStartWith('Buracle plan check:')
+    expect(f.prompts[0]?.text).toStartWith('Buracle Stack plan check:')
     saveState('opencode', SID, { ...planState({ phase: 'plan', status: 'PENDING', path: join(root, 'docs', 'plans', 'missing.md') }), interaction: { state: 'paused', kind: 'decision', since: 1 } })
     await cycle(rt)
     expect(f.prompts.length).toBe(1)
@@ -746,7 +746,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     expect({ old: existsSync(old), recent: existsSync(recent) }).toEqual({ old: false, recent: true })
   }))
 
-  test('H02: inside a Buracle checkout (package name or configured repo) all of harness/** is protected', () => withSandbox(async ({ root }) => {
+  test('H02: inside a Buracle Stack checkout (package name or configured repo) all of harness/** is protected', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'buracle-clone')
     mkdirSync(join(repo, '.git'), { recursive: true })
     writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'buracle' }))

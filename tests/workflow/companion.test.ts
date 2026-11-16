@@ -176,7 +176,7 @@ describe('second opinion (plan.reviews.companion)', () => {
     expect(job?.reportBy).toBe('opencode')
     expect(job?.attempts.map(a => [a.harness, a.error?.replace(/exit 3.*/, 'exit 3')])).toEqual([['codex', 'codex: exit 3'], ['opencode', undefined]])
     const log = seen(w, 'opencode', 'log')
-    expect(log).toContain('ARGV [run] [--standalone] [--agent] [buracle-companion] [--title] [Buracle second opinion]')
+    expect(log).toContain('ARGV [run] [--standalone] [--agent] [buracle-companion] [--title] [Buracle Stack second opinion]')
     expect(log).toMatch(/CWD \S*\/buracle-runner-companion-[^/\s]+\n/)
     const scratch = /CWD (\S+)\n/.exec(log)?.[1] as string
     expect(existsSync(scratch)).toBe(false)
@@ -225,7 +225,7 @@ describe('second opinion (plan.reviews.companion)', () => {
     expect(rec).toMatchObject({ role: 'changes', verdict: 'pass', files: ['src/app.ts', 'src/limit.ts'] })
   }))
 
-  test('a Codex session asking Claude Code: print mode in dontAsk with Read, read-only git and rg, and Buracle\'s review MCP tools', () => sandbox(async root => {
+  test('a Codex session asking Claude Code: print mode in dontAsk with Read, read-only git and rg, and Buracle Stack\'s review MCP tools', () => sandbox(async root => {
     const w = await world(root)
     const codexSession: ResolvedSession = { harness: 'codex', sessionId: 'codex-sess-1', source: '--session' }
     await planRegister(w.plan, 'plan', ctxAt(w.repo), codexSession)

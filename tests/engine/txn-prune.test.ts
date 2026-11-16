@@ -23,7 +23,7 @@ function read(p: string): string {
 const remove = (path: string, pointer: string): Op => ({ kind: 'remove', path: ledgerKey(path, pointer), owner: O })
 
 describe('created containers', () => {
-  test('a file Buracle created is deleted when its last key goes (either removal order)', () => withSandbox(async (sb) => {
+  test('a file Buracle Stack created is deleted when its last key goes (either removal order)', () => withSandbox(async (sb) => {
     for (const order of [['a.b.c', 'a.d'], ['a.d', 'a.b.c']]) {
       const p = join(sb.home, `cfg-${order[0]}.yml`)
       await applyPlans([plan([{ kind: 'yaml-merge', path: p, set: { 'a.b.c': 1, 'a.d': 2 }, owner: O }])])
@@ -69,7 +69,7 @@ describe('created containers', () => {
     expect(Object.keys(await readLedger()).filter(k => k.startsWith(json))).toEqual([])
   }))
 
-  test('a Buracle-created file the user commented in is kept', () => withSandbox(async (sb) => {
+  test('a Buracle Stack-created file the user commented in is kept', () => withSandbox(async (sb) => {
     const p = join(sb.home, 'new.yml')
     await applyPlans([plan([{ kind: 'yaml-merge', path: p, set: { 'tools.approvalMode': 'write' }, owner: O }])])
     write(p, '# keep me\n' + read(p))
@@ -79,7 +79,7 @@ describe('created containers', () => {
     expect(read(p)).toBe('# keep me\n')
   }))
 
-  test('a key the user already deleted still lets the empty parent Buracle created go', () => withSandbox(async (sb) => {
+  test('a key the user already deleted still lets the empty parent Buracle Stack created go', () => withSandbox(async (sb) => {
     const p = join(sb.home, 'c.yml')
     write(p, 'theme: dark\n')
     await applyPlans([plan([{ kind: 'yaml-merge', path: p, set: { 'memory.backend': 'off' }, owner: O }])])

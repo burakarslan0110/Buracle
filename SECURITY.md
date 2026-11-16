@@ -1,8 +1,8 @@
 # Security
 
-Buracle runs coding agents without approval prompts and relies on its own hooks to stop destructive commands, writes to
+Buracle Stack runs coding agents without approval prompts and relies on its own hooks to stop destructive commands, writes to
 secret files and changes to its own setup. These count as security issues: a way around those guards, a secret that
-reaches the model or the memory unmasked, and a weakness in the Buracle Console (the memory's web UI on
+reaches the model or the memory unmasked, and a weakness in the Buracle Stack Console (the memory's web UI on
 `127.0.0.1:41777`).
 
 ## Reporting
@@ -16,5 +16,5 @@ branch. Only the newest commit on the default branch is supported.
 
 ## Out of scope
 
-- A command that Buracle holds for consent and the user then allows.
-- The behavior of the tools Buracle installs (MCP servers, language servers, CortexDB). Report those upstream.
+- A command that Buracle Stack holds for consent and the user then allows.
+- The behavior of the tools Buracle Stack installs (MCP servers, language servers, CortexDB). Report those upstream.

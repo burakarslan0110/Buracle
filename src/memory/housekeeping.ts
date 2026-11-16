@@ -8,7 +8,7 @@ const DEAD_LOCK_AGE_MS = 24 * 3600_000
 
 /**
  * Removes what a killed process left behind: lock files and CortexDB reader entries whose owner is gone (older than a day),
- * and the marker files older Buracle versions wrote next to them. The session-end finalizer runs it; nothing else does.
+ * and the marker files older Buracle Stack versions wrote next to them. The session-end finalizer runs it; nothing else does.
  * Returns how many files it removed.
  */
 export function removeDeadLocks(now: number = Date.now()): number {

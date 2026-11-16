@@ -43,14 +43,14 @@ describe('panes', () => {
 
   test('/buracle-status lines and the theme of segment colors', () => {
     expect(modStatusLines({ version: '0.3.0', claude: '2.1.318', sid: 's1', interactive: true, bypass: true, strictness: 'enforce', redact: true, band: false, commands: ['buracle-ping', 'brain'], uiUrl: 'http://localhost:1' })).toEqual([
-      'Buracle 0.3.0 · Claude Code 2.1.318',
+      'Buracle Stack 0.3.0 · Claude Code 2.1.318',
       'session: s1 · interactive',
-      "permissions: bypass (no approval prompts; Buracle's guards and consent gate protect)",
+      "permissions: bypass (no approval prompts; Buracle Stack's guards and consent gate protect)",
       'routing: enforce · secret masking: on · workflow band: off',
       'commands: /buracle-ping /brain',
       'memory UI: http://localhost:1',
     ])
-    expect(modStatusLines({ version: '0.3.0', sid: '', interactive: false, bypass: false, strictness: 'warn', redact: false, band: true, commands: [] })[0]).toBe('Buracle 0.3.0 · Claude Code')
+    expect(modStatusLines({ version: '0.3.0', sid: '', interactive: false, bypass: false, strictness: 'warn', redact: false, band: true, commands: [] })[0]).toBe('Buracle Stack 0.3.0 · Claude Code')
     expect(themeOf('green')).toBe('success')
     expect(themeOf('magenta')).toBe('claude')
     expect(themeOf(undefined)).toBeUndefined()

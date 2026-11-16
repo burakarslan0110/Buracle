@@ -13,7 +13,7 @@ const SHARED = join(import.meta.dir, '..', '..', '..', 'src', 'adapters', 'share
 describe('one-time notices: acknowledged once per machine (H17)', () => {
   test('the first session claims each notice; every later one, on any harness, gets nothing', () => withSandbox(() => withEnv({ BURACLE_NO_NOTICES: undefined }, () => {
     const first = startupNotices(LIST, { version: '0.5.0', nowMs: NOW, harness: 'claude' })
-    expect(first?.user).toBe('Buracle 0.5.0: First notice.\nBuracle 0.5.0: Second notice.')
+    expect(first?.user).toBe('Buracle Stack 0.5.0: First notice.\nBuracle Stack 0.5.0: Second notice.')
     expect(first?.model).toContain('- First notice.\n- Second notice.')
     expect(readdirSync(paths.noticesDir()).sort()).toEqual(['demo-a.ack', 'demo-b.ack'])
     expect(JSON.parse(readFileSync(join(paths.noticesDir(), 'demo-a.ack'), 'utf8'))).toEqual({ at: NOW, version: '0.5.0', harness: 'claude' })

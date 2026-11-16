@@ -81,7 +81,7 @@ describe('launch (buracle mcp run)', () => {
     expect(serverEnvFor(npmSpec, { CTX_TOKEN: 'abc' })).toEqual({ MODE: 'stdio', TOKEN: 'abc' })
   }))
 
-  test('not installed yet: npx with Buracle\'s own cache, uvx on Python 3.12; a missing runner is an error', () => withSandbox(async () => {
+  test('not installed yet: npx with Buracle Stack\'s own cache, uvx on Python 3.12; a missing runner is an error', () => withSandbox(async () => {
     const s = emptyToolchainState()
     const npx = launchPlan('context7', npmSpec, s, { npx: '/n/npx' })
     expect(npx).toMatchObject({ argv: ['/n/npx', '--yes', '--package=@upstash/context7-mcp@latest', 'context7-mcp', '--x'], source: 'fallback' })
@@ -149,7 +149,7 @@ describe('install sources', () => {
 
   test('a .NET tool installs with `dotnet tool install` into the toolchain, only where dotnet is', () => withSandbox(async () => {
     const cs: ToolSpec = { name: 'csharp-ls', check: ['csharp-ls', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: false, dotnet: 'csharp-ls', install: 'Install the .NET SDK' }
-    expect(installSources(cs, 'darwin', () => true).map(s => s.label)).toEqual(['dotnet tool install csharp-ls (Buracle toolchain)'])
+    expect(installSources(cs, 'darwin', () => true).map(s => s.label)).toEqual(['dotnet tool install csharp-ls (Buracle Stack toolchain)'])
     expect(installSources(cs, 'linux', () => true).map(s => s.kind)).toEqual(['dotnet'])
     expect(installSources(cs, 'darwin', c => c !== 'dotnet')).toEqual([])
     expect(installAdvice(cs, 'darwin')).toBe('Install the .NET SDK')
@@ -286,7 +286,7 @@ describe('language servers', () => {
   }), 30_000)
 })
 
-describe('the tools Buracle downloaded', () => {
+describe('the tools Buracle Stack downloaded', () => {
   test('toolchainEnv puts their folders first on PATH, only the ones that exist', () => withSandbox(async () => {
     const [nodeBin, uvDir] = paths.systemToolBinDirs() as [string, string]
     mkdirSync(nodeBin, { recursive: true })

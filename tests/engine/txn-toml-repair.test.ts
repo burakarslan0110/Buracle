@@ -5,7 +5,7 @@ import { tomlParse } from '../../src/engine/merge'
 import { applyPlans, readLedger, type Op } from '../../src/engine/txn'
 import { withSandbox } from '../helpers/sandbox'
 
-// What herdr's Codex integration left behind (it appends `[features]` when the file has none): Buracle's earlier
+// What herdr's Codex integration left behind (it appends `[features]` when the file has none): Buracle Stack's earlier
 // install had written `features.memories` as a dotted root key, TOML allows one definition of a table, and Codex did
 // not start ("duplicate key"). The next install has to repair it, and a fresh install has to avoid it.
 const BROKEN = `model = "gpt-x"

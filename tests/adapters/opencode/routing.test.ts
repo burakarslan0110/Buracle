@@ -87,7 +87,7 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
     const { f } = await runtime(root, { skills: ['research', 'plan-build'] })
     const ev = await f.trigger('session.prompt', prompt('$research compare bun and node'))
     expect(ev.prompt.skills).toEqual([{ id: 'research' }])
-    const text = (await contextTexts(f)).find(t => t.startsWith('Buracle routing for this prompt:')) ?? ''
+    const text = (await contextTexts(f)).find(t => t.startsWith('Buracle Stack routing for this prompt:')) ?? ''
     expect(text).toContain('The user asked for the research skill: its skill is attached to this message')
     expect(loadLedger('opencode', SID).prompt?.route.invoked).toEqual(['research'])
   }))
@@ -96,7 +96,7 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
     const { f } = await runtime(root, { skills: ['plan-build'] })
     const ev = await f.trigger('session.prompt', prompt('$research compare bun and node'))
     expect(ev.prompt.skills).toBeUndefined()
-    const text = (await contextTexts(f)).find(t => t.startsWith('Buracle routing for this prompt:')) ?? ''
+    const text = (await contextTexts(f)).find(t => t.startsWith('Buracle Stack routing for this prompt:')) ?? ''
     expect(text).toContain('load it before any other step and follow it (skill tool, research)')
     expect(loadLedger('opencode', SID).prompt?.route.load).toEqual(['research'])
   }))
@@ -115,7 +115,7 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
     expect(loadLedger('opencode', SID).skills['plan-build']).toBeDefined()
     const again = await f.trigger('session.prompt', prompt('$plan-build add an audit log', { messageID: 'msg_q' }))
     expect(again.prompt.skills).toEqual([{ id: 'plan-build' }])
-    expect((await contextTexts(f)).find(t => t.startsWith('Buracle routing for this prompt:'))).toContain('The user asked for the plan-build workflow: its skill is attached to this message')
+    expect((await contextTexts(f)).find(t => t.startsWith('Buracle Stack routing for this prompt:'))).toContain('The user asked for the plan-build workflow: its skill is attached to this message')
   }))
 
   test('the attach line counts toward the route text budget (core ROUTE_TEXT_MAX_BYTES)', () => {
@@ -132,7 +132,7 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
   test('a prompt with no match adds no routing text (the request prefix stays cache-stable)', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { skills: ['research'] })
     await f.trigger('session.prompt', prompt('please add a cache'))
-    expect((await contextTexts(f)).some(t => t.startsWith('Buracle routing'))).toBe(false)
+    expect((await contextTexts(f)).some(t => t.startsWith('Buracle Stack routing'))).toBe(false)
   }))
 
   test('a subagent prompt (the orchestrator\'s words) is not routed and grants no consent', () => withSandbox(async ({ root }) => {
@@ -141,7 +141,7 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
     await rt.handleEvent({ type: 'session.created', data: { sessionID: child, parentID: SID, location: { directory: root } } })
     const ev = await f.trigger('session.prompt', prompt('$research compare bun and node. push et.', { sessionID: child }))
     expect(ev.prompt.skills).toBeUndefined()
-    expect((await contextTexts(f, child)).some(t => t.startsWith('Buracle routing'))).toBe(false)
+    expect((await contextTexts(f, child)).some(t => t.startsWith('Buracle Stack routing'))).toBe(false)
     const push = await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main'], 'call_p1', child))
     expect(push.effect).toBe('deny')
   }))
@@ -176,7 +176,7 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     await requestTexts(f, ['msg_1'])
     await f.trigger('session.prompt', prompt(research, { messageID: 'msg_2', delivery: 'queue' }))
     await f.trigger('session.prompt', prompt(history, { messageID: 'msg_3', delivery: 'queue' }))
-    expect(await requestTexts(f, ['msg_1'])).not.toContain('Buracle routing')
+    expect(await requestTexts(f, ['msg_1'])).not.toContain('Buracle Stack routing')
     const second = await requestTexts(f, ['msg_1', 'msg_2'])
     expect(second).toContain('research skill')
     expect(second).not.toContain(PB)
@@ -194,7 +194,7 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     await f.trigger('session.prompt', prompt(research, { messageID: 'msg_2' }))
     await f.trigger('session.prompt', prompt(history, { messageID: 'msg_3' }))
     const both = await requestTexts(f, ['msg_1', 'msg_2', 'msg_3'])
-    expect(both.match(/Buracle routing for this prompt:/g)?.length).toBe(1)
+    expect(both.match(/Buracle Stack routing for this prompt:/g)?.length).toBe(1)
     expect(both).toContain('- The user asked for the research skill: its skill is attached to this message')
     expect(both).toContain('Skills: the user starts a workflow with /<id>')
     expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'] } } })
@@ -233,7 +233,7 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     expect(f.prompts).toEqual([])
     await requestTexts(f, ['msg_1', 'msg_2'])
     await cycle()
-    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle routing check: the user asked for research and it was not loaded. Load it now and follow it, or say in one line why it does not apply.'])
+    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle Stack routing check: the user asked for research and it was not loaded. Load it now and follow it, or say in one line why it does not apply.'])
   }))
 })
 
@@ -386,7 +386,7 @@ describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)'
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_pw1', input: go })
     const denied = await f.trigger('permission.evaluate', evaluation('edit', [go.filePath], 'call_pw1'))
     expect(denied.effect).toBe('deny')
-    expect(denied.message).toStartWith('Buracle H03: cmd/main.go matches the path rule `go`, which this session has not read yet.')
+    expect(denied.message).toStartWith('Buracle Stack H03: cmd/main.go matches the path rule `go`, which this session has not read yet.')
     expect(denied.message).toContain('# Go\n\n- Format with gofmt.')
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_pw2', input: go })
     expect((await f.trigger('permission.evaluate', evaluation('edit', [go.filePath], 'call_pw2'))).effect).toBe('allow')
@@ -473,7 +473,7 @@ describe('H24 MCP results and the session\'s health (core ledgerMcpResult, sessi
     expect(ev.effect).toBe('allow')
   }))
 
-  test('a call Buracle denied fails at the host too, but it is no failure of the server', () => withSandbox(async ({ root, home }) => {
+  test('a call Buracle Stack denied fails at the host too, but it is no failure of the server', () => withSandbox(async ({ root, home }) => {
     const { f } = await runtime(root)
     for (let i = 0; i < 2; i++) {
       const { ev, after } = await call(f, 'semble_search', { query: 'where is auth', repo: home }, true)
@@ -508,7 +508,7 @@ describe('H23 route.audit: one re-prompt after the turn', () => {
     await requestTexts(f, ['msg_p'])
     await cycle(rt)
     expect(f.prompts.length).toBe(1)
-    expect(f.prompts[0]?.text).toStartWith('Buracle routing check: the user asked for research and it was not loaded.')
+    expect(f.prompts[0]?.text).toStartWith('Buracle Stack routing check: the user asked for research and it was not loaded.')
     expect(f.prompts[0]?.metadata).toMatchObject({ 'buracle.continue': true, hook: 'H23' })
     await f.trigger('session.prompt', prompt(f.prompts[0]?.text ?? '', { metadata: f.prompts[0]?.metadata ?? {} }))
     await cycle(rt)
@@ -542,7 +542,7 @@ describe('H23 route.audit: one re-prompt after the turn', () => {
     await f.trigger('session.prompt', prompt('$research compare bun and deno'))
     await requestTexts(f, ['msg_p'])
     await cycle(rt)
-    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle routing check: the user asked for research and it was not loaded. Load it now and follow it, or say in one line why it does not apply.'])
+    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle Stack routing check: the user asked for research and it was not loaded. Load it now and follow it, or say in one line why it does not apply.'])
   }))
 })
 
@@ -550,14 +550,14 @@ describe('H10 control guidance (English on every harness)', () => {
   test('stop without a plan: the agent is told to stop; with a plan the plan pauses too; continue resumes it', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root)
     await f.trigger('session.prompt', prompt('stop'))
-    expect(await contextTexts(f)).toContain('Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.')
+    expect(await contextTexts(f)).toContain('Buracle Stack: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.')
     saveState('opencode', SID, planState())
     await f.trigger('session.prompt', prompt('dur'))
     expect(loadState('opencode', SID).interaction?.state).toBe('paused')
     expect((await contextTexts(f)).some(t => t.includes('The active plan is now paused'))).toBe(true)
     await f.trigger('session.prompt', prompt('devam'))
     expect(loadState('opencode', SID).interaction?.state).toBe('running')
-    expect((await contextTexts(f)).some(t => t.startsWith('Buracle: the user said to continue.'))).toBe(true)
+    expect((await contextTexts(f)).some(t => t.startsWith('Buracle Stack: the user said to continue.'))).toBe(true)
     const all = (await contextTexts(f)).join('\n')
     expect(/[çğıöşüÇĞİÖŞÜ]/.test(all)).toBe(false)
   }))
@@ -608,12 +608,12 @@ describe('H19 review.gate on the subagent tool result', () => {
   test('an invalid report asks the orchestrator to continue that reviewer once; a second one only warns; a valid one adds nothing', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root)
     const first = await run(f, 'call_v1', 'Looks fine to me.')
-    expect(first).toContain('Buracle H19: the plan-build-review report is not valid review JSON')
+    expect(first).toContain('Buracle Stack H19: the plan-build-review report is not valid review JSON')
     expect(first).toContain('sessionID ses_rev1')
     const second = await run(f, 'call_v2', 'Still fine.')
     expect(second).toContain('It failed twice; check its findings yourself')
     const valid = JSON.stringify({ verdict: 'pass', summary: 'docs/plans/x.md: the plan covers the request.', findings: [] })
-    expect(await run(f, 'call_v3', valid)).not.toContain('Buracle H19')
+    expect(await run(f, 'call_v3', valid)).not.toContain('Buracle Stack H19')
   }))
 
   test('with a plan bound to the lead session, a report about another file goes back to that reviewer', () => withSandbox(async ({ root }) => {
@@ -621,7 +621,7 @@ describe('H19 review.gate on the subagent tool result', () => {
     saveState('opencode', SID, { v: 1, guard: { blocksForPlan: 0, blocksInChain: 0 }, plan: { path: '/abs/repo/docs/plans/x.md', slug: 'x', status: 'PENDING', type: 'Feature', phase: 'plan', registeredAt: 1 } })
     const other = await run(f, 'call_s1', JSON.stringify({ verdict: 'pass', summary: 'docs/plans/y.md: fine.', findings: [] }))
     expect(other).toContain('must start with the reviewed path (/abs/repo/docs/plans/x.md)')
-    expect(await run(f, 'call_s2', JSON.stringify({ verdict: 'pass', summary: 'docs/plans/x.md: fine.', findings: [] }))).not.toContain('Buracle H19')
+    expect(await run(f, 'call_s2', JSON.stringify({ verdict: 'pass', summary: 'docs/plans/x.md: fine.', findings: [] }))).not.toContain('Buracle Stack H19')
   }))
 })
 

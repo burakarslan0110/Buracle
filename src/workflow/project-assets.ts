@@ -98,8 +98,8 @@ export function assetLayout(rootIn: string): AssetLayout {
   const facts = ['.agents', '.agents/skills', '.claude', '.claude/skills'].map(rel => pathFacts(root, rel))
   const blocked: string[] = []
   for (const f of facts) {
-    if (f.kind === 'link' && f.real === undefined) blocked.push(`${f.rel} is a dangling symlink; Buracle does not write through it`)
-    else if (f.kind === 'link' && !f.inside) blocked.push(`${f.rel} is a symlink to ${f.real ?? '?'}, outside the repository; Buracle does not write through it`)
+    if (f.kind === 'link' && f.real === undefined) blocked.push(`${f.rel} is a dangling symlink; Buracle Stack does not write through it`)
+    else if (f.kind === 'link' && !f.inside) blocked.push(`${f.rel} is a symlink to ${f.real ?? '?'}, outside the repository; Buracle Stack does not write through it`)
     else if (f.kind === 'link' && targetKind(join(root, f.rel)) !== 'dir') blocked.push(`${f.rel} is a symlink to a file, not a folder`)
     else if (f.kind === 'file' || f.kind === 'other') blocked.push(`${f.rel} is a file, not a folder`)
   }
@@ -183,7 +183,7 @@ export function linkPlan(layout: AssetLayout, agents: readonly AgentSkill[] = ag
   for (const a of agents) {
     if (a.state === 'link') {
       if (a.claudeOwned === true) plan.claudeOwned.push(a.id)
-      else plan.skipped.push({ id: a.id, reason: `a symlink${a.target !== undefined ? ` to ${a.target}` : ''}; Buracle links only real skill folders` })
+      else plan.skipped.push({ id: a.id, reason: `a symlink${a.target !== undefined ? ` to ${a.target}` : ''}; Buracle Stack links only real skill folders` })
       continue
     }
     if (a.state === 'bad-id') { plan.skipped.push({ id: a.id, reason: 'folder name is not a valid skill id' }); continue }

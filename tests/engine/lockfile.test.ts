@@ -47,7 +47,7 @@ describe('who holds a lock', () => {
     try {
       lockTestHooks.lookUpProcess = () => undefined
       writeFileSync(lock, JSON.stringify({ pid: holder.pid, startedAt: Date.now() - 1000 }) + '\n')
-      await expect(attempt(home)).rejects.toThrow(/another Buracle transaction is running/)
+      await expect(attempt(home)).rejects.toThrow(/another Buracle Stack transaction is running/)
       const old = (Date.now() - 20 * 60_000) / 1000
       utimesSync(lock, old, old)
       expect((await attempt(home)).applied).toBe(1)
@@ -64,7 +64,7 @@ describe('who holds a lock', () => {
     try {
       lockTestHooks.lookUpProcess = () => ({ startedAt, command: 'bun' })
       writeFileSync(lock, JSON.stringify({ pid: holder.pid, startedAt }) + '\n')
-      await expect(attempt(home)).rejects.toThrow(/another Buracle transaction is running/)
+      await expect(attempt(home)).rejects.toThrow(/another Buracle Stack transaction is running/)
       writeFileSync(lock, JSON.stringify({ pid: holder.pid, startedAt: startedAt - 3_600_000 }) + '\n')
       expect((await attempt(home)).applied).toBe(1)
     } finally {
@@ -116,7 +116,7 @@ describe('stale lock breaking (O11)', () => {
     try {
       const fresh = JSON.stringify({ pid: holder.pid }) + '\n'
       racerTakes(lock, fresh)
-      await expect(applyPlans([{ id: 't', harness: 'core', ops: [{ kind: 'file', path: join(home, 'x'), content: 'x', owner: 'core' }] }])).rejects.toThrow(/another Buracle transaction is running/)
+      await expect(applyPlans([{ id: 't', harness: 'core', ops: [{ kind: 'file', path: join(home, 'x'), content: 'x', owner: 'core' }] }])).rejects.toThrow(/another Buracle Stack transaction is running/)
       expect(readFileSync(lock, 'utf8')).toBe(fresh)
       expect(existsSync(join(home, 'x'))).toBe(false)
     } finally {

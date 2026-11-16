@@ -30,7 +30,7 @@ describe('Codex turn receipt (PARITY-3)', () => {
     expect(keys(await hook('PostToolUse', { cwd, tool_name: 'apply_patch', tool_input: { command: PATCH }, tool_response: 'Success.' }, d))).not.toContain('systemMessage')
     const stop = await hook('Stop', { cwd, last_assistant_message: 'Done, it works now.' }, d)
     expect(keys(stop)).toEqual(['systemMessage'])
-    expect(stop['systemMessage']).toBe('Buracle · 1 file (+1 −1) · ⚠ unverified change')
+    expect(stop['systemMessage']).toBe('Buracle Stack · 1 file (+1 −1) · ⚠ unverified change')
     expect(await hook('Stop', { cwd }, d)).toEqual({})
 
     await hook('UserPromptSubmit', { cwd, prompt: 'again' }, d)
@@ -47,7 +47,7 @@ describe('Codex turn receipt (PARITY-3)', () => {
     expect(await hook('PostToolUseMask', fail, d)).toEqual({})
     const third = await hook('PostToolUseMask', fail, d)
     expect(keys(third)).toEqual(['systemMessage'])
-    expect(third['systemMessage']).toBe('Buracle: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)')
+    expect(third['systemMessage']).toBe('Buracle Stack: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)')
     const key = 'AKIA' + 'IOSFODNN7EXAMPLE'
     const masked = await hook('PostToolUseMask', { ...fail, tool_input: { command: 'cat .env' }, tool_response: `Process exited with code 0\nKEY=${key}` }, d)
     expect(keys(masked)).toEqual(['decision', 'reason', 'systemMessage'])
@@ -63,7 +63,7 @@ describe('Codex turn receipt (PARITY-3)', () => {
     const post = (from: string, to: string) => hook('PostToolUse', { cwd: root, tool_name: 'apply_patch', tool_input: { command: patch(from, to) }, tool_response: 'Success.' }, d)
     expect((await post('x = 1', 'x = 2'))['systemMessage']).toBeUndefined()
     expect((await post('x = 2', 'x = 1'))['systemMessage']).toBeUndefined()
-    expect((await post('x = 1', 'x = 2'))['systemMessage']).toBe(`Buracle: ${join(root, 'src', 'a.ts')}: the same change was undone and redone twice (you may be going in circles; rethink the approach)`)
+    expect((await post('x = 1', 'x = 2'))['systemMessage']).toBe(`Buracle Stack: ${join(root, 'src', 'a.ts')}: the same change was undone and redone twice (you may be going in circles; rethink the approach)`)
   }))
 })
 
@@ -78,7 +78,7 @@ describe('Codex workflow and health notices (PARITY-9)', () => {
     expect(await hook('Stop', { cwd: root }, d, ctx(quietCfg))).toEqual({})
     const stop = await hook('Stop', { cwd: root }, d)
     expect(keys(stop)).toEqual(['systemMessage'])
-    expect(stop['systemMessage']).toContain('Buracle workflow: plan-build (Add login)')
+    expect(stop['systemMessage']).toContain('Buracle Stack workflow: plan-build (Add login)')
     expect(stop['systemMessage']).toContain('failed')
     expect(keys(await hook('UserPromptSubmit', { cwd: root, prompt: 'next' }, d))).not.toContain('systemMessage')
   }))
@@ -86,10 +86,10 @@ describe('Codex workflow and health notices (PARITY-9)', () => {
   test('SessionStart warns once when the hooks segment would be red or yellow', () => withSandbox(async ({ root }) => {
     const failing = turnDeps({ now: NOW }, { failures: 2, failClosed: 1 })
     const start = await hook('SessionStart', { cwd: root, source: 'startup' }, failing)
-    expect(start['systemMessage']).toBe('Buracle: 2 Buracle hook runs failed in the last 24 h (1 denied a call); run `buracle doctor codex`.')
+    expect(start['systemMessage']).toBe('Buracle Stack: 2 Buracle Stack hook runs failed in the last 24 h (1 denied a call); run `buracle doctor codex`.')
     expect((await hook('SessionStart', { cwd: root, source: 'compact' }, failing))['systemMessage']).toBeUndefined()
     const behind = await hook('SessionStart', { cwd: root, source: 'resume' }, turnDeps({ now: NOW }, { failures: 0, failClosed: 0, runtimeBehind: true } as never))
-    expect(behind['systemMessage']).toBe('Buracle: the installed Buracle runtime is behind the checkout; run `buracle install`.')
+    expect(behind['systemMessage']).toBe('Buracle Stack: the installed Buracle Stack runtime is behind the checkout; run `buracle install`.')
     expect((await hook('SessionStart', { cwd: root, source: 'startup' }, turnDeps({ now: NOW })))['systemMessage']).toBeUndefined()
   }))
 })

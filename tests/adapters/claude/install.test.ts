@@ -59,7 +59,7 @@ describe('mcp.off.claude: Claude Code\'s own off setting', () => {
     expect((mcpOffOps(realCtx([]))[0] as Extract<Op, { kind: 'json-list-merge' }>).items).toEqual([])
   })
 
-  test('enable removes exactly the entries Buracle wrote and keeps the user\'s own', () => withSandbox(async () => {
+  test('enable removes exactly the entries Buracle Stack wrote and keeps the user\'s own', () => withSandbox(async () => {
     const settings = join(paths.claudeDir(), 'settings.json')
     mkdirSync(paths.claudeDir(), { recursive: true })
     writeFileSync(settings, JSON.stringify({ deniedMcpServers: [{ serverName: 'their-server' }] }))
@@ -100,7 +100,7 @@ describe('install plan as data', () => {
 
       const merges = plan.ops.filter(o => o.kind === 'json-merge') as Array<Extract<Op, { kind: 'json-merge' }>>
       expect(merges).toHaveLength(5)
-      expect(merges[4]?.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
+      expect(merges[4]?.set).toEqual({ companyAnnouncements: ['Buracle Stack · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
       expect(merges[4]?.soft).toEqual(['companyAnnouncements'])
       expect(merges[4]?.enforce).toBeUndefined()
       expect(merges[3]?.set).toEqual({ autoMemoryEnabled: false })
@@ -143,10 +143,10 @@ describe('install plan as data', () => {
     const ctx = ctxFor()
     const op = announcementOps(ctx)[0] as Extract<Op, { kind: 'json-merge' }>
     expect(op.path).toBe(join(ctx.paths.claudeDir(), 'settings.json'))
-    expect(op.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
+    expect(op.set).toEqual({ companyAnnouncements: ['Buracle Stack · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
   })
 
-  test("applied: the announcement is written, a value the user set before or after stays theirs, and uninstall removes only Buracle's", async () => {
+  test("applied: the announcement is written, a value the user set before or after stays theirs, and uninstall removes only Buracle Stack's", async () => {
     await withSandbox(async sb => {
       const file = join(sb.home, '.claude', 'settings.json')
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
@@ -170,12 +170,12 @@ describe('install plan as data', () => {
     })
   })
 
-  test('the spinner tips: every canonical tip under the Buracle label, a user override stays, uninstall takes back only ours', async () => {
+  test('the spinner tips: every canonical tip under the Buracle Stack label, a user override stays, uninstall takes back only ours', async () => {
     const shipped = loadCanonicalSync(join(REPO, 'canonical'))
     const ctx = (): AdapterContext => ({ ...ctxFor(), canonical: shipped })
     const op = tipOps(ctx())[0] as Extract<Op, { kind: 'json-merge' }>
     const set = op.set['spinnerTipsOverride'] as { label: string, tips: Array<{ id: string, text: string }>, excludeDefault?: boolean }
-    expect(set.label).toBe('Buracle')
+    expect(set.label).toBe('Buracle Stack')
     expect(set.excludeDefault).toBeUndefined()
     expect(set.tips.map(t => t.id)).toContain('plan-build')
     expect(set.tips).toEqual((shipped.tips ?? []).map(t => ({ id: t.id, text: t.text })))
@@ -199,7 +199,7 @@ describe('install plan as data', () => {
     })
   })
 
-  test("uninstall takes back the announcement Buracle wrote when the user left it alone", async () => {
+  test("uninstall takes back the announcement Buracle Stack wrote when the user left it alone", async () => {
     await withSandbox(async sb => {
       const file = join(sb.home, '.claude', 'settings.json')
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
@@ -212,7 +212,7 @@ describe('install plan as data', () => {
   })
 
   // With agent teams on, Claude Code starts a named Agent call as a teammate: it reports through mailbox messages
-  // and once more in its idle notice, so Buracle's lanes (one result each) arrive late, in pieces and twice.
+  // and once more in its idle notice, so Buracle Stack's lanes (one result each) arrive late, in pieces and twice.
   const teamsKey = 'env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'
   const planDeps = { claudeBin: () => '/x/claude', bunBin: () => '/x/bun', marketplaces: async () => [], ledger: async () => ({}) }
 
@@ -227,8 +227,8 @@ describe('install plan as data', () => {
     })
   })
 
-  test('the next install removes the agent-teams switch an earlier Buracle wrote; a value the user set stays', async () => {
-    // An earlier Buracle install (the old soft teams op), then the current install with its stale-key prune, as compose runs them.
+  test('the next install removes the agent-teams switch an earlier Buracle Stack wrote; a value the user set stays', async () => {
+    // An earlier Buracle Stack install (the old soft teams op), then the current install with its stale-key prune, as compose runs them.
     const overEarlier = (startEnv: Record<string, string> | undefined, edit?: (env: Record<string, string>) => void) => withSandbox(async sb => {
       const settings = join(sb.home, '.claude', 'settings.json')
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
@@ -387,7 +387,7 @@ describe('install plan applied through the transaction engine (fake claude)', ()
     })
   }, 60_000)
 
-  test("a failing exec of Buracle's own rolls back the files and undoes the execs that ran", async () => {
+  test("a failing exec of Buracle Stack's own rolls back the files and undoes the execs that ran", async () => {
     await withSandbox(async sb => {
       const { bin, state } = fakeClaude(sb.root)
       await withEnv({ FAKE_CLAUDE_STATE: state, FAKE_CLAUDE_FAIL: 'install buracle@buracle' }, async () => {
@@ -405,7 +405,7 @@ describe('install plan applied through the transaction engine (fake claude)', ()
 
 })
 
-describe('the undo of a third-party marketplace Buracle added (install F02)', () => {
+describe('the undo of a third-party marketplace Buracle Stack added (install F02)', () => {
   function fakeClaude(root: string): { bin: string, state: string } {
     const state = join(root, 'fake-state')
     mkdirSync(state, { recursive: true })
@@ -437,7 +437,7 @@ describe('the undo of a third-party marketplace Buracle added (install F02)', ()
   }, 60_000)
 })
 
-describe('retired permissions.deny entries: Buracle hides no MCP tool any more, and an empty json-list-merge op removes what an older install wrote', () => {
+describe('retired permissions.deny entries: Buracle Stack hides no MCP tool any more, and an empty json-list-merge op removes what an older install wrote', () => {
   const settingsOf = (home: string) => join(home, '.claude', 'settings.json')
   // Bare-name deny entries the way an install before 0.6.0 wrote them for a server since retired.
   const OLD = ['mcp__plugin_buracle_old-server__upgrade', 'mcp__plugin_buracle_old-server__insight']
@@ -455,7 +455,7 @@ describe('retired permissions.deny entries: Buracle hides no MCP tool any more, 
     })
   })
 
-  test("applied over an older install's entries: Buracle's go, the user's own and the adopted one stay, the ledger forgets the list, a second run changes nothing", async () => {
+  test("applied over an older install's entries: Buracle Stack's go, the user's own and the adopted one stay, the ledger forgets the list, a second run changes nothing", async () => {
     await withSandbox(async sb => {
       const settings = settingsOf(sb.home)
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
@@ -489,7 +489,7 @@ describe('retired permissions.deny entries: Buracle hides no MCP tool any more, 
   })
 })
 
-describe("the env keys Claude Code needs under Buracle (~/.claude/settings.json env)", () => {
+describe("the env keys Claude Code needs under Buracle Stack (~/.claude/settings.json env)", () => {
   const settingsOf = (home: string) => join(home, '.claude', 'settings.json')
   const plan = () => ({ id: 'claude', harness: 'claude' as const, ops: envOps(ctxFor()) })
 
@@ -530,7 +530,7 @@ describe("the env keys Claude Code needs under Buracle (~/.claude/settings.json 
     })
   })
 
-  test("the task-tools switch an earlier Buracle wrote as \"1\" becomes \"true\" without a conflict", async () => {
+  test("the task-tools switch an earlier Buracle Stack wrote as \"1\" becomes \"true\" without a conflict", async () => {
     await withSandbox(async sb => {
       const settings = settingsOf(sb.home)
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
@@ -566,7 +566,7 @@ describe("Claude Code's LSP plugin recommendation: the official plugins the .lsp
     })
   })
 
-  test("applied: Claude Code's other keys and the user's own entries stay, idempotent; uninstall removes only Buracle's", async () => {
+  test("applied: Claude Code's other keys and the user's own entries stay, idempotent; uninstall removes only Buracle Stack's", async () => {
     await withSandbox(async sb => {
       const file = join(sb.home, '.claude.json')
       const own = ['clangd-lsp@claude-plugins-official', 'pyright-lsp@claude-plugins-official']

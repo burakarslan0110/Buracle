@@ -137,7 +137,7 @@ describe('mem doctor', () => {
         const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
         const found = checks.find(c => c.check === 'cortexdb')
         expect(found?.level).toBe('error')
-        expect(found?.detail).toBe(`${old}: it is CortexDB 2.130.1, older than the 2.137.0 Buracle needs (buracle install takes the newest release)`)
+        expect(found?.detail).toBe(`${old}: it is CortexDB 2.130.1, older than the 2.137.0 Buracle Stack needs (buracle install takes the newest release)`)
         expect(doctorExitCode(checks)).toBe(1)
       })
     })

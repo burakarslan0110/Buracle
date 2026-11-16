@@ -724,7 +724,7 @@ export class BuracleRuntime {
     }, {
       ...this.deps(s),
       shellDenial: async command => reviewerShellDenial(e.agent, command),
-      // OpenCode's own ask dialog cannot carry Buracle's consent options, so the TUI plugin asks; the call waits for the answer.
+      // OpenCode's own ask dialog cannot carry Buracle Stack's consent options, so the TUI plugin asks; the call waits for the answer.
       holdConsent: async command => {
         held = await answerHeld(sid, command, { host: this.consentHost, isSubagent: async () => sub })
         // The answer is a grant like any other: the gate takes it, so a one-use grant is spent by this call.
@@ -805,8 +805,8 @@ export class BuracleRuntime {
     if (job !== undefined) (s.background ??= new Map()).set(job[0], job[1])
     const lsp = edit ? await lspEditNotes(cls.paths, this.cfg().checkers, { cwd, ask: this.lspEdits, log: (level, msg, data) => this.logFn(level, msg, data) }) : []
     const extra = [...new Set([...nudges, ...(verdict?.context !== undefined ? [verdict.context] : [])].map(n => n.trim()).filter(n => n !== ''))]
-    if (r !== undefined && r.fileNotes.length > 0) extra.push(`Buracle checks (H04):\n\n${r.fileNotes.join('\n\n')}`)
-    if (lsp.length > 0) extra.push(['Buracle language server diagnostics (H04):', ...lsp].join('\n\n'))
+    if (r !== undefined && r.fileNotes.length > 0) extra.push(`Buracle Stack checks (H04):\n\n${r.fileNotes.join('\n\n')}`)
+    if (lsp.length > 0) extra.push(['Buracle Stack language server diagnostics (H04):', ...lsp].join('\n\n'))
     if (r?.assets !== undefined) extra.push(r.assets)
     if (e.tool === 'subagent') {
       const note = this.reviewGate(input, e.result, reviewSubjects(HARNESS, s.sid))

@@ -1,7 +1,7 @@
 ---
 name: goal-build-review
 description: >-
-  Read-only reviewer for a Buracle goal-build contract (the Buildout) before the build loop starts. Launch it
+  Read-only reviewer for a Buracle Stack goal-build contract (the Buildout) before the build loop starts. Launch it
   from the goal-build workflow after drafting docs/goal-build/YYYY-MM-DD-<slug>.md, passing the file path, the user's
   goal verbatim and the clarifications. It checks that the tasks and acceptance criteria are measurable,
   complete and correctly ordered, and returns strict JSON findings with ready-to-paste replacement wording.

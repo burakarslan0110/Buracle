@@ -39,7 +39,7 @@ describe('findings', () => {
     expect(versionFinding('2.1.291').level).toBe('ok')
     expect(versionFinding('2.1.293').level).toBe('ok')
     expect(versionFinding('2.1.294').level).toBe('ok')
-    // Every version at or above the minimum is fine, also one far newer than any Buracle knows.
+    // Every version at or above the minimum is fine, also one far newer than any Buracle Stack knows.
     for (const v of [MIN_CLAUDE, '2.1.999', '2.2.0', '9.0.0']) expect(versionFinding(v)).toMatchObject({ level: 'ok', detail: `${v} (minimum ${MIN_CLAUDE})` })
     expect(versionFinding('9.0.0').detail).not.toMatch(/tested/i)
     expect(versionFinding('2.1.289').level).toBe('error')

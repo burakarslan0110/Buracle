@@ -32,12 +32,12 @@ Without a topic every section runs:
            MCP servers, status lines) finds it, also with a non-default BURACLE_HOME
   runtime  the frozen runtime the shim runs (~/.buracle/runtime/<id>): present, checked,
            behind or ahead of the checkout (\`buracle install\` makes checkout edits live);
-           node_modules against bun.lock; uncommitted changes (a note); Buracle hook
+           node_modules against bun.lock; uncommitted changes (a note); Buracle Stack hook
            failures and fail-closed denials in the log of the last 24 h; transactions
            that could not be rolled back; stale lock files; generated harness/ files
            against harness/.manifest.json and canonical/
   tools    the CLI tools in canonical/tools.yaml (missing ones get install advice only; a
-           tool Buracle's toolchain provides counts through its toolchain copy), and the
+           tool Buracle Stack's toolchain provides counts through its toolchain copy), and the
            version of every package in ~/.buracle/toolchain
   skills   every skill is where each enabled harness reads it: the Claude plugin's skills/, and
            the one installed copy in ~/.agents/skills (with the links a harness that does not
@@ -51,8 +51,8 @@ Without a topic every section runs:
            initialize + tools/list, each within 30 s; results go to
            ~/.buracle/state/health.json, which routing enforcement and the capability card read;
            a server off in every harness is not started. The processes check names each
-           Buracle MCP process without a live harness and the command that stops it
-  lsp      start every language server (Buracle's toolchain copy) and run the LSP
+           Buracle Stack MCP process without a live harness and the command that stops it
+  lsp      start every language server (Buracle Stack's toolchain copy) and run the LSP
            initialize handshake, each within 30 s
   memory   \`buracle mem doctor\` (CortexDB, the project and person brains, the sessions whose
            capture is owed, the cross-project leak check, the MCP server)

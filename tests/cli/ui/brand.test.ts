@@ -61,7 +61,7 @@ describe('README', () => {
     const text = readme('README.md')
     const top = text.split('\n').slice(0, 25).join('\n')
     expect(top).toContain(`### ${TAGLINE}\n`)
-    expect(top).toContain('curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash')
+    expect(top).toContain('curl -fsSL https://github.com/burakarslan0110/Buracle-Stack/releases/latest/download/install.sh | bash')
     for (const c of ['color=6D28D9', 'license-MIT-A21CAF', '1.4-B45309']) expect(top).toContain(c)
   })
 

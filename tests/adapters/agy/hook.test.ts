@@ -23,7 +23,7 @@ describe('PreToolUse: the guards answer {decision, reason}', () => {
       const out = await hook('PreToolUse', payload('PreToolUse', call('run_command', { CommandLine: 'rm -rf ~', Cwd: '/work/app' })))
       expect(out.exitCode).toBe(0)
       expect(json(out.stdout)).toMatchObject({ decision: 'deny' })
-      expect(String(json(out.stdout)['reason'])).toStartWith('Buracle H01: ')
+      expect(String(json(out.stdout)['reason'])).toStartWith('Buracle Stack H01: ')
     })
   })
 
@@ -32,7 +32,7 @@ describe('PreToolUse: the guards answer {decision, reason}', () => {
       const secret = join(home, '.ssh', 'id_rsa')
       for (const [tool, args] of [['write_to_file', { TargetFile: secret, CodeContent: 'x' }], ['replace_file_content', { TargetFile: secret, TargetContent: 'a', ReplacementContent: 'b' }], ['multi_replace_file_content', { TargetFile: secret, ReplacementChunks: [{ TargetContent: 'a', ReplacementContent: 'b' }] }]] as const) {
         const o = json((await hook('PreToolUse', payload('PreToolUse', call(tool, args)))).stdout)
-        expect({ tool, decision: o['decision'], reason: String(o['reason']).slice(0, 13) }).toEqual({ tool, decision: 'deny', reason: 'Buracle H02: ' })
+        expect({ tool, decision: o['decision'], reason: String(o['reason']).slice(0, 19) }).toEqual({ tool, decision: 'deny', reason: 'Buracle Stack H02: ' })
       }
       expect(await hook('PreToolUse', payload('PreToolUse', call('write_to_file', { TargetFile: '/work/app/a.ts', CodeContent: 'x' })))).toEqual(EMPTY)
     })
@@ -59,7 +59,7 @@ describe('PreToolUse: the guards answer {decision, reason}', () => {
     await withSandbox(async () => {
       const o = json((await hook('PreToolUse', payload('PreToolUse', call('search_web', { query: 'bun test' })))).stdout)
       expect(o['decision']).toBe('deny')
-      expect(String(o['reason'])).toStartWith('Buracle H03: ')
+      expect(String(o['reason'])).toStartWith('Buracle Stack H03: ')
     })
   })
 
@@ -67,7 +67,7 @@ describe('PreToolUse: the guards answer {decision, reason}', () => {
     await withSandbox(async () => {
       const o = json((await hook('PreToolUse', payload('PreToolUse', call('run_command', { CommandLine: 'git push --force origin main' })))).stdout)
       expect(o['decision']).toBe('deny')
-      expect(String(o['reason'])).toMatch(/^Buracle H(01|20)/)
+      expect(String(o['reason'])).toMatch(/^Buracle Stack H(01|20)/)
     })
   })
 
@@ -161,7 +161,7 @@ describe('Stop: the stop guard and the routing audit answer {decision: continue}
       await hook('PreInvocation', prompt('$plan-build add rate limiting'))
       const first = json((await hook('Stop', stop())).stdout)
       expect(first['decision']).toBe('continue')
-      expect(String(first['reason'])).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
+      expect(String(first['reason'])).toStartWith('Buracle Stack routing check: the user asked for plan-build and it was not loaded.')
       expect(await hook('Stop', stop({ continuationActive: true }))).toEqual(EMPTY)
     })
   })
@@ -182,7 +182,7 @@ describe('Stop: the stop guard and the routing audit answer {decision: continue}
 })
 
 describe('PostToolUse answers {} and records what it saw', () => {
-  test('a failed call of a Buracle server is counted in the ledger when the name is placed; an unplaced MCP name is not guessed at', async () => {
+  test('a failed call of a Buracle Stack server is counted in the ledger when the name is placed; an unplaced MCP name is not guessed at', async () => {
     await withSandbox(async () => {
       expect(await hook('PostToolUse', payload('PostToolUse', { ...call('mcp_web_search_search', {}), error: 'boom' }))).toEqual(EMPTY)
       expect(loadLedger('agy', SID).mcpErrors).toEqual({ 'web-search': 1 })
@@ -191,7 +191,7 @@ describe('PostToolUse answers {} and records what it saw', () => {
     })
   })
 
-  test('an edit that ran no checker, and events AGY has that Buracle does not use, answer quietly', async () => {
+  test('an edit that ran no checker, and events AGY has that Buracle Stack does not use, answer quietly', async () => {
     await withSandbox(async () => {
       expect(await hook('PostToolUse', payload('PostToolUse', call('replace_file_content', { TargetFile: '/nope/a.txt', TargetContent: 'a', ReplacementContent: 'b' })))).toEqual(EMPTY)
       expect(await hook('PostInvocation', payload('PostInvocation'))).toEqual({ stdout: '', exitCode: 0 })

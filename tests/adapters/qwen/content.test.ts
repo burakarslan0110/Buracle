@@ -20,7 +20,7 @@ describe('the files the Qwen install adds (rules, path rules, agents, commands)'
   test('the QWEN.md block holds the always-loaded rules and the commands, not the path rules', () => {
     const block = qwenMemoryBlock(canonical)
     for (const r of canonical.rules.filter(r => r.scope === 'always')) expect(block).toContain(r.body.trim().split('\n')[0] as string)
-    expect(block).toContain('# Buracle commands in Qwen Code')
+    expect(block).toContain('# Buracle Stack commands in Qwen Code')
     for (const c of QWEN_COMMANDS) expect(block).toContain(`/${c.name}`)
     expect(block).toContain("Qwen Code's own `/btw`")
     expect(block).not.toContain('Path-scoped rules')
@@ -68,7 +68,7 @@ describe('the files the Qwen install adds (rules, path rules, agents, commands)'
     })
   })
 
-  test('a user\'s QWEN.md text stays around the block, and uninstall removes only Buracle\'s part', async () => {
+  test('a user\'s QWEN.md text stays around the block, and uninstall removes only Buracle Stack\'s part', async () => {
     await withSandbox(async ({ home }) => {
       mkdirSync(qwenDir(home), { recursive: true })
       writeFileSync(join(qwenDir(home), 'QWEN.md'), '# My notes\n\nAlways answer briefly.\n')
@@ -77,7 +77,7 @@ describe('the files the Qwen install adds (rules, path rules, agents, commands)'
       expect((await install()).conflicts).toEqual([])
       const text = readIn(home, 'QWEN.md')
       expect(text).toContain('Always answer briefly.')
-      expect(text).toContain('# Buracle commands in Qwen Code')
+      expect(text).toContain('# Buracle Stack commands in Qwen Code')
       await uninstall()
       expect(readIn(home, 'QWEN.md')).toBe('# My notes\n\nAlways answer briefly.\n')
       expect(readIn(home, 'agents/mine.md')).toContain('name: mine')
@@ -85,7 +85,7 @@ describe('the files the Qwen install adds (rules, path rules, agents, commands)'
     })
   })
 
-  test('a file of the user\'s with the name of a Buracle file is kept, not overwritten', async () => {
+  test('a file of the user\'s with the name of a Buracle Stack file is kept, not overwritten', async () => {
     await withSandbox(async ({ home }) => {
       mkdirSync(join(qwenDir(home), 'commands'), { recursive: true })
       writeFileSync(join(qwenDir(home), 'commands', 'brain.md'), 'my own brain command\n')
@@ -106,7 +106,7 @@ describe('SubagentStop: H19 judges the review agents', () => {
       const bad = await stop({ agent_type: 'changes-review', stop_hook_active: false, last_assistant_message: 'Looks good to me!' })
       const out = json(bad.stdout)
       expect(out['decision']).toBe('block')
-      expect(String(out['reason'])).toStartWith('Buracle H19: your final message is not a valid review report')
+      expect(String(out['reason'])).toStartWith('Buracle Stack H19: your final message is not a valid review report')
       const again = json((await stop({ agent_type: 'changes-review', stop_hook_active: true, last_assistant_message: 'still prose' })).stdout)
       expect(Object.keys(again)).toEqual(['systemMessage'])
       expect(String(again['systemMessage'])).toContain('changes-review returned an invalid review report again')

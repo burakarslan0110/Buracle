@@ -128,7 +128,7 @@ describe('opencode TUI status: code indexes and the running workflow', () => {
 })
 
 describe('opencode TUI status: no segment for the retired `cm` id', () => {
-  test('the rows and the Buracle bar line carry no `cm` segment', () => withSandbox(async ({ root }) => {
+  test('the rows and the Buracle Stack bar line carry no `cm` segment', () => withSandbox(async ({ root }) => {
     const now = 1_791_400_000_000
     const cfg = defaultConfig()
     const loc = join(root, 'loc')
@@ -154,8 +154,8 @@ describe('opencode TUI usage refresh', () => {
   }))
 })
 
-describe('opencode TUI status: Buracle\'s hook health (O3)', () => {
-  test('hook failures from the log reach the bar, the Buracle bar footer line and the segment rows; read again after the TTL', () => withSandbox(async ({ root, buracleHome }) => {
+describe('opencode TUI status: Buracle Stack\'s hook health (O3)', () => {
+  test('hook failures from the log reach the bar, the Buracle Stack bar footer line and the segment rows; read again after the TTL', () => withSandbox(async ({ root, buracleHome }) => {
     let now = 1_791_400_000_000
     const cfg = defaultConfig()
     const feeder = new StatusFeeder({ spawnRefresh: false, now: () => now, config: () => cfg })

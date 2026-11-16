@@ -210,7 +210,7 @@ export async function runExecUndos(undos: readonly ExecUndo[], record: InstallRe
   return out
 }
 
-// Context Mode (removed in 0.6.0) kept its session data here; --purge-state still removes what an older Buracle left.
+// Context Mode (removed in 0.6.0) kept its session data here; --purge-state still removes what an older Buracle Stack left.
 function legacyContextModeHome(): string {
   return join(paths.buracleHome(), 'context-mode')
 }
@@ -266,7 +266,7 @@ export function purgeState(vault: string): { removed: string[], kept: string[], 
         if (!knownEntry(d, n)) { foreign.push(n); continue }
         rmSync(join(d, n), { recursive: true, force: true })
       }
-      if (foreign.length === 0) { rmdirSync(d); removed.push(d) } else kept.push(`${d} (not Buracle's: ${foreign.slice(0, 5).join(', ')}${foreign.length > 5 ? ', …' : ''})`)
+      if (foreign.length === 0) { rmdirSync(d); removed.push(d) } else kept.push(`${d} (not Buracle Stack's: ${foreign.slice(0, 5).join(', ')}${foreign.length > 5 ? ', …' : ''})`)
     } catch {
       kept.push(d)
     }
@@ -304,7 +304,7 @@ export async function stopMemoryUi(): Promise<{ status: 'none' | 'stopped' | 'no
 }
 
 /**
- * The system tools the install downloaded (node, uv, rg, jq under toolchain/system) and their records: Buracle's own
+ * The system tools the install downloaded (node, uv, rg, jq under toolchain/system) and their records: Buracle Stack's own
  * copies of programs the machine lacked, so a plain uninstall removes them (the npm and uv packages stay for a purge).
  */
 export async function removeDownloadedTools(nowMs: number): Promise<string[]> {
@@ -350,7 +350,7 @@ export function projectLeftovers(roots: readonly string[] = knownProjectRoots())
   const out: ProjectLeftover[] = []
   for (const root of roots) {
     const codegraph = join(root, '.codegraph')
-    if (existsSync(codegraph)) out.push({ root, path: codegraph, what: 'codegraph index (built by Buracle\'s index runs, unless you use codegraph yourself)', remove: `rm -rf '${codegraph}'` })
+    if (existsSync(codegraph)) out.push({ root, path: codegraph, what: 'codegraph index (built by Buracle Stack\'s index runs, unless you use codegraph yourself)', remove: `rm -rf '${codegraph}'` })
     const semble = join(root, '.sembleignore')
     if (holdsBlock(semble)) out.push({ root, path: semble, what: 'managed block (plan worktrees kept out of semble)', remove: 'delete the lines from `# >>> buracle` to `# <<< buracle` (the whole file when nothing else is in it)' })
     const exclude = join(root, '.git', 'info', 'exclude')

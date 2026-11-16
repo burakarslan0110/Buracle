@@ -142,7 +142,7 @@ describe('rendered YAML reads back the same in Obsidian\'s parser', () => {
 
   const lists: unknown[][] = [
     ['src/memory/index.ts:350-357, src/core/memory/query.ts:36', 'see [RFC 7231] section 6'],
-    ['RFC 7231, section 6.5.1'], ['see [x] here'], ['{"a":1}'], ['https://example.com/?a=1,2'], ['Buracle, the harness'],
+    ['RFC 7231, section 6.5.1'], ['see [x] here'], ['{"a":1}'], ['https://example.com/?a=1,2'], ['Buracle Stack, the harness'],
     ['a,b'], ['x]y'], ['{curly} start'], ['tail {'], ['plain', 'item: with colon', 'trailing:', '#tag', 'a #comment'],
     ['[[wiki-link]]', '[[other|alias]]'], ['0x1F', '.inf', '1e3', 'yes', 'null', ''], [1, true, null, 'mixed'],
   ]
@@ -174,7 +174,7 @@ describe('rendered YAML reads back the same in Obsidian\'s parser', () => {
     })
   }
 
-  test('escapes JSON.stringify emits are read back by Buracle\'s parser', () => {
+  test('escapes JSON.stringify emits are read back by Buracle Stack\'s parser', () => {
     expect(parseInline('"a\\bb\\fc\\u0007d\\e"')).toBe('a\bb\fc\u0007d\u001b')
   })
 })

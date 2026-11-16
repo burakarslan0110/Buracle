@@ -169,7 +169,7 @@ function ompAgentDir(home: string, url: string, extra: { config?: string, mcp?: 
   mkdirSync(agent, { recursive: true })
   writeFileSync(join(agent, 'models.yml'), [
     'providers:', '  buracle-smoke:', `    baseUrl: ${url}/v1`, '    apiKey: BURACLE_SMOKE_DUMMY_KEY', '    api: openai-completions',
-    '    models:', '      - id: offline', '        name: Buracle smoke (offline)', '        reasoning: false', '        input: [text]',
+    '    models:', '      - id: offline', '        name: Buracle Stack smoke (offline)', '        reasoning: false', '        input: [text]',
     '        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }', '        contextWindow: 200000', '        maxTokens: 1024', '',
   ].join('\n'))
   if (extra.config !== undefined) writeFileSync(join(agent, 'config.yml'), extra.config)
@@ -256,7 +256,7 @@ describe('second opinion on the real hosts (fake models; skipped where the host 
       expect(offered.includes('write') || offered.includes('shell'), offered.join(',')).toBe(true)
       expect(mock.requests.some(lastUserHasToolResult)).toBe(true)
       const sys = JSON.stringify(mock.requests.map(b => b['system']))
-      expect(sys).toContain("You are Buracle's second-opinion reviewer.")
+      expect(sys).toContain("You are Buracle Stack's second-opinion reviewer.")
       expect(JSON.stringify(mock.requests)).toContain('You are a second-opinion reviewer running on OpenCode.')
     } finally {
       mock.stop()
@@ -279,7 +279,7 @@ describe('second opinion on the real hosts (fake models; skipped where the host 
     }
   }), 240_000)
 
-  test.skipIf(!CLAUDE_RUNS)('Claude Code: settings that allow Bash and an MCP write tool widen dontAsk, and Buracle\'s PreToolUse fence still refuses both', () => withSandbox(async ({ root, home }) => {
+  test.skipIf(!CLAUDE_RUNS)('Claude Code: settings that allow Bash and an MCP write tool widen dontAsk, and Buracle Stack\'s PreToolUse fence still refuses both', () => withSandbox(async ({ root, home }) => {
     const repoDir = join(realpathSync(root), 'repo')
     const marker = join(root, 'mcp-called')
     const cfg = join(home, '.claude')
@@ -329,7 +329,7 @@ describe('second opinion on the real hosts (fake models; skipped where the host 
     }
   }), 240_000)
 
-  test.skipIf(BIN('omp') === undefined)('omp: with Buracle\'s extension loaded, a configured MCP server\'s write tool is hidden and never runs (tools.xdev: false)', () => withSandbox(async ({ root, home }) => {
+  test.skipIf(BIN('omp') === undefined)('omp: with Buracle Stack\'s extension loaded, a configured MCP server\'s write tool is hidden and never runs (tools.xdev: false)', () => withSandbox(async ({ root, home }) => {
     const planPath = join(realpathSync(root), 'repo', 'docs', 'plans', '2026-10-08-rate-limit.md')
     const marker = join(root, 'mcp-called')
     const mock = chatMock(report(planPath), [() => ({ name: 'mcp__memtest_memory_write', args: {} })])

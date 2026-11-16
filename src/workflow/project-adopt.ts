@@ -114,7 +114,7 @@ export async function adoptSkills(root: string, opts: AdoptOptions): Promise<Ado
   }
   if (report.identical.length > 0) report.warnings.push(`identical copies in .claude/skills and .agents/skills: ${report.identical.join(', ')}; 'buracle project sync --adopt --move' replaces each Claude copy with a link`)
   if (move && report.moved.length + report.replaced.length > 0) {
-    report.warnings.push(`--move turned tracked .claude/skills folders into symlinks (${[...report.moved, ...report.replaced].join(', ')}); teammates without Buracle and checkouts with core.symlinks=false (Windows) lose them in Claude Code until they run 'buracle project sync'. Commit the moved folders under .agents/skills.`)
+    report.warnings.push(`--move turned tracked .claude/skills folders into symlinks (${[...report.moved, ...report.replaced].join(', ')}); teammates without Buracle Stack and checkouts with core.symlinks=false (Windows) lose them in Claude Code until they run 'buracle project sync'. Commit the moved folders under .agents/skills.`)
   }
   for (const id of touched) {
     const dir = dryRun ? join(layout.claudeSkills, id) : join(layout.agentsSkills, id)

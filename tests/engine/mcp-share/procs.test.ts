@@ -22,14 +22,14 @@ const PS = [
   '  600     1  21000    40:00 bun /r/src/cli/main.ts mcp run semble',
 ].join('\n')
 
-describe('Buracle MCP processes', () => {
+describe('Buracle Stack MCP processes', () => {
   test('parsePs reads pid, ppid, RSS in KB, elapsed time and the command line, and skips junk', () => {
     const rows = parsePs(`${PS}\nnot a row\n`)
     expect(rows).toHaveLength(11)
     expect(rows[0]).toEqual({ pid: 100, ppid: 1, rssKb: 40960, etime: '01:02:03', command: 'bun /r/src/cli/main.ts mcp backend web-search' })
   })
 
-  test('each Buracle MCP process gets its role and server; other processes are left out', () => {
+  test('each Buracle Stack MCP process gets its role and server; other processes are left out', () => {
     const procs = classifyMcpProcesses(parsePs(PS), new Set(['chrome-devtools']))
     const byPid = Object.fromEntries(procs.map(p => [p.pid, `${p.role}:${p.server}`]))
     expect(byPid).toEqual({

@@ -71,7 +71,7 @@ describe('OpenCode turn receipt and loop alarms (PARITY-3)', () => {
     await prompt(rt, 'change a')
     await rt.onToolAfter(done('edit', { filePath: join(root, 'src', 'a.ts'), oldString: 'export const a = 1', newString: 'export const a = 2' }, { diff: '' }, 'c1'))
     await endTurn(rt, 'It works now.')
-    expect(board()).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change'])
+    expect(board()).toEqual(['Buracle Stack · 1 file (+1 −1) · ⚠ unverified change'])
     await prompt(rt, 'again')
     await rt.onToolAfter(done('edit', { filePath: join(root, 'src', 'a.ts'), oldString: 'export const a = 2', newString: 'export const a = 3' }, { diff: '' }, 'c2'))
     await rt.onToolAfter(done('shell', { command: 'bun test' }, { output: '3 pass', exit: 0 }, 'c3'))
@@ -88,7 +88,7 @@ describe('OpenCode turn receipt and loop alarms (PARITY-3)', () => {
     for (const id of ['f1', 'f2']) await rt.onToolAfter(done('shell', { command: 'bun test' }, { output: '1 fail', exit: 1 }, id))
     expect(board()).toEqual([])
     await rt.onToolAfter(done('shell', { command: 'bun test' }, { output: '1 fail', exit: 1 }, 'f3'))
-    expect(board()).toEqual(['Buracle: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
+    expect(board()).toEqual(['Buracle Stack: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
   }))
 
   test('a turn that fails is reported, and so is an interrupted one; neither reads an old answer as a success claim', () => withSandbox(async ({ root }) => {
@@ -103,14 +103,14 @@ describe('OpenCode turn receipt and loop alarms (PARITY-3)', () => {
     await rt.handleEvent({ type: 'session.execution.started', data: { sessionID: SID } })
     await rt.handleEvent({ type: 'session.execution.failed', data: { sessionID: SID } })
     await rt.idle()
-    expect(board()).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change'])
+    expect(board()).toEqual(['Buracle Stack · 1 file (+1 −1) · ⚠ unverified change'])
     await prompt(rt, 'change it again')
     await rt.onToolAfter(done('edit', { filePath: join(root, 'src', 'a.ts'), oldString: 'export const a = 2', newString: 'export const a = 3' }, { diff: '' }, 'c2'))
     clock.now += 4 * 60_000
     await rt.handleEvent({ type: 'session.execution.started', data: { sessionID: SID } })
     await rt.handleEvent({ type: 'session.execution.interrupted', data: { sessionID: SID } })
     await rt.idle()
-    expect(board()).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change', 'Buracle · 1 file (+1 −1) · ⚠ unverified change'])
+    expect(board()).toEqual(['Buracle Stack · 1 file (+1 −1) · ⚠ unverified change', 'Buracle Stack · 1 file (+1 −1) · ⚠ unverified change'])
   }))
 })
 
@@ -171,13 +171,13 @@ describe('the OpenCode TUI side: notices, the resume hint and the live panes (PA
     const hidden: BandView = { visible: false, breadcrumb: [], status: 'running', phases: [], agents: [] }
     const notices = new TuiNotices({ now: () => now, toast: (message, variant) => { toasts.push({ message, variant }) }, band: () => hidden, bandOn: () => true, busy: () => false })
     postNotice(SID, 'old notice', 'warning', NOW - 60_000)
-    postNotice(SID, 'Buracle · 1 file (+1 −1) · ⚠ unverified change', 'warning', NOW)
+    postNotice(SID, 'Buracle Stack · 1 file (+1 −1) · ⚠ unverified change', 'warning', NOW)
     expect(notices.poll(SID)).toBe(1)
     expect(notices.poll(SID)).toBe(0)
     now += 1_000
-    postNotice(SID, 'Buracle: loop alarm', 'warning', now)
+    postNotice(SID, 'Buracle Stack: loop alarm', 'warning', now)
     notices.poll(SID)
-    expect(toasts.map(t => t.message)).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change', 'Buracle: loop alarm'])
+    expect(toasts.map(t => t.message)).toEqual(['Buracle Stack · 1 file (+1 −1) · ⚠ unverified change', 'Buracle Stack: loop alarm'])
     expect(new NoticeReader().take(SID, now + 120_000)).toEqual([])
   }))
 
@@ -207,12 +207,12 @@ describe('the OpenCode TUI side: notices, the resume hint and the live panes (PA
     }
     await status({ ...base, pane: (title, lines) => { panes.push({ title, lines }); return true } }, 'memory')
     await status({ ...base, pane: (title, lines) => { panes.push({ title, lines }); return true } }, 'plan')
-    expect(panes.map(p => p.title)).toEqual(['Buracle memory', 'Buracle plan'])
+    expect(panes.map(p => p.title)).toEqual(['Buracle Stack memory', 'Buracle Stack plan'])
     expect(panes[0]?.lines()[0]).toBe('No memory status yet.')
     expect(panes[1]?.lines()[0]).toBe('No plan is bound to this session.')
     expect(alerts).toEqual([])
     await status({ ...base, pane: () => false }, 'plan')
     await status(base, 'memory')
-    expect(alerts).toEqual(['Buracle plan', 'Buracle memory'])
+    expect(alerts).toEqual(['Buracle Stack plan', 'Buracle Stack memory'])
   }))
 })

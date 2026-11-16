@@ -71,11 +71,11 @@ export function claimEvent(key: string): boolean {
 }
 
 export function continuationText(decision: Extract<StopDecision, { action: 'block' }>): string {
-  const what = decision.hook === 'H23' ? 'the Buracle routing check' : 'the Buracle stop guard'
+  const what = decision.hook === 'H23' ? 'the Buracle Stack routing check' : 'the Buracle Stack stop guard'
   return `${decision.reason}\n\n(Automatic continuation from ${what}, ${decision.hook}${HOOK_NAMES[decision.hook] ? ` ${HOOK_NAMES[decision.hook]}` : ''}.)`
 }
 
-export const READ_ONLY_NOTICE = 'OpenCode runs the read-only plan agent, so the Buracle stop guard let the session stop. Switch back to the build agent (Tab) to continue the plan.'
+export const READ_ONLY_NOTICE = 'OpenCode runs the read-only plan agent, so the Buracle Stack stop guard let the session stop. Switch back to the build agent (Tab) to continue the plan.'
 
 export function runawayNotice(why: StopWhy | 'rate', plan: string): string {
   const what = why === 'runaway-plan' ? 'the plan-wide limit of automatic continuations'

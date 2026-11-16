@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { BUILT } from '../helpers/built-harness'
 
-// Buracle runs on macOS and native Linux. This scan keeps code that exists only so that Buracle runs on a Windows
+// Buracle Stack runs on macOS and native Linux. This scan keeps code that exists only so that Buracle Stack runs on a Windows
 // host out of the repository. A few guard files still name Windows places in the paths and code an agent writes.
 
 const ROOT = join(import.meta.dir, '..', '..')

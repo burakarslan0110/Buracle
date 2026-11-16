@@ -5,7 +5,7 @@ import { tipsFor } from '../shared/tip-text'
 
 export const OWNER = 'qwen'
 
-/** The one command every hook runs; the event is its only argument, so the entries survive Buracle updates. */
+/** The one command every hook runs; the event is its only argument, so the entries survive Buracle Stack updates. */
 export const HOOK_COMMAND_PREFIX = '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" hook qwen '
 
 /** The status line command (`ui.statusLine`): Qwen Code runs it through `/bin/sh` and pipes the session JSON to it; one line, the layout of statusline.yaml. */
@@ -19,7 +19,7 @@ export function isBuracleStatusLine(command: unknown): boolean {
 }
 
 /** The label that tells a tip from Qwen Code's own loading phrases. */
-export const TIP_PREFIX = 'Buracle tip: '
+export const TIP_PREFIX = 'Buracle Stack tip: '
 
 /** `ui.customWittyPhrases`: the loading phrases Qwen Code cycles through (docs/users/configuration/settings.md), one per canonical tip. */
 export function qwenTipPhrases(c: Pick<CanonicalBundle, 'tips' | 'skills'>): string[] {
@@ -106,13 +106,13 @@ export function qwenMcpServers(c: Pick<CanonicalBundle, 'mcp'>, buracle: string)
   return out
 }
 
-/** The servers Buracle ships that the user turned off for Qwen (`mcp.off.qwen`): Qwen's own deny list keeps them from connecting. */
+/** The servers Buracle Stack ships that the user turned off for Qwen (`mcp.off.qwen`): Qwen's own deny list keeps them from connecting. */
 export function qwenExcluded(c: Pick<CanonicalBundle, 'mcp'>, cfg: Pick<BuracleConfig, 'mcp'>): string[] {
   const ids = new Set(catalogMcp(c.mcp, 'qwen').map(m => m.id))
   return cfg.mcp.off.qwen.filter(id => ids.has(id)).sort()
 }
 
-/** What Buracle owns in settings.json, as the file `harness/qwen/settings.fragment.json` shows it (`{buracle}` stands for the shim's path). */
+/** What Buracle Stack owns in settings.json, as the file `harness/qwen/settings.fragment.json` shows it (`{buracle}` stands for the shim's path). */
 export function settingsFragment(c: Pick<CanonicalBundle, 'hooks' | 'mcp' | 'tips' | 'skills'>, buracle: string): string {
   return JSON.stringify({ hooks: qwenHooks(c), mcpServers: qwenMcpServers(c, buracle), ui: { statusLine: STATUS_LINE_VALUE, customWittyPhrases: qwenTipPhrases(c) } }, null, 2) + '\n'
 }

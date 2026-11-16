@@ -80,7 +80,7 @@ describe('installAdvice and installSources on Linux', () => {
     expect(installAdvice(node, 'linux', none, apt)).toBe('install it with: sudo apt-get update && sudo apt-get install -y nodejs npm')
     expect(installAdvice(uv, 'linux', none, apt)).toBe(`install it with: ${UV_INSTALL_SCRIPT}`)
     expect(installAdvice(rg, 'linux', none, env(['dnf'], osRelease('fedora')))).toBe('install it with: sudo dnf install -y ripgrep')
-    expect(installAdvice(astGrep, 'linux', none, apt)).toBe('buracle install (installs it into the Buracle toolchain)')
+    expect(installAdvice(astGrep, 'linux', none, apt)).toBe('buracle install (installs it into the Buracle Stack toolchain)')
     expect(installAdvice(gh, 'linux', none, apt)).toBe('install it with your package manager')
     expect(installAdvice(node, 'linux', none, env([]))).toBe('install it with your package manager')
   })
@@ -90,7 +90,7 @@ describe('installAdvice and installSources on Linux', () => {
     expect(installAdvice(node, 'darwin', none, apt)).toBe('brew install node')
   })
 
-  test('Buracle never runs the Linux package manager: without Homebrew a missing pinned tool is downloaded, any other is only reported', () => {
+  test('Buracle Stack never runs the Linux package manager: without Homebrew a missing pinned tool is downloaded, any other is only reported', () => {
     const apt = (c: string) => c === 'apt-get' || c === 'dnf' || c === 'pacman'
     expect(installSources(node, 'linux', apt, 'x64').map(s => s.kind)).toEqual(['download'])
     expect(installSources(node, 'linux', c => c === 'brew', 'x64').map(s => s.kind)).toEqual(['brew', 'download'])

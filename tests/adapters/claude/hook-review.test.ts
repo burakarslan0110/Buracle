@@ -28,7 +28,7 @@ function ctxWith(): AdapterContext {
 const json = (stdout: string) => JSON.parse(stdout) as Record<string, unknown>
 
 describe('H19 subject binding with the real core', () => {
-  test('H19 binds the report to the bound plans: the lead\'s plan passes; a report about another file goes back once, also about a plan only an older Buracle\'s lane session still binds', async () => {
+  test('H19 binds the report to the bound plans: the lead\'s plan passes; a report about another file goes back once, also about a plan only an older Buracle Stack\'s lane session still binds', async () => {
     await withSandbox(async () => {
       const lead = '/abs/repo/docs/plans/2026-10-08-login.md'
       const lane = '/abs/repo/.worktrees/billing/docs/plans/2026-10-08-billing.md'

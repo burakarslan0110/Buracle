@@ -192,7 +192,7 @@ process.exit(1)`)
     expect(existsSync(store)).toBe(false)
   }), 60_000)
 
-  test('files Buracle installed earlier but no longer builds are removed', () => withSandbox(async () => {
+  test('files Buracle Stack installed earlier but no longer builds are removed', () => withSandbox(async () => {
     const ctx = adapterContext()
     const cfgDir = paths.opencodeConfigDir()
     const stale = join(cfgDir, 'agents', 'old-review.md')
@@ -204,12 +204,12 @@ process.exit(1)`)
     expect(existsSync(stale)).toBe(false)
   }), 60_000)
 
-  test('the command files an earlier Buracle wrote are removed (they would shadow the plugin commands); the user\'s own stay', () => withSandbox(async () => {
+  test('the command files an earlier Buracle Stack wrote are removed (they would shadow the plugin commands); the user\'s own stay', () => withSandbox(async () => {
     const ctx = adapterContext()
     const cfgDir = paths.opencodeConfigDir()
     const ours = join(cfgDir, 'commands', 'spec.md')
     const theirs = join(cfgDir, 'commands', 'review-pr.md')
-    await applyPlans([{ id: 'opencode', harness: 'opencode', ops: [{ kind: 'file', path: ours, content: '---\ndescription: "Spec"\n---\n\nRun the Buracle `spec` workflow.\n\n$ARGUMENTS\n', owner: 'opencode' }] }])
+    await applyPlans([{ id: 'opencode', harness: 'opencode', ops: [{ kind: 'file', path: ours, content: '---\ndescription: "Spec"\n---\n\nRun the Buracle Stack `spec` workflow.\n\n$ARGUMENTS\n', owner: 'opencode' }] }])
     writeFileSync(theirs, 'my own command\n')
     const plan = await installPlan(ctx, { opencode: null })
     expect(plan.ops).toContainEqual({ kind: 'remove', path: ours, owner: 'opencode' })

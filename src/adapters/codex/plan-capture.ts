@@ -134,5 +134,5 @@ export async function captureApprovedPlan(ctx: AdapterContext, sid: string, prom
   const plan = approval.kind === 'fresh' ? approval.plan : approval.kind === 'file' ? attachedPlan(ctx, approval.path) : pending?.plan ?? rolloutPlan(transcript)
   if (plan === undefined) return undefined
   const saved = await captureSessionPlan({ plan, cwd, now, harness: 'codex', sid })
-  return saved !== undefined ? saved.note ?? `Buracle: the approved plan was saved to ${shownPath(saved.path, cwd)} (H12).` : undefined
+  return saved !== undefined ? saved.note ?? `Buracle Stack: the approved plan was saved to ${shownPath(saved.path, cwd)} (H12).` : undefined
 }

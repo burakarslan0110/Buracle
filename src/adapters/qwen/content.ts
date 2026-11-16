@@ -20,22 +20,22 @@ const byId = <T extends { id: string }>(xs: readonly T[]): T[] => [...xs].sort((
 
 export interface QwenFile { path: string, content: string }
 
-/** The custom commands Buracle adds (`~/.qwen/commands/<name>.md`); the workflows are the skills, which Qwen Code starts as `/<id>` itself. */
+/** The custom commands Buracle Stack adds (`~/.qwen/commands/<name>.md`); the workflows are the skills, which Qwen Code starts as `/<id>` itself. */
 export const QWEN_COMMANDS: ReadonlyArray<{ name: string, description: string, body: string }> = [
   {
     name: 'brain',
-    description: 'Open the Buracle memory UI (`/brain review` opens the review page)',
-    body: `Open the Buracle memory UI for the user. Arguments: {{args}}\n\nWith no argument run \`${SHIM} mem ui --open\`; with \`review\` run \`${SHIM} mem ui --open --page review\`. Run it with the shell tool, then say in one line what opened.\n`,
+    description: 'Open the Buracle Stack memory UI (`/brain review` opens the review page)',
+    body: `Open the Buracle Stack memory UI for the user. Arguments: {{args}}\n\nWith no argument run \`${SHIM} mem ui --open\`; with \`review\` run \`${SHIM} mem ui --open --page review\`. Run it with the shell tool, then say in one line what opened.\n`,
   },
   {
     name: 'remember',
-    description: 'Save a note to the Buracle memory',
-    body: `Save this to the Buracle memory: {{args}}\n\nRun \`${SHIM} mem remember -- "<the text>"\` with the shell tool, quoting the text safely. A typed memory (a decision, a gotcha, a preference) follows the \`memory\` skill. With no text, ask the user what to remember.\n`,
+    description: 'Save a note to the Buracle Stack memory',
+    body: `Save this to the Buracle Stack memory: {{args}}\n\nRun \`${SHIM} mem remember -- "<the text>"\` with the shell tool, quoting the text safely. A typed memory (a decision, a gotcha, a preference) follows the \`memory\` skill. With no text, ask the user what to remember.\n`,
   },
   {
     name: 'buracle-status',
-    description: 'Show the Buracle plan, workflow and memory status',
-    body: `Show the Buracle status. Arguments: {{args}}\n\nRun \`${SHIM} plan status --json\` and \`${SHIM} mem status\` with the shell tool and summarize both in a few lines: the plan and workflow run first, then the memory. Narrow the answer to the argument when it names one of status, memory, plan or flow.\n`,
+    description: 'Show the Buracle Stack plan, workflow and memory status',
+    body: `Show the Buracle Stack status. Arguments: {{args}}\n\nRun \`${SHIM} plan status --json\` and \`${SHIM} mem status\` with the shell tool and summarize both in a few lines: the plan and workflow run first, then the memory. Narrow the answer to the argument when it names one of status, memory, plan or flow.\n`,
   },
 ]
 
@@ -45,9 +45,9 @@ export function qwenCommandFiles(): QwenFile[] {
 
 function commandsSection(): string {
   return [
-    '# Buracle commands in Qwen Code',
+    '# Buracle Stack commands in Qwen Code',
     '',
-    'A workflow or a skill starts with `/<id>`. Buracle adds these custom commands:',
+    'A workflow or a skill starts with `/<id>`. Buracle Stack adds these custom commands:',
     '- `/remember <text>`: saves a note to the memory (`buracle mem remember -- "<text>"`).',
     '- `/brain`: opens the memory UI; `/brain review` opens its review page.',
     '- `/buracle-status`: the plan, workflow and memory status.',
@@ -62,7 +62,7 @@ function commandsSection(): string {
 export function qwenMemoryBlock(c: Source, warnings: string[] = []): string {
   const refs = refsOf(c)
   const parts = [
-    '_Managed by Buracle (`buracle install`). The source is `canonical/rules/` in the Buracle repo; edits inside this block stop future updates of it._',
+    '_Managed by Buracle Stack (`buracle install`). The source is `canonical/rules/` in the Buracle Stack repo; edits inside this block stop future updates of it._',
     ...byId(c.rules.filter(r => r.scope === 'always')).map(r => renderMarkdown(r.body, 'qwen', { ...refs, file: r.file }, warnings).trim()),
     commandsSection(),
   ]

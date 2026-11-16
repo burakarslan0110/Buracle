@@ -91,7 +91,7 @@ describe('markdown checks', () => {
     expect(f.every(x => x.line === 7)).toBe(true)
   })
 
-  test('placeholders in files nothing renders: only Buracle placeholders are errors', () => {
+  test('placeholders in files nothing renders: only Buracle Stack placeholders are errors', () => {
     const f = checkPlaceholders('r.md', scanMarkdown('Use {{ask_user}} here.\n```\n{{ .Name }}\n```\n'), null, 'rules')
     expect(codes(f)).toEqual(['placeholder-not-rendered'])
   })
@@ -229,7 +229,7 @@ describe('skill lint', () => {
     expect(r.data['sources']).toMatchObject([{ name: 'mine', exists: true }, { name: 'remote', exists: false }])
   }))
 
-  test('lists the Claude-only project skills and the user folders Buracle does not own, with the harnesses that see them', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('lists the Claude-only project skills and the user folders Buracle Stack does not own, with the harnesses that see them', () => withSandbox(async ({ root, home, buracleHome }) => {
     const { makeRepo } = await import('./fixture')
     const src = join(root, 'mine')
     write(join(src, 'alpha', 'SKILL.md'), '---\nname: alpha\ndescription: A.\ninvocation: explicit\nmcp: []\nshort-description: Alpha\n---\n# A\n')

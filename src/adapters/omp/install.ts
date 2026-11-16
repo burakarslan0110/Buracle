@@ -90,9 +90,9 @@ export function agentsPointer(opts: { commands?: readonly string[] } = {}): stri
   const list = opts.commands ?? []
   const workflows = list.length > 0 ? `workflows are ${list.map(c => `\`/${c}\``).join(', ')}, ` : ''
   return [
-    '## Buracle',
+    '## Buracle Stack',
     '',
-    `Buracle is active through the \`${PACKAGE_NAME}\` plugin: ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the Buracle Console.`,
+    `Buracle Stack is active through the \`${PACKAGE_NAME}\` plugin: ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the Buracle Stack Console.`,
     '',
     SHARED_AGENTS_IMPORT,
   ].join('\n')
@@ -152,7 +152,7 @@ export async function installPlan(ctx: AdapterContext): Promise<Plan> {
     { kind: 'yaml-merge', path: configFile, set, owner: OWNER, ...ompKeyPolicy(set, ctx.config) },
     { kind: 'md-block', path: join(agentDir, 'AGENTS.md'), id: AGENTS_BLOCK_ID, content: agentsPointer({ commands }), owner: OWNER },
     ...(Object.keys(lsp).length > 0 ? [{ kind: 'json-merge', path: ompLspFile(), set: lsp, owner: OWNER } as Op] : []),
-    // The servers that are off in omp (mcp.off.omp) go into its user-level denylist; an empty owned list removes Buracle's earlier entries only.
+    // The servers that are off in omp (mcp.off.omp) go into its user-level denylist; an empty owned list removes Buracle Stack's earlier entries only.
     { kind: 'json-list-merge', path: join(agentDir, 'mcp.json'), pointer: 'disabledServers', items: ctx.config.mcp.off.omp.filter(id => ctx.canonical.mcp.servers[id]?.harnesses.includes('omp') === true), identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' },
     {
       kind: 'exec',

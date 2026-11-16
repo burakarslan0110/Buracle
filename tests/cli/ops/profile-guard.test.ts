@@ -20,7 +20,7 @@ describe('H17 profile.guard', () => {
 
   test('warns, naming both dirs and the variable, when an override points elsewhere', () => {
     const w = profileGuard('claude', SNAP, { HOME, CLAUDE_CONFIG_DIR: '/work/profile-b' })
-    expect(w).toBe('Buracle was installed for Claude Code into /Users/me/.claude, but this session reads /work/profile-b (CLAUDE_CONFIG_DIR), where Buracle\'s hooks, rules and settings are missing. Run `buracle install claude` with this environment, or start Claude Code without the override.')
+    expect(w).toBe('Buracle Stack was installed for Claude Code into /Users/me/.claude, but this session reads /work/profile-b (CLAUDE_CONFIG_DIR), where Buracle Stack\'s hooks, rules and settings are missing. Run `buracle install claude` with this environment, or start Claude Code without the override.')
     expect(profileGuard('codex', SNAP, { HOME, CODEX_HOME: '/tmp/cx' })).toContain('(CODEX_HOME)')
     expect(profileGuard('opencode', SNAP, { HOME, XDG_CONFIG_HOME: '/tmp/xdg' })).toContain('reads /tmp/xdg/opencode (XDG_CONFIG_HOME)')
     expect(profileGuard('omp', SNAP, { HOME, PI_CODING_AGENT_DIR: '/tmp/pi' })).toContain('`buracle install omp`')

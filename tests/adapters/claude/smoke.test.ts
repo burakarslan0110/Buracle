@@ -194,14 +194,14 @@ smoke(`Claude Code ${OVERRIDE !== undefined ? '(BURACLE_CLAUDE_BIN)' : (GATE?.ve
         const typed = await claude(w, '/buracle:plan-build add rate limiting')
         expect(typed.code, typed.stderr).toBe(0)
         const start = hookOutputs(typed, 'SessionStart')[0] ?? {}
-        expect(contextOf(start)).toContain('Buracle capabilities (Claude Code)')
+        expect(contextOf(start)).toContain('Buracle Stack capabilities (Claude Code)')
         expect(contextOf(start)).toContain(`Project root: ${w.proj}.`)
         expect(hookOutputs(typed, 'UserPromptExpansion')).toHaveLength(1)
         expect(((sessionFile(w, typed.sid, 'flow.json')?.['stack'] as Body[] | undefined) ?? []).map(e => [e['workflow'], e['title']])).toEqual([['plan-build', 'add rate limiting']])
         expect((sessionFile(w, typed.sid, 'ledger.json')?.['skills'] as Record<string, Body> | undefined)?.['plan-build']?.['n']).toBe(1)
         expect(hookOutputs(typed, 'UserPromptSubmit').some(o => o['systemMessage'] !== undefined)).toBe(false)
         const sent = JSON.stringify(w.mock.requests)
-        expect(sent).toContain('Buracle capabilities (Claude Code)')
+        expect(sent).toContain('Buracle Stack capabilities (Claude Code)')
         expect(sent).toContain('Base directory for this skill')
         const first = w.mock.requests.find(b => toolNames(b).includes('Skill')) as Body
         const tools = (first['tools'] as Body[]).filter(t => typeof t['name'] === 'string')
@@ -214,15 +214,15 @@ smoke(`Claude Code ${OVERRIDE !== undefined ? '(BURACLE_CLAUDE_BIN)' : (GATE?.ve
         const asked = await claude(w, '$plan-build add rate limiting')
         expect(asked.code, asked.stderr).toBe(0)
         const ups = hookOutputs(asked, 'UserPromptSubmit')[0] ?? {}
-        expect(contextOf(ups)).toContain('Buracle routing for this prompt:')
+        expect(contextOf(ups)).toContain('Buracle Stack routing for this prompt:')
         expect(contextOf(ups)).toContain(`read ${join(w.plugin, 'skills', 'plan-build', 'SKILL.md')}`)
         expect(String(ups['systemMessage'])).toContain('permission mode, not bypassPermissions')
         const stops = hookOutputs(asked, 'Stop')
         const feedback = (o: Body | undefined): unknown => (o?.['hookSpecificOutput'] as Body | undefined)?.['additionalContext']
         expect(stops[0]?.['decision']).toBeUndefined()
-        expect(String(feedback(stops[0]))).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
+        expect(String(feedback(stops[0]))).toStartWith('Buracle Stack routing check: the user asked for plan-build and it was not loaded.')
         expect(stops.slice(1).every(o => o['decision'] === undefined && feedback(o) === undefined)).toBe(true)
-        expect(JSON.stringify(w.mock.requests)).toContain('Buracle routing check:')
+        expect(JSON.stringify(w.mock.requests)).toContain('Buracle Stack routing check:')
 
         settings(w, bypass)
         w.mock.tool = { name: 'Skill', input: { skill: 'buracle:research', args: 'bun 1.4 release notes' } }

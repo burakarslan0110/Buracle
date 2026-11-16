@@ -19,5 +19,5 @@ export function draftOnSwitch(s: PlanDraftState, agent: string | undefined): str
 }
 
 export function draftNote(shown: string): string {
-  return `Buracle: the plan from OpenCode's plan agent was saved as a draft to ${shown} (H12; OpenCode has no approval step, so it is not marked approved).`
+  return `Buracle Stack: the plan from OpenCode's plan agent was saved as a draft to ${shown} (H12; OpenCode has no approval step, so it is not marked approved).`
 }

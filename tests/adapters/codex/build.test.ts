@@ -90,7 +90,7 @@ describe('codex build (harness/codex)', () => {
     expect(hooks.hooks.SubagentStart).toEqual([{ hooks: [{ type: 'command', command: `${HOOK_COMMAND_PREFIX}SubagentStart`, timeout: 10 }] }])
   })
 
-  test('config.fragment.toml parses and holds only Buracle-managed tables and root keys (canonical defaults)', () => {
+  test('config.fragment.toml parses and holds only Buracle Stack-managed tables and root keys (canonical defaults)', () => {
     const toml = Bun.TOML.parse(file('config.fragment.toml')) as Record<string, any>
     expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'sandbox_mode', 'tools', 'tui', 'web_search'])
     expect(toml['features']).toEqual({ memories: false })
@@ -146,7 +146,7 @@ describe('codex build (harness/codex)', () => {
     expect(block).toBeString()
     for (const r of canonical.rules.filter(r => r.scope === 'always')) expect(block).toContain(r.body.trim())
     expect(block.split(/^# Memory$/m).length).toBe(2)
-    const commands = block.slice(block.indexOf('# Buracle commands in Codex'), block.indexOf('# Path-scoped rules'))
+    const commands = block.slice(block.indexOf('# Buracle Stack commands in Codex'), block.indexOf('# Path-scoped rules'))
     for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`/side`']) expect(commands).toContain(s)
     expect(commands).not.toContain('`$memory`,')
     const pointer = block.slice(block.indexOf('# Path-scoped rules'))

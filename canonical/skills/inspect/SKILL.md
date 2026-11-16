@@ -28,7 +28,7 @@ user asks for one.
    (`pr view`, `issue view`), `buracle mem search|get`, `buracle plan status --json`,
    `buracle worktree detect --json`, the `buracle flow` progress calls (*Progress*), and
    `buracle index ensure --cwd <project root>` when codegraph reports that the project has no index: the
-   one write allowed, because it touches only Buracle's index (`.codegraph/`, which Buracle keeps out of
+   one write allowed, because it touches only Buracle Stack's index (`.codegraph/`, which Buracle Stack keeps out of
    git, and the semble cache). Runtime checks follow the Phase 4 rules. Never run formatters,
    installers, builds that write tracked files, migrations, or `codegraph init` yourself.
 2. **Follow the code that runs.** A name match is only a lead; the answer comes from the path the program
@@ -64,7 +64,7 @@ search before concluding that they are unavailable.
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it
 current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start: `buracle flow start inspect --title "<the question>"` in Phase 0 (harmless when a hook
@@ -166,7 +166,7 @@ that caused it; do not try to clean it up without asking. Then `buracle flow end
 
 | Problem | Response |
 |---|---|
-| codegraph says the project has no index | run `buracle index ensure --cwd <project root>` once (or wait for the index Buracle builds at session start), then retry; meanwhile trace with semble, `rg` and `ast-grep` |
+| codegraph says the project has no index | run `buracle index ensure --cwd <project root>` once (or wait for the index Buracle Stack builds at session start), then retry; meanwhile trace with semble, `rg` and `ast-grep` |
 | codegraph is down, or the index build fails | trace with semble, `rg`, `ast-grep` and reads; say so and lower confidence if a call path stays inferred |
 | semble down | use `rg` with several phrasings and `ast-grep` |
 | the path crosses into code you cannot see (a service, a binary) | stop at the boundary, describe the contract you can observe, mark the rest not verified |

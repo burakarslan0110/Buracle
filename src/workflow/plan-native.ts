@@ -47,7 +47,7 @@ export function planPrepareNative(pathArg: string | undefined, o: { cancel?: boo
   updateState(s.harness, s.sessionId, st => (st.plan?.path === path ? withNativeBinding(st, binding) : st))
   const enter = NATIVE_PLAN_ENTER[s.harness]
   return ok({ ok: true, path, harness: s.harness, enter, session: sessionJson(s) }, [
-    `Prepared ${shown(path, ctx.cwd)} for plan mode (single use): the plan the user approves when leaving plan mode is written into this file; if the file changes before then, Buracle leaves it as it is and saves the plan beside it.`,
+    `Prepared ${shown(path, ctx.cwd)} for plan mode (single use): the plan the user approves when leaving plan mode is written into this file; if the file changes before then, Buracle Stack leaves it as it is and saves the plan beside it.`,
     `Next: ${enter}.`,
   ])
 }

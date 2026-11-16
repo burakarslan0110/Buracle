@@ -103,7 +103,7 @@ describe('pi extras: footer status', () => {
     expect(data?.setStatus).toEqual({ buracle: ['mem'] })
   })
 
-  test('renders the Buracle segments into one footer entry and skips an unchanged text', async () => {
+  test('renders the Buracle Stack segments into one footer entry and skips an unchanged text', async () => {
     const { ctx, calls } = uiCtx()
     const extras = createPiExtras(host(
       { data: { status: { layout: { rows: [['mem', 'hooks']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { buracle: ['hooks'] } } } },

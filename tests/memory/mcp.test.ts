@@ -78,7 +78,7 @@ describe('protocol negotiation and metadata', () => {
     const write = toolDefinitions().find(t => t['name'] === 'memory_write')!['inputSchema'] as { properties: Record<string, { enum?: string[] }> }
     expect(write.properties['type']?.enum).toEqual(['decision', 'gotcha', 'procedure', 'knowledge', 'reference', 'preference'])
     expect(write.properties['layer']?.enum).toEqual(['project', 'person'])
-    // The kinds of an older Buracle are in no schema and no description: not to write, not to file under, not to filter by.
+    // The kinds of an older Buracle Stack are in no schema and no description: not to write, not to file under, not to filter by.
     const tools = toolDefinitions() as Array<{ inputSchema: { properties: Record<string, { items?: { enum?: string[] }, properties?: Record<string, { enum?: string[] }> }> } }>
     expect(tools[0]?.inputSchema.properties['types']?.items?.enum).toEqual(['decision', 'gotcha', 'procedure', 'knowledge', 'reference', 'preference', 'core', 'session', 'handoff', 'capture'])
     expect(tools[3]?.inputSchema.properties['patch']?.properties?.['move']).toBeDefined()
@@ -105,7 +105,7 @@ describe('JSON-RPC handling (in process)', () => {
       expect(init.result).toEqual({
         protocolVersion: '2024-11-05',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'buracle-memory', title: 'Buracle memory', version: '9.9.9' },
+        serverInfo: { name: 'buracle-memory', title: 'Buracle Stack memory', version: '9.9.9' },
         instructions: SERVER_INSTRUCTIONS,
       })
       expect(s.ctx.harness).toBe('claude-code')

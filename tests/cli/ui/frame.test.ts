@@ -7,34 +7,33 @@ const plain = makeStyle(0, { unicode: false })
 const ALL_GOOD: Summary = { updates: 0, problems: 0 }
 const head = (st: Style, columns: number, rows: number, summary: Summary = ALL_GOOD): string[] =>
   headerLines(st, { version: '0.8.0', columns, rows, summary }).map(stripAnsi)
-const TITLE = '  ◉ buracle v0.8.0 · One engineering setup, one memory, every coding agent'
+const TITLE = '  ◉ buracle stack v0.8.0'
 const STATUS = '  ✔ All good · no update check yet'
 
 describe('header sizes', () => {
   test('the size depends only on the terminal size and the color level', () => {
-    expect(headerKind(55, 20, 3)).toBe('logo')
+    expect(headerKind(96, 20, 3)).toBe('logo')
     expect(headerKind(120, 40, 1)).toBe('logo')
-    expect(headerKind(54, 20, 3)).toBe('icon')
+    expect(headerKind(95, 20, 3)).toBe('icon')
     expect(headerKind(43, 20, 2)).toBe('icon')
     expect(headerKind(42, 24, 3)).toBe('wordmark')
-    expect(headerKind(55, 19, 3)).toBe('wordmark')
+    expect(headerKind(96, 19, 3)).toBe('wordmark')
     expect(headerKind(40, 10, 3)).toBe('wordmark')
     expect(headerKind(120, 40, 0)).toBe('wordmark')
   })
 
-  test('the full logo at 55 by 20 and up: the logo rows, the version with the tagline when it fits, then the status', () => {
-    expect(head(color, 55, 20)).toEqual(['', ...LOGO.map(l => `  ${l}`.trimEnd()), '  v0.8.0', '', STATUS, ''])
-    expect(head(color, 80, 24)).toEqual(['', ...LOGO.map(l => `  ${l}`.trimEnd()), '  v0.8.0  ·  One engineering setup, one memory, every coding agent', '', STATUS, ''])
+  test('the full logo at 96 by 20 and up: the logo rows, the version with the tagline when it fits, then the status', () => {
+    expect(head(color, 96, 20)).toEqual(['', ...LOGO.map(l => `  ${l}`.trimEnd()), '  v0.8.0  ·  One engineering setup, one memory, every coding agent', '', STATUS, ''])
     expect(head(color, 120, 40)[7]).toBe('  v0.8.0  ·  One engineering setup, one memory, every coding agent  ·  Claude Code · Codex · OpenCode · Oh My Pi')
   })
 
-  test('the icon with the name, the version and the tagline beside it at 43 to 54 columns', () => {
-    for (const columns of [43, 50, 54]) {
+  test('the icon with the name, the version and the tagline beside it at 43 to 95 columns', () => {
+    for (const columns of [43, 54, 95]) {
       const raw = headerLines(color, { version: '0.8.0', columns, rows: 20, summary: ALL_GOOD })
       const lines = raw.map(stripAnsi)
       expect(lines).toHaveLength(10)
       expect(lines.slice(1, 7).map(l => l.slice(0, 10).trimEnd())).toEqual(ICON.map(l => `  ${l}`.trimEnd()))
-      expect(lines[3]?.slice(13)).toBe('buracle')
+      expect(lines[3]?.slice(13)).toBe('buracle stack')
       expect(lines[4]?.slice(13)).toBe('v0.8.0')
       expect(lines.slice(5, 7).map(l => l.slice(13)).join(' ').trim()).toBe('One engineering setup, one memory, every coding agent')
       expect(lines.slice(7)).toEqual(['', STATUS, ''])
@@ -48,8 +47,8 @@ describe('header sizes', () => {
     expect(head(color, 80, 15)).toEqual([TITLE, STATUS, ''])
     expect(head(color, 80, 12)).toEqual([TITLE, STATUS, ''])
     expect(head(color, 80, 11)).toEqual([TITLE, STATUS])
-    expect(head(color, 42, 24)).toEqual(['', '  ◉ buracle v0.8.0', '', STATUS, ''])
-    expect(head(color, 40, 10)).toEqual(['  ◉ buracle v0.8.0', STATUS])
+    expect(head(color, 42, 24)).toEqual(['', '  ◉ buracle stack v0.8.0', '', STATUS, ''])
+    expect(head(color, 40, 10)).toEqual(['  ◉ buracle stack v0.8.0', STATUS])
   })
 
   test('at color level 0 the header is the wordmark line with no escape code, no Unicode symbol and no block', () => {
@@ -57,9 +56,9 @@ describe('header sizes', () => {
       const out = headerLines(plain, { version: '0.8.0', columns, rows, summary: { updates: 1, problems: 2 } }).join('\n')
       expect(out).not.toContain('\u001b')
       for (const sym of ['✔', '▲', '✖', 'ℹ', '◉', '█', '▀', '▄']) expect(out).not.toContain(sym)
-      expect(out).toContain('buracle v0.8.0')
+      expect(out).toContain('buracle stack v0.8.0')
     }
-    expect(head(plain, 120, 40, { updates: 1, problems: 2 })).toEqual(['', '  buracle v0.8.0 · One engineering setup, one memory, every coding agent', '', '  ! 1 update waiting · 2 problems · no update check yet', ''])
+    expect(head(plain, 120, 40, { updates: 1, problems: 2 })).toEqual(['', '  buracle stack v0.8.0 · One engineering setup, one memory, every coding agent', '', '  ! 1 update waiting · 2 problems · no update check yet', ''])
   })
   test('every header line fits the width at every size from 40 by 10, and external text is sanitized', () => {
     const odd: Summary = { updates: 12, problems: 3, checkedAt: '48\u001b]0;owned\u0007 min ago', working: 'verifying\u001b[2J 3 parts' }
@@ -108,8 +107,8 @@ describe('key-hint footer', () => {
 
 describe('command output', () => {
   test('one header line: the wordmark, the version and the command name', () => {
-    expect(stripAnsi(commandHeader(color, '0.8.0', 'doctor'))).toBe('  ◉ buracle v0.8.0 · doctor')
-    expect(commandHeader(plain, '0.8.0', 'install preview')).toBe('  buracle v0.8.0 · install preview')
+    expect(stripAnsi(commandHeader(color, '0.8.0', 'doctor'))).toBe('  ◉ buracle stack v0.8.0 · doctor')
+    expect(commandHeader(plain, '0.8.0', 'install preview')).toBe('  buracle stack v0.8.0 · install preview')
     expect(commandHeader(plain, '0.8.0\u001b[2J', 'x')).not.toContain('\u001b')
   })
 

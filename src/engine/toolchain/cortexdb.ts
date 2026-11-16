@@ -13,7 +13,7 @@ export const CORTEXDB_ASSETS: Readonly<Record<string, string>> = {
   'linux-arm64': 'cortexdb-mcp-linux-arm64',
 }
 
-// No version is pinned: an install takes the newest release. This is the oldest one Buracle works with: the memory
+// No version is pinned: an install takes the newest release. This is the oldest one Buracle Stack works with: the memory
 // calls `sweep_expired` and saves `review_status`, and CortexDB has both since 2.137.0.
 export const CORTEXDB_MIN_VERSION = '2.137.0'
 
@@ -89,7 +89,7 @@ export function checkCortexdb(env: Readonly<Record<string, string | undefined>> 
     return { status: 'damaged', detail: `cannot read ${bin.path}: ${(e as Error).message}` }
   }
   if (got !== want) return { status: 'damaged', detail: `${bin.path} does not match the sha256 its release published (reinstall: buracle install)` }
-  if (cortexdbTooOld(bin.version)) return { status: 'old', detail: `CortexDB ${bin.version} is older than the ${CORTEXDB_MIN_VERSION} Buracle needs (buracle install takes the newest release)` }
+  if (cortexdbTooOld(bin.version)) return { status: 'old', detail: `CortexDB ${bin.version} is older than the ${CORTEXDB_MIN_VERSION} Buracle Stack needs (buracle install takes the newest release)` }
   return { status: 'ok', ...bin }
 }
 
@@ -172,7 +172,7 @@ export async function installCortexdb(opts: CortexdbInstallOptions = {}): Promis
   const checked = opts.check !== undefined ? await opts.check(staging) : { ok: true as const }
   if (!checked.ok) {
     try { rmSync(join(cortexdbDir(), latest.version), { recursive: true, force: true }) } catch {  }
-    return keep(`CortexDB ${latest.version} failed Buracle's check (${checked.error})${have !== undefined ? `; ${have.version} stays` : ''}`, latest.version)
+    return keep(`CortexDB ${latest.version} failed Buracle Stack's check (${checked.error})${have !== undefined ? `; ${have.version} stays` : ''}`, latest.version)
   }
   if (have !== undefined && opts.beforeSwitch !== undefined) await opts.beforeSwitch(have.version, latest.version)
   try {

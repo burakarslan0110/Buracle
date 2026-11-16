@@ -15,7 +15,7 @@ import { readToolchainState } from './state'
 
 export const LSP_MCP_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'] as const
 
-export const LSP_MCP_INSTRUCTIONS = 'Buracle language servers (pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls, jdtls) answer for the files on this machine: diagnostics after you edit a file (type errors the linters miss), hover for a symbol\'s type and docs, definition and references by file, line and symbol name, and a file\'s outline or a project-wide symbol search. Lines and columns count from 1. The first call for a language starts its server; when a tool says the server is still starting, call it again in a few seconds. codegraph stays first for callers and impact across the repository.'
+export const LSP_MCP_INSTRUCTIONS = 'Buracle Stack language servers (pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls, jdtls) answer for the files on this machine: diagnostics after you edit a file (type errors the linters miss), hover for a symbol\'s type and docs, definition and references by file, line and symbol name, and a file\'s outline or a project-wide symbol search. Lines and columns count from 1. The first call for a language starts its server; when a tool says the server is still starting, call it again in a few seconds. codegraph stays first for callers and impact across the repository.'
 
 export const LSP_TOOL_NAMES = ['diagnostics', 'hover', 'definition', 'references', 'symbols'] as const
 
@@ -192,8 +192,8 @@ export function createLspBridge(opts: LspBridgeOptions): LspBridge {
   async function slotFor(path: string): Promise<{ slot: Slot, languageId: string }> {
     const pick = lspServerFor(serverList(), path)
     if (pick === undefined) {
-      if (catalogError !== undefined) throw new ToolFailure(`cannot read Buracle's language servers: ${catalogError}`)
-      throw new ToolFailure(`no Buracle language server handles ${extname(path) || 'extension-less'} files; covered: ${coverage()}`)
+      if (catalogError !== undefined) throw new ToolFailure(`cannot read Buracle Stack's language servers: ${catalogError}`)
+      throw new ToolFailure(`no Buracle Stack language server handles ${extname(path) || 'extension-less'} files; covered: ${coverage()}`)
     }
     const root = lspRoot(pick.server, path, { cwd: opts.cwd })
     const key = `${pick.server.id}\u0000${pathKey(root)}`
@@ -502,7 +502,7 @@ export function createLspBridge(opts: LspBridgeOptions): LspBridge {
           result: {
             protocolVersion: version,
             capabilities: { tools: { listChanged: false } },
-            serverInfo: { name: 'buracle-lsp', title: 'Buracle language servers', version: opts.version ?? '0.0.0' },
+            serverInfo: { name: 'buracle-lsp', title: 'Buracle Stack language servers', version: opts.version ?? '0.0.0' },
             instructions: LSP_MCP_INSTRUCTIONS,
           },
         }

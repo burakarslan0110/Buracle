@@ -118,7 +118,7 @@ describe('codex installPlan', () => {
     writeFileSync(join(codex, 'config.toml'), USER_CONFIG)
     const r = await install()
     expect(r.conflicts).toEqual([])
-    expect(r.warnings).toEqual([expect.stringContaining('approval_policy: already defined by the user (was "on-request"); wrote Buracle\'s value because the key is enforced')])
+    expect(r.warnings).toEqual([expect.stringContaining('approval_policy: already defined by the user (was "on-request"); wrote Buracle Stack\'s value because the key is enforced')])
     const text = read(join(codex, 'config.toml'))
     for (const line of USER_CONFIG.split('\n').filter(l => l.trim() !== '' && !l.startsWith('approval_policy'))) expect(text).toContain(line)
     const toml = Bun.TOML.parse(text) as Record<string, any>
@@ -191,7 +191,7 @@ describe('codex installPlan', () => {
     expect(again.warnings.filter(w => w.includes('moved the dotted keys'))).toEqual([])
   }))
 
-  test('a user\'s own dotted tui.* keys beside Buracle\'s keep their values: all of them move into [tui] with a warning', () => withSandbox(async ({ home }) => {
+  test('a user\'s own dotted tui.* keys beside Buracle Stack\'s keep their values: all of them move into [tui] with a warning', () => withSandbox(async ({ home }) => {
     const path = join(home, '.codex', 'config.toml')
     mkdirSync(join(home, '.codex'), { recursive: true })
     writeFileSync(path, 'model = "gpt-x"\ntui.theme = "nord"\ntui.model_availability_nux = { seen = true }\n')
@@ -216,7 +216,7 @@ describe('codex installPlan', () => {
     }
   })
 
-  test('user hooks.json: user groups, events and keys stay; Buracle groups are appended after them', () => withSandbox(async ({ home }) => {
+  test('user hooks.json: user groups, events and keys stay; Buracle Stack groups are appended after them', () => withSandbox(async ({ home }) => {
     const codex = join(home, '.codex')
     mkdirSync(codex, { recursive: true })
     const user = {
@@ -239,7 +239,7 @@ describe('codex installPlan', () => {
     expect(await install()).toMatchObject({ txn: '', applied: 0, conflicts: [] })
   }))
 
-  test('a user group with Buracle\'s identity but other content is kept and reported, never duplicated', () => withSandbox(async ({ home }) => {
+  test('a user group with Buracle Stack\'s identity but other content is kept and reported, never duplicated', () => withSandbox(async ({ home }) => {
     const codex = join(home, '.codex')
     mkdirSync(codex, { recursive: true })
     const edited = { matcher: PRE_TOOL_MATCHER, hooks: [{ type: 'command', command: hookCommand('PreToolUse'), timeout: 99 }] }
@@ -251,7 +251,7 @@ describe('codex installPlan', () => {
     expect(after.hooks.Stop).toEqual(installedHooks().Stop)
   }))
 
-  test('Buracle\'s trust keys stay stable across reinstalls and user additions', () => withSandbox(async ({ home }) => {
+  test('Buracle Stack\'s trust keys stay stable across reinstalls and user additions', () => withSandbox(async ({ home }) => {
     const path = join(home, '.codex', 'hooks.json')
     await install()
     const keysOf = () => findBuracleHandlers(JSON.parse(read(path)), path).map(h => `${h.key} ${h.hash}`).sort()
@@ -267,7 +267,7 @@ describe('codex installPlan', () => {
     expect(keysOf()).toEqual(before)
   }))
 
-  test('removing the list entries takes out only Buracle\'s groups; a file Buracle created goes when empty', () => withSandbox(async ({ home }) => {
+  test('removing the list entries takes out only Buracle Stack\'s groups; a file Buracle Stack created goes when empty', () => withSandbox(async ({ home }) => {
     const path = join(home, '.codex', 'hooks.json')
     const removeAll = async () => applyPlans([{ id: 'u', harness: 'codex', ops: CODEX_HOOK_EVENTS.map((e): Op => ({ kind: 'remove', path: listLedgerKey(path, `hooks.${e}`), owner: 'codex' })) }])
     await install()
@@ -336,7 +336,7 @@ describe('codex installPlan', () => {
     })
   }))
 
-  test('leaves a Codex older than the oldest supported version alone, forced or not: it could not load the config.toml Buracle writes', () => withSandbox(async ({ home }) => {
+  test('leaves a Codex older than the oldest supported version alone, forced or not: it could not load the config.toml Buracle Stack writes', () => withSandbox(async ({ home }) => {
     mkdirSync(join(home, '.codex'), { recursive: true })
     const min = MIN_VERSIONS.codex
     installTestHooks.codexVersion = async () => '0.142.0'
@@ -360,14 +360,14 @@ describe('codex installPlan', () => {
     const fresh = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
     expect(fresh).toMatchObject({ code: 'HARNESS_TOO_OLD', written: false })
     expect((fresh as Error).message).toContain('left Codex as it is')
-    // An install by an older Buracle (no version gate) wrote config.toml; the Codex then got no newer.
+    // An install by an older Buracle Stack (no version gate) wrote config.toml; the Codex then got no newer.
     installTestHooks.codexVersion = async () => MIN_VERSIONS.codex
     await install()
     const config = read(join(home, '.codex', 'config.toml'))
     installTestHooks.codexVersion = async () => '0.142.0'
     const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
     expect(err).toMatchObject({ code: 'HARNESS_TOO_OLD', version: '0.142.0', written: true, update: 'update Codex with the installer that installed it' })
-    expect((err as Error).message).toContain('cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it')
+    expect((err as Error).message).toContain('cannot load the config.toml an earlier Buracle Stack install wrote, so it does not start until you update it')
     expect((err as Error).message).not.toContain('left Codex as it is')
     expect(read(join(home, '.codex', 'config.toml'))).toBe(config)
   }))
@@ -454,7 +454,7 @@ describe('codex installPlan', () => {
     expect(Object.values(await readLedger()).filter(e => e.owner === 'codex')).toEqual([])
   }))
 
-  test('F03: uninstall moves the user\'s /hooks approvals with their groups and drops those of Buracle\'s hooks', () => withSandbox(async ({ home }) => {
+  test('F03: uninstall moves the user\'s /hooks approvals with their groups and drops those of Buracle Stack\'s hooks', () => withSandbox(async ({ home }) => {
     const codex = join(home, '.codex')
     const hooksPath = join(codex, 'hooks.json')
     const configPath = join(codex, 'config.toml')
@@ -500,7 +500,7 @@ describe('codex installPlan', () => {
     expect(existsSync(join(home, '.codex', 'config.toml'))).toBe(true)
   }))
 
-  test('tuiOps sets exactly the two keys Buracle owns', () => {
+  test('tuiOps sets exactly the two keys Buracle Stack owns', () => {
     const a = codexArtifacts({ canonical, buracle: '/b', pathRulesDir: '~/r' })
     expect(tuiOps('/h/.codex/config.toml', a)).toEqual([{ kind: 'toml-tables', path: '/h/.codex/config.toml', tables: {}, keys: { 'tui.status_line': a.tui.status_line, 'tui.terminal_title': a.tui.terminal_title }, owner: 'codex' }])
   })
@@ -525,7 +525,7 @@ describe('permissions.bypass on Codex', () => {
     expect(codexTrustPlan(ctx)).toBeUndefined()
   }))
 
-  test('the trust plan approves exactly Buracle\'s handlers at the indexes the installed hooks.json gives them', () => withSandbox(async ({ home }) => {
+  test('the trust plan approves exactly Buracle Stack\'s handlers at the indexes the installed hooks.json gives them', () => withSandbox(async ({ home }) => {
     const hooksPath = join(home, '.codex', 'hooks.json')
     mkdirSync(join(home, '.codex'), { recursive: true })
     const mine = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo user-guard', timeout: 5 }] }
@@ -616,7 +616,7 @@ describe('config.toml keys for routing and the no-approval mode (phase 2)', () =
     expect([tomlIn(fresh)['approval_policy'], tomlIn(fresh)['sandbox_mode']]).toEqual([BYPASS_APPROVAL_POLICY, 'danger-full-access'])
   }))
 
-  test('upgrade: an approval_policy = "never" the ledger shows Buracle wrote becomes the granular policy, also with permissions.enforce off; doctor reports ok', () => withSandbox(async ({ home }) => {
+  test('upgrade: an approval_policy = "never" the ledger shows Buracle Stack wrote becomes the granular policy, also with permissions.enforce off; doctor reports ok', () => withSandbox(async ({ home }) => {
     const config = configOf(c => { c.permissions.enforce = false })
     const codex = join(home, '.codex')
     const file = join(codex, 'config.toml')
@@ -634,7 +634,7 @@ describe('config.toml keys for routing and the no-approval mode (phase 2)', () =
     expect(permissionCheck(tomlIn(codex), config).level).toBe('ok')
   }))
 
-  test('bypassUnitBlocked: a value of the user\'s or a removal blocks; an equal value or one the ledger proves Buracle wrote does not', () => {
+  test('bypassUnitBlocked: a value of the user\'s or a removal blocks; an equal value or one the ledger proves Buracle Stack wrote does not', () => {
     const p = '/h/.codex/config.toml'
     expect(bypassUnitBlocked(undefined, undefined, p)).toBeUndefined()
     expect(bypassUnitBlocked('approval_policy = { granular = { rules = true, sandbox_approval = false, mcp_elicitations = false, request_permissions = false, skill_approval = false } }\n', undefined, p)).toBeUndefined()
@@ -668,7 +668,7 @@ describe('config.toml keys for routing and the no-approval mode (phase 2)', () =
     expect(codexTrustPlan(context({ config: configOf(c => { c.permissions.enforce = false }) }))?.ops.every(o => (o as { enforce?: string[] }).enforce === undefined)).toBe(true)
   }))
 
-  test('every enum value Buracle writes is one Codex accepts; a bad one is reported before anything is written', () => {
+  test('every enum value Buracle Stack writes is one Codex accepts; a bad one is reported before anything is written', () => {
     expect(codexEnumProblem('web_search', 'off')).toContain('Codex would refuse to start')
     expect(codexEnumProblem('omit_tools_from', ['deferred', 'hidden'])).toContain('"hidden"')
     expect(codexEnumProblem('omit_tools_from', [])).toContain('empty list')

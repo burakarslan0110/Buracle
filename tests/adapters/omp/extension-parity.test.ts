@@ -118,7 +118,7 @@ describe('omp extension: H20 consent question in the TUI (Claude mod parity)', (
     other.ctx.ui.select = async () => answer
     const r = await other.fp.emit('tool_call', push('3'), other.ctx) as OmpToolCallResult
     expect(r.block).toBe(true)
-    expect(r.reason).toMatch(/^Buracle H20: the user refused `git push origin main` in the consent dialog/)
+    expect(r.reason).toMatch(/^Buracle Stack H20: the user refused `git push origin main` in the consent dialog/)
   }))
 
   test('without a dialog (print and RPC mode, a subagent, no select) the deny with the question stays', () => withSandbox(async sb => {
@@ -128,13 +128,13 @@ describe('omp extension: H20 consent question in the TUI (Claude mod parity)', (
       ctx.ui.select = async () => { asked++; return 'Allow once' }
       const r = await fp.emit('tool_call', push('1'), ctx) as OmpToolCallResult
       expect({ ctxOpts, block: r.block, asked }).toEqual({ ctxOpts, block: true, asked: 0 })
-      expect(r.reason).toMatch(/^Buracle H20: this command/)
+      expect(r.reason).toMatch(/^Buracle Stack H20: this command/)
     }
     const { fp, ctx } = setup(sb, { policy: quietPolicy() })
     ctx.ui.select = async () => { throw new Error('dialog closed') }
     const r = await fp.emit('tool_call', push('9'), ctx) as OmpToolCallResult
     expect(r.block).toBe(true)
-    expect(r.reason).toMatch(/^Buracle H20: this command/)
+    expect(r.reason).toMatch(/^Buracle Stack H20: this command/)
     expect(existsSync(consentFile())).toBe(true)
   }))
 

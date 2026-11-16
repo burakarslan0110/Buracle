@@ -18,10 +18,10 @@ import { progressSteps, resultLines, type Steps } from '../ui/steps'
 import { toolchainProgress } from '../ui/toolchain-live'
 
 export const name = 'update'
-export const summary = 'Update everything Buracle connects, each part from its own source'
+export const summary = 'Update everything Buracle Stack connects, each part from its own source'
 export const usage = `Usage: buracle update [<kind>|<name>…] [--check] [--yes] [--json]
 
-Checks everything Buracle connects and updates each part from its own source, with the
+Checks everything Buracle Stack connects and updates each part from its own source, with the
 installer that installed it. In a terminal it applies what is new at once, without a
 question, and shows each step while it runs: every kind it checks, every part it updates,
 the reinstall and the MCP handshake. Without a terminal it only checks, and --yes applies.
@@ -31,15 +31,15 @@ the reinstall and the MCP handshake. Without a terminal it only checks, and --ye
   --yes, -y  apply also when stdin is not a terminal
 
 Kinds and names (any number; none means everything):
-  self      the Buracle checkout: git fetch; apply: git merge --ff-only, then install
+  self      the Buracle Stack checkout: git fetch; apply: git merge --ff-only, then install
   skills    skill sources (config skills.sources) and skills from \`buracle skills add\`
-  mcp       the MCP server packages of the Buracle toolchain (npm, PyPI), at their newest
+  mcp       the MCP server packages of the Buracle Stack toolchain (npm, PyPI), at their newest
             release (update.minReleaseAgeDays, 0 by default, can hold younger ones back)
   tools     the Homebrew tools and the toolchain's language servers and npm/PyPI tools
   <name>    one part, such as codegraph or pyright
 
 A part whose check failed is named as not checked, never as up to date. After an apply
-that changed Buracle or a skill source, Buracle rebuilds and installs again
+that changed Buracle Stack or a skill source, Buracle Stack rebuilds and installs again
 (without the toolchain step), and the MCP handshake runs again for every server that
 moved. A self update that changes package.json or bun.lock runs
 \`bun install --frozen-lockfile\` in the checkout; when the follow-up install fails, the
@@ -91,7 +91,7 @@ const line = (s: string): string => sanitizeText(tildeText(s))
 const lines = (s: string): string => s.split('\n').map(line).join('\n')
 
 const KIND_TITLE: Readonly<Record<UpdateKind, string>> = {
-  self: 'Buracle', skills: 'Skills', mcp: 'MCP servers', tools: 'Tools',
+  self: 'Buracle Stack', skills: 'Skills', mcp: 'MCP servers', tools: 'Tools',
 }
 
 // One line per kind while the check runs, counting only the parts the command names.
@@ -266,16 +266,16 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     let sync: Awaited<ReturnType<typeof followUpSync>> | undefined
     if (outcome.rebuild) {
       const self = outcome.selfUpdated
-      steps.start('sync', self ? 'Installing the new Buracle' : 'Rebuilding and installing again')
+      steps.start('sync', self ? 'Installing the new Buracle Stack' : 'Rebuilding and installing again')
       sync = await followUpSync(outcome, json, io)
-      const what = sync.code === 0 ? 'Installed the new Buracle' : sync.code === 2 ? 'Installed the new Buracle, with points to look at (below)' : 'Installing the new Buracle failed (below)'
+      const what = sync.code === 0 ? 'Installed the new Buracle Stack' : sync.code === 2 ? 'Installed the new Buracle Stack, with points to look at (below)' : 'Installing the new Buracle Stack failed (below)'
       steps.done('sync', sync.code === 0 ? 'ok' : sync.code === 2 ? 'warn' : 'err', line(firstOf(self ? what : sync.message)))
     }
     let restCode = 0
     if (splitSelf) {
       const from = partsCount(outcome)
       if (outcome.selfUpdated && sync !== undefined && sync.code !== 1) {
-        steps.start('rest', 'Applying the other updates with the new Buracle')
+        steps.start('rest', 'Applying the other updates with the new Buracle Stack')
         restCode = await applyRestWithNewCode(kinds, targets.names, outcome)
       } else for (const i of restActionable) outcome.skipped.push({ kind: i.kind, id: i.id, reason: sync?.reverted === true ? 'self update was reverted' : 'the self update did not finish' })
       showParts(steps, outcome, from, 'rest')

@@ -492,7 +492,7 @@ function setKey(text: string, path: string[], value: unknown): string {
       const prev = stmts[i - 1]
       const end = next && next.kind === 'blank' && (i === 0 || (prev !== undefined && prev.kind === 'blank')) ? next.end : found.end
       const removed = text.slice(0, found.start) + text.slice(end)
-      // A table the removal emptied goes too: Buracle wrote its key into a table of its own (see below).
+      // A table the removal emptied goes too: Buracle Stack wrote its key into a table of its own (see below).
       return foundIn !== undefined ? dropEmptyTable(removed, foundIn) : removed
     }
     const keyText = (found.key as string[]).map(tomlKey).join('.')
@@ -1173,7 +1173,7 @@ export function yamlPathProblem(text: string, segs: readonly string[]): string |
     const pair = findYamlPair(map, segs[k] as string)
     if (pair === undefined) {
       const hasMerge = map.items.some(p => isScalar(p.key) && p.key.value === '<<')
-      if (hasMerge && getIn(merged, segs.slice(0, k + 1)).found) return `${segs.slice(0, k + 1).join('.')} is inherited through a YAML merge key (<<: *anchor); Buracle does not override inherited values`
+      if (hasMerge && getIn(merged, segs.slice(0, k + 1)).found) return `${segs.slice(0, k + 1).join('.')} is inherited through a YAML merge key (<<: *anchor); Buracle Stack does not override inherited values`
       return undefined
     }
     node = pair.value

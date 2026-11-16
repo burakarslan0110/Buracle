@@ -158,7 +158,7 @@ describe('omp installPlan', () => {
       expect(doc['memory']).toEqual({ backend: 'off' })
       expect(doc['enabledProviders']).toEqual([])
       const agents = readFileSync(join(agentDir, 'AGENTS.md'), 'utf8')
-      expect(agents.startsWith('# My global omp notes\n\nBe terse.\n\n<!-- buracle:omp:start -->\n## Buracle\n')).toBe(true)
+      expect(agents.startsWith('# My global omp notes\n\nBe terse.\n\n<!-- buracle:omp:start -->\n## Buracle Stack\n')).toBe(true)
       expect(agents).toContain(SHARED_AGENTS_IMPORT)
       expect(readFileSync(join(sb.home, '.fake-omp-link'), 'utf8')).toBe(join(REPO, 'harness', 'omp'))
 
@@ -436,7 +436,7 @@ describe('omp link check and doctor', () => {
     expect(changed).toMatchObject({ level: 'warn' })
     expect(changed.detail).toContain('tools.approvalMode is "always-ask", not yolo')
     expect(changed.detail).toContain('run `buracle install` to write it back (permissions.enforce)')
-    expect(permissionFinding({ tools: { approvalMode: 'always-ask' } }, cfg(true, false), '/f').detail).toContain('permissions.enforce is off, so Buracle keeps that value')
+    expect(permissionFinding({ tools: { approvalMode: 'always-ask' } }, cfg(true, false), '/f').detail).toContain('permissions.enforce is off, so Buracle Stack keeps that value')
     expect(permissionFinding({}, cfg(true, true), '/f').detail).toContain('is not set in /f')
     expect(permissionFinding({ tools: { approvalMode: 'write' } }, cfg(false, true), '/f')).toMatchObject({ level: 'ok', detail: 'tools.approvalMode write (permissions.bypass is off)' })
   })
@@ -447,8 +447,8 @@ describe('omp link check and doctor', () => {
     expect(compareVersions('18.8.0', '18.8.0')).toBe(0)
     expect(configFindings(undefined, { a: 1 }, '/f')[0]?.level).toBe('warn')
     expect(configFindings('a: [', { a: 1 }, '/f')[0]?.level).toBe('error')
-    expect(configFindings('a:\n  b: 1\n', { 'a.b': 1 }, '/f')).toEqual([{ level: 'ok', check: 'omp config', detail: '1 Buracle keys set in /f' }])
-    expect(configFindings('a:\n  b: 2\n', { 'a.b': 1, c: [] }, '/f')).toEqual([{ level: 'warn', check: 'omp config', detail: '/f: a.b = 2 (Buracle: 1); c missing' }])
+    expect(configFindings('a:\n  b: 1\n', { 'a.b': 1 }, '/f')).toEqual([{ level: 'ok', check: 'omp config', detail: '1 Buracle Stack keys set in /f' }])
+    expect(configFindings('a:\n  b: 2\n', { 'a.b': 1, c: [] }, '/f')).toEqual([{ level: 'warn', check: 'omp config', detail: '/f: a.b = 2 (Buracle Stack: 1); c missing' }])
   })
 
   test('doctor: healthy after install (usage without accounts is only a warning)', () => withSandbox(async sb => {

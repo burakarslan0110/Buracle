@@ -400,7 +400,7 @@ describe('ensureIndexes', () => {
       await gitInit(repo)
       holdLock(repo, process.ppid, 5_000)
       const { calls, runner } = fakeRunner()
-      expect(await ensureIndexes(repo, { codegraph: true, semble: true, runner }, () => 6_000)).toEqual({ root: repo, skipped: 'another Buracle process is indexing this project' })
+      expect(await ensureIndexes(repo, { codegraph: true, semble: true, runner }, () => 6_000)).toEqual({ root: repo, skipped: 'another Buracle Stack process is indexing this project' })
       expect(calls).toEqual([])
       expect(readIndexRecord(repo)).toBeUndefined()
       holdLock(repo, deadPid(), 5_000)
@@ -420,7 +420,7 @@ describe('ensureIndexes', () => {
       lockTestHooks.beforeBreak = path => { unlinkSync(path); writeFileSync(path, fresh) }
       const { calls, runner } = fakeRunner()
       try {
-        expect(await ensureIndexes(repo, { codegraph: true, semble: true, runner }, () => 6_000)).toEqual({ root: repo, skipped: 'another Buracle process is indexing this project' })
+        expect(await ensureIndexes(repo, { codegraph: true, semble: true, runner }, () => 6_000)).toEqual({ root: repo, skipped: 'another Buracle Stack process is indexing this project' })
       } finally {
         delete lockTestHooks.beforeBreak
       }
@@ -445,7 +445,7 @@ describe('ensureIndexes', () => {
     })
   })
 
-  test('a damaged index is moved out of the repository, kept once under Buracle\'s state, and built again', async () => {
+  test('a damaged index is moved out of the repository, kept once under Buracle Stack\'s state, and built again', async () => {
     await withSandbox(async ({ root, buracleHome }) => {
       fakeTools(root)
       const repo = join(root, 'repo')
@@ -760,7 +760,7 @@ describe('codegraph MCP start gate', () => {
     })
   })
 
-  test('waits while a Buracle run builds the index, then starts the server', async () => {
+  test('waits while a Buracle Stack run builds the index, then starts the server', async () => {
     await withSandbox(async ({ root }) => {
       const repo = join(root, 'repo')
       await gitInit(repo)

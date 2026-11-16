@@ -151,7 +151,7 @@ describe('the UI build identity', () => {
     expect(sameUiBuild('1.0.0+aaa', undefined)).toBe(true)
   })
 
-  test('a server whose Buracle home vanished under it (a test sandbox torn down) stops itself and recreates nothing', () => withSandbox(async ({ buracleHome }) => {
+  test('a server whose Buracle Stack home vanished under it (a test sandbox torn down) stops itself and recreates nothing', () => withSandbox(async ({ buracleHome }) => {
     mkdirSync(brainDir(), { recursive: true })
     const { server, record } = serveUi({ port: freePort(), version: '9.9.9', idleEveryMs: 40 })
     try {

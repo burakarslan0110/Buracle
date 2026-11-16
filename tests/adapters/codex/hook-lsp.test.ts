@@ -22,7 +22,7 @@ describe('Codex PostToolUse: language-server diagnostics after apply_patch (H04)
     const d = { ...deps({ ...quiet, checkersFor: () => [] }), lspEdits: async (files: readonly string[], o: { cwd: string, deadlineMs: number }) => { asked.push({ files, cwd: o.cwd, deadlineMs: o.deadlineMs }); return ['main.go (gopls): 1 error\n  2:5  error UndeclaredName  undefined: Foo [compiler]'] } }
     const post = async (config = defaultConfig()) => (await handleCodexHook('PostToolUse', payload('PostToolUse', { cwd, tool_name: 'apply_patch', tool_input: { command: PATCH }, tool_response: 'Success.' }), ctx(config), d)).stdout
     const text: string = JSON.parse(await post()).hookSpecificOutput.additionalContext
-    expect(text).toContain('Buracle language server diagnostics after apply_patch:\n\nmain.go (gopls): 1 error\n  2:5  error UndeclaredName  undefined: Foo [compiler]')
+    expect(text).toContain('Buracle Stack language server diagnostics after apply_patch:\n\nmain.go (gopls): 1 error\n  2:5  error UndeclaredName  undefined: Foo [compiler]')
     expect(asked).toEqual([{ files: [join(cwd, 'main.go')], cwd, deadlineMs: NOW + 40_000 }])
     const off = defaultConfig()
     expect(await post({ ...off, checkers: { ...off.checkers, enabled: false } })).toBe('')
@@ -41,7 +41,7 @@ describe('Codex PostToolUse: language-server diagnostics after apply_patch (H04)
       await bridge.callTool('symbols', { file: 'main.go' })
       const d = { ...deps({ ...quiet, checkersFor: () => [] }), now: () => Date.now(), lspEdits: defaultDeps().lspEdits }
       const r = await handleCodexHook('PostToolUse', payload('PostToolUse', { cwd, tool_name: 'apply_patch', tool_input: { command: PATCH }, tool_response: 'Success.' }), ctx(), d)
-      expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Buracle language server diagnostics after apply_patch:\n\nmain.go (gopls): 1 error\n  2:14  error E1  declared and not used: x [stub]')
+      expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Buracle Stack language server diagnostics after apply_patch:\n\nmain.go (gopls): 1 error\n  2:14  error E1  declared and not used: x [stub]')
     } finally {
       served?.close()
       await bridge.close()

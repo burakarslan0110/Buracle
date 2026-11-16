@@ -140,7 +140,7 @@ describe('the PATH line in the shell startup file', () => {
       expect(asked).toEqual(['bash'])
     }))
 
-    test('a state record from an earlier Buracle ({v:1,file} alone) still finds and removes its block', () => withSandbox(({ home }) => {
+    test('a state record from an earlier Buracle Stack ({v:1,file} alone) still finds and removes its block', () => withSandbox(({ home }) => {
       const rc = join(home, '.zshrc')
       writeFileSync(rc, `export A=1\n${BLOCK}`)
       mkdirSync(dirname(paths.shellPathStateFile()), { recursive: true })

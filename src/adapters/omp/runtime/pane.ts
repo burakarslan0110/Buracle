@@ -35,7 +35,7 @@ export class StatusPane {
   async refresh(ctx: OmpContext): Promise<void> {
     const view = this.#view
     if (view === undefined || !hasTui(ctx) || !isMain(ctx)) return
-    const title = view === 'plan' ? 'Buracle plan' : 'Buracle memory'
+    const title = view === 'plan' ? 'Buracle Stack plan' : 'Buracle Stack memory'
     const body = (await this.host.lines(view, ctx)).slice(0, PANE_MAX_LINES - 2)
     const lines = [title, ...body, `/buracle-status ${view} again closes this view`]
     const text = lines.join('\n')

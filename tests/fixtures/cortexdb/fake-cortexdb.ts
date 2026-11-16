@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-// A stand-in for cortexdb-mcp that keeps the behaviours of the real engine Buracle depends on, as cortexdb-mcp 2.151.1
-// showed them on an empty database (FAKE_CORTEXDB_VERSION names another release, to play one below Buracle's minimum):
+// A stand-in for cortexdb-mcp that keeps the behaviours of the real engine Buracle Stack depends on, as cortexdb-mcp 2.151.1
+// showed them on an empty database (FAKE_CORTEXDB_VERSION names another release, to play one below Buracle Stack's minimum):
 // - a memory id is the primary key of the whole file; saving an id again replaces the row, whichever bucket it was in;
 // - a row lives in one bucket: scope `user` + user_id (namespace `default`), or scope `global` + a namespace;
 //   `memory_search` only sees the bucket it is asked for (without scope: global/default), while `memory_list_all`,
@@ -67,7 +67,7 @@ function live(r: Rec): boolean {
 function load(): Db {
   let db: Db
   try { db = JSON.parse(readFileSync(file, 'utf8')) as Db } catch { return { v: 1, seq: 0, records: {} } }
-  // A file written before buckets existed (Buracle 0.5) holds rows of the default bucket.
+  // A file written before buckets existed (Buracle Stack 0.5) holds rows of the default bucket.
   for (const r of Object.values(db.records)) { r.scope ??= 'global'; r.namespace ??= 'default' }
   return db
 }

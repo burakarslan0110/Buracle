@@ -62,7 +62,7 @@ describe('H05 mid-turn: the context warning reaches the model with the next PreT
     expect(sub.context).not.toContain('context window')
     const first = out((await claudeHook('PreToolUse', bash('ls'), ctx(), deps())).stdout)
     expect(first.decision).toBeUndefined()
-    expect(first.context).toContain('Buracle: the context window is 87% full.')
+    expect(first.context).toContain('Buracle Stack: the context window is 87% full.')
     expect(out((await claudeHook('PreToolUse', bash('ls'), ctx(), deps())).stdout).context).not.toContain('context window')
     expect(out((await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'go on with the next task' }), ctx(), deps())).stdout).context).not.toContain('context window')
     pct(96)
@@ -104,17 +104,17 @@ describe('H05 mid-turn: the context warning reaches the model with the next PreT
 describe('H17 one-time notices at a Claude Code session start', () => {
   test('the first startup claims the notice for the model only (no SessionStart user message); later sessions, resumes and subagents get nothing', () => withSandbox(() => withEnv({ BURACLE_NO_NOTICES: undefined }, async () => {
     const sub = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', agent_id: 'agent-1' }), ctx([NOTICE]), deps())).stdout)
-    expect(sub.context).not.toContain('Buracle notice')
+    expect(sub.context).not.toContain('Buracle Stack notice')
     const resumed = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'resume' }), ctx([NOTICE]), deps())).stdout)
-    expect(resumed.context).not.toContain('Buracle notice')
+    expect(resumed.context).not.toContain('Buracle Stack notice')
     const first = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx([NOTICE]), deps())).stdout)
     expect(first.system).toBe('')
-    expect(first.context).toContain('Buracle notice, shown once on this machine.')
+    expect(first.context).toContain('Buracle Stack notice, shown once on this machine.')
     expect(first.context).toContain('- Hello from the notice test.')
     expect(existsSync(join(paths.noticesDir(), 'test-notice.ack'))).toBe(true)
     const again = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', session_id: 'sess-session-2' }), ctx([NOTICE]), deps())).stdout)
     expect(again.system).toBe('')
-    expect(again.context).not.toContain('Buracle notice')
+    expect(again.context).not.toContain('Buracle Stack notice')
   })))
 
   test('a profile mismatch reaches the model as a line to pass on, never as a SessionStart user message', () => withSandbox(() => withEnv({ CLAUDE_CONFIG_DIR: '/work/profile-b' }, async () => {
@@ -122,10 +122,10 @@ describe('H17 one-time notices at a Claude Code session start', () => {
     writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { claudeDir: '/work/profile-a' } }))
     const first = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), deps())).stdout)
     expect(first.system).toBe('')
-    expect(first.context).toContain('Buracle setup warning. Tell the user')
+    expect(first.context).toContain('Buracle Stack setup warning. Tell the user')
     expect(first.context).toContain('this session reads /work/profile-b (CLAUDE_CONFIG_DIR)')
     const resumed = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'resume' }), ctx(), deps())).stdout)
-    expect(resumed.context).not.toContain('Buracle setup warning')
+    expect(resumed.context).not.toContain('Buracle Stack setup warning')
   })))
 })
 
@@ -165,6 +165,6 @@ describe('the memory UI hears about the session (memory.ui.autostart)', () => {
     const boom = async () => { throw new Error('EIO') }
     const res = await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), deps({ ui: { started: boom, seen: boom, ended: boom } }))
     expect(res.exitCode).toBe(0)
-    expect(out(res.stdout).context).toContain('Buracle')
+    expect(out(res.stdout).context).toContain('Buracle Stack')
   }))
 })

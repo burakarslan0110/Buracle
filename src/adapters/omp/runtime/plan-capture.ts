@@ -115,6 +115,6 @@ export async function capturePlans(store: PlanStore, cwd: string, nowMs: number,
 export function planSavedNote(saved: readonly SavedPlan[], cwd: string): string {
   const plain = saved.filter(f => f.note === undefined)
   const notes = saved.flatMap(f => (f.note !== undefined ? [f.note] : []))
-  if (plain.length > 0) notes.push(`Buracle: the approved plan was saved to ${plain.map(f => shownPath(f.path, cwd)).join(', ')} (H12).`)
+  if (plain.length > 0) notes.push(`Buracle Stack: the approved plan was saved to ${plain.map(f => shownPath(f.path, cwd)).join(', ')} (H12).`)
   return notes.join('\n\n')
 }

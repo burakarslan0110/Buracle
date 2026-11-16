@@ -1,8 +1,8 @@
 ---
 name: new-skill
 description: >-
-  Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right
-  home (global skills in the Buracle repo's canonical/skills or a configured skills git source;
+  Capture a repeatable procedure as a Buracle Stack skill, or improve an existing one. Picks the right
+  home (global skills in the Buracle Stack repo's canonical/skills or a configured skills git source;
   project-only skills in .agents/skills), writes SKILL.md in the canonical format with
   references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how
   publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit,
@@ -14,7 +14,7 @@ when_to_use: >-
 invocation: implicit
 argument-hint: "<skill id or the procedure to capture>"
 mcp: [buracle-memory, semble]
-short-description: Capture a repeatable procedure as a canonical Buracle skill
+short-description: Capture a repeatable procedure as a canonical Buracle Stack skill
 ---
 
 # New skill
@@ -27,7 +27,7 @@ faster, safer or more consistent than working it out from scratch each time.
 | What you have | Where it goes |
 |---|---|
 | A multi-step procedure started by an intent ("cut a release", "rotate the keys") | A skill: continue here |
-| A constraint for every task, or for certain files | A rule: global ones in Buracle's `canonical/rules/`; project ones via the `project-rules` skill |
+| A constraint for every task, or for certain files | A rule: global ones in Buracle Stack's `canonical/rules/`; project ones via the `project-rules` skill |
 | A fact, a decision or a trap | A memory (the `memory` skill) |
 | A one-off task | Nothing |
 
@@ -38,7 +38,7 @@ descriptions both trigger less reliably.
 
 | Scope | Location | Wording |
 |---|---|---|
-| Global, part of Buracle | `<buracle repo>/canonical/skills/<id>/`; the repo path is `repo:` in `~/.buracle/config.yaml` | Canonical frontmatter, harness-neutral body |
+| Global, part of Buracle Stack | `<buracle repo>/canonical/skills/<id>/`; the repo path is `repo:` in `~/.buracle/config.yaml` | Canonical frontmatter, harness-neutral body |
 | Global, the user's own skills repo | The `path` (or the checkout of the `git` URL) of an entry under `skills.sources` in `~/.buracle/config.yaml` | Canonical frontmatter, harness-neutral body |
 | One project only | `<project>/.agents/skills/<id>/` | Portable frontmatter, harness-neutral body |
 
@@ -51,7 +51,7 @@ scope is unclear, ask with your structured-question tool: every project, or this
 
 Track the phases with your todo tool.
 
-**Progress.** Buracle shows the run live, in the workflow band above the prompt and in the status
+**Progress.** Buracle Stack shows the run live, in the workflow band above the prompt and in the status
 line. Start it with `buracle flow start new-skill --title "<skill id>"`, mark each phase below with
 the `buracle flow phase <id>` call next to its name (`capture`, `overlap`, `design`, `write`, `evals`,
 `lint`, `test`, `publish`), and close with `buracle flow end --outcome done` once it is published or
@@ -64,7 +64,7 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
    happen. Then a quick memory pass: `memory_search` for `procedure` and `gotcha` memories on the topic;
    they become steps and pitfalls.
 2. **Check overlap** (`buracle flow phase overlap`). Read the descriptions of the two or three
-   closest skills from `buracle skills list --json`. The list also names skills Buracle does not
+   closest skills from `buracle skills list --json`. The list also names skills Buracle Stack does not
    manage: `claude-only` (a project skill only in `.claude/skills`, which Codex cannot see) and
    `unmanaged` (a folder placed by hand in `~/.agents/skills` or `~/.claude/skills`), each with the
    harnesses that see it. A `claude-only` skill that already covers the procedure is a migration,
@@ -81,7 +81,7 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
      `semble`, `web-search`, `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`, `lsp`;
    - the buracle CLI calls it makes: only documented subcommands (the `buracle` skill);
    - which steps are deterministic or fragile enough to deserve a script.
-4. **Write** (`buracle flow phase write`). For a skill in the Buracle repo, scaffold with
+4. **Write** (`buracle flow phase write`). For a skill in the Buracle Stack repo, scaffold with
    `buracle skills new <id>` and check the path it prints. Otherwise create the folder by hand. Fill
    it from [references/template.md](references/template.md):
    - **Description** = what it does + when to use it (situations and trigger phrases) + what it is
@@ -117,14 +117,14 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
 8. **Publish** (`buracle flow phase publish`). Ask with your structured-question tool: commit and sync now, or leave
    it to the user. Then run or
    print the steps for the home:
-   - **Buracle repo:** `git add canonical/skills/<id>`, then
+   - **Buracle Stack repo:** `git add canonical/skills/<id>`, then
      `git commit -m "skill(<id>): <what it does>"`, then `buracle install` (it builds and installs into
      every installed harness). Claude Code picks it up after `/reload-plugins` or a restart; the
      harnesses that read `~/.agents/skills` see it in new sessions.
    - **Personal skills repo:** commit and push there, then `buracle update --check` and
      `buracle update --yes`; the update fast-forwards the checkout, lints, builds and installs the
      skill into every harness.
-   - **Project skill:** commit `.agents/skills/<id>/`. Buracle links it into `.claude/skills` for
+   - **Project skill:** commit `.agents/skills/<id>/`. Buracle Stack links it into `.claude/skills` for
      Claude Code by itself, after the edit and at the next session start in any harness; run
      `buracle project sync --json` to see the link now, then `buracle project check` (exit 0 means
      every skill is linked and the path-rule index is in step).

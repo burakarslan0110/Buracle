@@ -165,8 +165,8 @@ async function contextWarning(ctx: AdapterContext, event: string, sid: string, u
     if (level !== before) saveAdapterState(ctx, sid, { ...s, ctxWarned: level })
     if (r.warn === undefined) return undefined
     return r.band === 'critical'
-      ? `Buracle: the context window is ${pct}% full and Codex will compact soon. Finish the current atomic step and keep the plan file and todo list current; Buracle saves the plan state before compaction and restores it afterwards. Do not skip verification.`
-      : `Buracle: the context window is ${pct}% full. Keep the plan file and todo list current so work survives compaction; read narrow line ranges instead of whole files.`
+      ? `Buracle Stack: the context window is ${pct}% full and Codex will compact soon. Finish the current atomic step and keep the plan file and todo list current; Buracle Stack saves the plan state before compaction and restores it afterwards. Do not skip verification.`
+      : `Buracle Stack: the context window is ${pct}% full. Keep the plan file and todo list current so work survives compaction; read narrow line ranges instead of whole files.`
   })
 }
 
@@ -311,7 +311,7 @@ function usagePlan(p: Payload, call: ToolCall, sid: string, ctx: AdapterContext,
 
 function skillLoad(call: ToolCall, sid: string, deps: CodexHookDeps, now: number): void {
   const id = deps.core.skillOf(call, H)
-  // Buracle installs its skills in ~/.agents/skills; $CODEX_HOME/skills covers a link an older install left.
+  // Buracle Stack installs its skills in ~/.agents/skills; $CODEX_HOME/skills covers a link an older install left.
   const command = call.command ?? ''
   const codexHome = envOf(deps)['CODEX_HOME']
   const installed = id !== undefined && (new RegExp(`(?:\\.agents|\\.codex\\}?|CODEX_HOME\\}?)[/\\\\]skills[/\\\\]${id}[/\\\\]SKILL\\.md`).test(command)
@@ -376,15 +376,15 @@ async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterC
   const lsp = ask !== undefined && edited !== undefined ? await step(ev, 'H04 language server', [] as string[], () => ask(edited, { cwd, deadlineMs: start + POST_PATCH_BUDGET_MS, now: deps.now })) : []
   const alarm = edited !== undefined && !sub && call.tool !== SHELL_TOOL ? await step(ev, 'turn receipt', undefined as string | undefined, () => filesChanged(ctx, sid, patchReceiptChanges(text, cwd))) : undefined
   const context: string[] = []
-  if (r.fileNotes.length > 0) context.push(`Buracle file checks after apply_patch:\n\n${r.fileNotes.join('\n\n')}`)
-  if (lsp.length > 0) context.push(`Buracle language server diagnostics after apply_patch:\n\n${lsp.join('\n\n')}`)
+  if (r.fileNotes.length > 0) context.push(`Buracle Stack file checks after apply_patch:\n\n${r.fileNotes.join('\n\n')}`)
+  if (lsp.length > 0) context.push(`Buracle Stack language server diagnostics after apply_patch:\n\n${lsp.join('\n\n')}`)
   if (r.assets !== undefined) context.push(r.assets)
   if (!sub) {
     const usage = await updateTelemetry(deps, ev, p, sid)
     const warning = await contextWarning(ctx, ev, sid, usage)
     if (warning) context.push(warning)
   }
-  return contextOutput('PostToolUse', context, alarm !== undefined ? `Buracle: ${alarm}` : undefined)
+  return contextOutput('PostToolUse', context, alarm !== undefined ? `Buracle Stack: ${alarm}` : undefined)
 }
 
 async function onPostToolUseMask(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
@@ -400,7 +400,7 @@ async function onPostToolUseMask(p: Payload, sid: string, cwd: string, ctx: Adap
     const edited = sp.kind === 'patch' && !failed ? filesChanged(ctx, sid, patchReceiptChanges(sp.body, cwd)) : undefined
     return edited ?? ran
   })
-  return withSystemMessage(out, alarm !== undefined ? `Buracle: ${alarm}` : undefined)
+  return withSystemMessage(out, alarm !== undefined ? `Buracle Stack: ${alarm}` : undefined)
 }
 
 async function onPreCompact(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
@@ -444,18 +444,18 @@ function stopReason(reason: string): string {
   return `${reason}${tail}`
 }
 
-export const READ_ONLY_NOTICE = 'Buracle stop guard: the session is in Plan mode (read-only), so this stop goes through. Leave Plan mode to continue the plan.'
+export const READ_ONLY_NOTICE = 'Buracle Stack stop guard: the session is in Plan mode (read-only), so this stop goes through. Leave Plan mode to continue the plan.'
 
 function runawayNotice(ctx: AdapterContext, sid: string, result: StopGuardResult, state: SessionState): string | undefined {
   if (result.why === 'runaway-chain') {
-    return `Buracle stop guard: ${core.RUNAWAY_PER_CHAIN} continuations in a row did not finish the plan, so this stop goes through. Check the plan file and the last messages before going on.`
+    return `Buracle Stack stop guard: ${core.RUNAWAY_PER_CHAIN} continuations in a row did not finish the plan, so this stop goes through. Check the plan file and the last messages before going on.`
   }
   if (result.why !== 'runaway-plan' || state.plan === undefined) return undefined
   const key = `${state.plan.path}#${state.plan.registeredAt}`
   const s = loadAdapterState(ctx, sid)
   if (s.runawayPlan === key) return undefined
   saveAdapterState(ctx, sid, { ...s, runawayPlan: key })
-  return `Buracle stop guard: this plan used up its ${core.RUNAWAY_PER_PLAN} stop-guard continuations, so stops are no longer held for it. Check the plan; after a pause, \`buracle plan resume\` starts a new budget.`
+  return `Buracle Stack stop guard: this plan used up its ${core.RUNAWAY_PER_PLAN} stop-guard continuations, so stops are no longer held for it. Check the plan; after a pause, \`buracle plan resume\` starts a new budget.`
 }
 
 async function onStop(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
@@ -513,9 +513,9 @@ async function onSubagentStop(p: Payload, sid: string, ctx: AdapterContext, deps
   if (errors.length === 0) return NOTHING
   const problems = `${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '; …' : ''}`
   if (p['stop_hook_active'] !== true) {
-    return blockOutput(`Buracle H19: your final message is not a valid review report (${problems}). Answer again with only the corrected JSON report your instructions define, with nothing before or after it.`)
+    return blockOutput(`Buracle Stack H19: your final message is not a valid review report (${problems}). Answer again with only the corrected JSON report your instructions define, with nothing before or after it.`)
   }
-  return json({ systemMessage: `Buracle H19: ${agent} returned an invalid review report again (${problems}); check its findings yourself before relying on them.` })
+  return json({ systemMessage: `Buracle Stack H19: ${agent} returned an invalid review report again (${problems}); check its findings yourself before relying on them.` })
 }
 
 async function onSubagentStart(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {

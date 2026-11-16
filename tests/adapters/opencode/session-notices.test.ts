@@ -70,7 +70,7 @@ describe('opencode: notices for the user inside the session', () => {
     const { f } = await runtime(root, () => now)
     const first = request()
     await f.trigger('session.context', first)
-    expect(first.system.map(p => p.text).join('\n')).toContain('Buracle notice, shown once on this machine.')
+    expect(first.system.map(p => p.text).join('\n')).toContain('Buracle Stack notice, shown once on this machine.')
     const { board, toasts } = shown(now)
     expect(board.map(n => [n.variant, n.text])).toEqual([['info', expect.stringContaining('A notice for OpenCode.')]])
     expect(toasts).toEqual([`info: ${board[0]?.text}`])

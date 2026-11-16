@@ -8,11 +8,11 @@
   "author": "Burak Arslan",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/burakarslan0110/buracle.git"
+    "url": "git+https://github.com/burakarslan0110/Buracle-Stack.git"
   },
-  "homepage": "https://github.com/burakarslan0110/buracle#readme",
+  "homepage": "https://github.com/burakarslan0110/Buracle-Stack#readme",
   "bugs": {
-    "url": "https://github.com/burakarslan0110/buracle/issues"
+    "url": "https://github.com/burakarslan0110/Buracle-Stack/issues"
   },
   "keywords": [
     "claude-code",

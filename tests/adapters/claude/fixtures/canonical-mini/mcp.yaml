@@ -23,7 +23,7 @@ servers:
     routing: [code-examples]
 
   buracle-memory:
-    description: Buracle memory (CortexDB brain)
+    description: Buracle Stack memory (CortexDB brain)
     transport: stdio
     command: "{buracle}"
     args: ["mcp", "memory"]

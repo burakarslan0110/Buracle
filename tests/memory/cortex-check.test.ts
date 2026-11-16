@@ -24,7 +24,7 @@ describe('the check a new CortexDB passes before the memory uses it', () => {
     const old = join(root, 'old-cortexdb.ts')
     writeFileSync(old, `process.env.FAKE_CORTEXDB_VERSION = '2.136.0'\nawait import(${JSON.stringify(FAKE)})\n`)
     expect(await cortexdbVersion({ path: old, source: 'env' })).toBe('2.136.0')
-    expect(await checkCortexdbBinary(old, 10_000)).toEqual({ ok: false, error: `it is CortexDB 2.136.0, older than the ${CORTEXDB_MIN_VERSION} Buracle needs` })
+    expect(await checkCortexdbBinary(old, 10_000)).toEqual({ ok: false, error: `it is CortexDB 2.136.0, older than the ${CORTEXDB_MIN_VERSION} Buracle Stack needs` })
     const silent = join(root, 'silent-cortexdb.ts')
     writeFileSync(silent, "process.exit(0)\n")
     expect(await cortexdbVersion({ path: silent, source: 'env' })).toBeUndefined()

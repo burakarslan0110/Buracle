@@ -148,25 +148,25 @@ describe('qwen and agy payloads', () => {
 describe('statusline claude', () => {
   test('the footer names no web UI while none runs: a missing record, one of a process that is gone, or one of a UI that was stopped', () => withSandbox(async () => {
     const footer = async () => plainLines((await build(['claude'], JSON.stringify(claudePayload()), deps())).rows)[1]
-    expect(await footer()).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293$/)
+    expect(await footer()).toMatch(/^Buracle Stack \d+\.\d+\.\d+ · CC 2\.1\.293$/)
     const gone = Bun.spawn(['bun', '-e', '0'], { env: { ...process.env }, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
     await gone.exited
     atomicWriteSync(memoryUiStateFile(), JSON.stringify({ v: 1, pid: gone.pid, port: 41777, host: '127.0.0.1', url: 'http://localhost:41777', startedAt: '', version: '0', brain: '' }))
-    expect(await footer()).not.toContain('Buracle Console')
+    expect(await footer()).not.toContain('Buracle Stack Console')
     runningUi()
-    expect(await footer()).toMatch(/Buracle Console: localhost:41777$/)
+    expect(await footer()).toMatch(/Buracle Stack Console: localhost:41777$/)
     atomicWriteSync(memoryUiStateFile(), '{}\n')
-    expect(await footer()).not.toContain('Buracle Console')
+    expect(await footer()).not.toContain('Buracle Stack Console')
   }))
 
-  test('the default Buracle bar: model, context bar, both windows and the folder; the footer names Buracle, Claude Code and the memory UI as a link', () => withSandbox(async () => {
+  test('the default Buracle Stack bar: model, context bar, both windows and the folder; the footer names Buracle Stack, Claude Code and the memory UI as a link', () => withSandbox(async () => {
     runningUi()
     const r = await build(['claude'], JSON.stringify(claudePayload()), deps())
     expect(r.joined).toBe(true)
     const lines = plainLines(r.rows)
     // The folder as this platform resolves '/tmp' (on Windows it gets the current drive).
     expect(lines[0]).toBe(`Opus 5.5 [max] [1M] | ███░░░░░ 37% | 5h: 42% ↓ 1h20m | 7d: 18% ↓ 1d6h | ${resolve('/tmp')}`)
-    expect(lines[1]).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293 · Buracle Console: localhost:41777$/)
+    expect(lines[1]).toMatch(/^Buracle Stack \d+\.\d+\.\d+ · CC 2\.1\.293 · Buracle Stack Console: localhost:41777$/)
     const io = memIO(JSON.stringify(claudePayload()))
     expect(await run(['claude'], io, deps())).toBe(0)
     expect(io.out()).toMatch(/\u001b\]8;;http:\/\/localhost:41777\u001b\\(?:\u001b\[[0-9;]*m)*localhost:41777(?:\u001b\[[0-9;]*m)*\u001b\]8;;\u001b\\/)
@@ -241,7 +241,7 @@ describe('statusline claude', () => {
     expect(await shown()).toEqual([
       expect.stringMatching(/^Opus 5\.5 \[max\] \[1M\] \| /),
       'plan-build ● Implement 1/3 | Rate limit | ▸ Task 2: CLI | 10m',
-      expect.stringMatching(/^Buracle \S+ · CC 2\.1\.293 · Buracle Console: localhost:41777 · idx none$/),
+      expect.stringMatching(/^Buracle Stack \S+ · CC 2\.1\.293 · Buracle Stack Console: localhost:41777 · idx none$/),
     ])
     const full = await build(['claude', '--style', 'full'], JSON.stringify(claudePayload({}, repo)), d)
     expect(full.rows[1]?.map(s => s.id)).toEqual(['git', 'index', 'flow'])
@@ -275,7 +275,7 @@ describe('statusline claude', () => {
     expect(await at(home)).toBeUndefined()
   }))
 
-  test('O3: hook failures of the last 24 hours show on the Buracle bar footer and in the segment rows; nothing while all is well', () => withSandbox(async ({ buracleHome }) => {
+  test('O3: hook failures of the last 24 hours show on the Buracle Stack bar footer and in the segment rows; nothing while all is well', () => withSandbox(async ({ buracleHome }) => {
     runningUi()
     const quiet = await build(['claude'], JSON.stringify(claudePayload()), deps())
     expect(plainLines(quiet.rows).join('\n')).not.toContain('hooks')
@@ -285,7 +285,7 @@ describe('statusline claude', () => {
     writeFileSync(join(logs, 'buracle.log'), `${fail(NOW - 3_600_000, 'fail-closed')}\n${fail(NOW - 60_000, 'fail-open')}\n`)
     const later = NOW + 61_000
     const shown = await build(['claude'], JSON.stringify(claudePayload()), deps({ nowMs: later }))
-    expect(plainLines(shown.rows).at(-1)).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293 · hooks ✗2 \(1 denied\) · Buracle Console: localhost:41777$/)
+    expect(plainLines(shown.rows).at(-1)).toMatch(/^Buracle Stack \d+\.\d+\.\d+ · CC 2\.1\.293 · hooks ✗2 \(1 denied\) · Buracle Stack Console: localhost:41777$/)
     const full = await build(['claude', '--style', 'full'], JSON.stringify(claudePayload()), deps({ nowMs: later }))
     expect(flat(full)).toContain('hooks')
     expect(renderPlain(full.rows)).toContain('hooks ✗2 (1 denied)')
@@ -362,7 +362,7 @@ describe('statusline claude --subagent (subagentStatusLine)', () => {
 })
 
 describe('statusline: no Context Mode segment, and no harness process lookup for it', () => {
-  test('claude: the rows and the Buracle bar footer carry no `cm` part, and the harness process is never looked for', () => withSandbox(async ({ root }) => {
+  test('claude: the rows and the Buracle Stack bar footer carry no `cm` part, and the harness process is never looked for', () => withSandbox(async ({ root }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
     const d = deps({})

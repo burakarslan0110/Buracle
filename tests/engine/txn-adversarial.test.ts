@@ -246,17 +246,17 @@ describe('removal needs ownership proof', () => {
       { kind: 'remove', path: join(h, 'ours.txt'), owner: 'claude' },
     ])])
     expect(r.conflicts.map(c => c.detail)).toEqual([
-      `${join(h, 'foreign.txt')} is not recorded as owned by Buracle; not removing it`,
-      `${settings}#user is not recorded as owned by Buracle; not removing it`,
+      `${join(h, 'foreign.txt')} is not recorded as owned by Buracle Stack; not removing it`,
+      `${settings}#user is not recorded as owned by Buracle Stack; not removing it`,
       `${settings}#ours is owned by claude, not codex; not removing it`,
-      `${join(h, 'ours.txt')} was modified outside Buracle; not removing it`,
+      `${join(h, 'ours.txt')} was modified outside Buracle Stack; not removing it`,
     ])
     const whole = await applyPlans([plan([{ kind: 'remove', path: settings, owner: 'claude' }])])
-    expect(whole.conflicts.map(c => c.detail)).toEqual([`${settings} is not recorded as owned by Buracle; not removing it`])
+    expect(whole.conflicts.map(c => c.detail)).toEqual([`${settings} is not recorded as owned by Buracle Stack; not removing it`])
     expect(world(sb)).toEqual(before)
   }))
 
-  test('values that were already there (adopted) survive uninstall; values Buracle wrote are removed', () => withSandbox(async (sb) => {
+  test('values that were already there (adopted) survive uninstall; values Buracle Stack wrote are removed', () => withSandbox(async (sb) => {
     const h = sb.home
     const json = join(h, '.config', 'opencode', 'opencode.jsonc')
     const toml = join(h, '.codex', 'config.toml')
@@ -290,7 +290,7 @@ describe('removal needs ownership proof', () => {
     expect(world(sb)).toEqual(before)
   }))
 
-  test('an adopted value stays the user\'s: a later Buracle change reports a conflict instead of overwriting it', () => withSandbox(async (sb) => {
+  test('an adopted value stays the user\'s: a later Buracle Stack change reports a conflict instead of overwriting it', () => withSandbox(async (sb) => {
     const toml = join(sb.home, '.codex', 'config.toml')
     const file = join(sb.home, '.agents', 'skills', 'x', 'SKILL.md')
     write(toml, 'approval_policy = "never" # my choice\n')
@@ -302,8 +302,8 @@ describe('removal needs ownership proof', () => {
     expect((await applyPlans([plan(ops('never', 'v1'))])).conflicts).toEqual([])
     const r = await applyPlans([plan(ops('on-request', 'v2'))])
     expect(r.conflicts.map(c => c.detail)).toEqual([
-      `${toml} approval_policy: set by the user before Buracle (never written by Buracle); keeping the user's version`,
-      `${file} was set by the user before Buracle (never written by Buracle); keeping the user's version`,
+      `${toml} approval_policy: set by the user before Buracle Stack (never written by Buracle Stack); keeping the user's version`,
+      `${file} was set by the user before Buracle Stack (never written by Buracle Stack); keeping the user's version`,
     ])
     expect(read(toml)).toBe('approval_policy = "never" # my choice\n')
     expect(read(file)).toBe('v1')
@@ -333,7 +333,7 @@ describe('uninstalling from JSONC never breaks the file', () => {
     expect(read(p)).toContain('// ours')
   }))
 
-  test('parents Buracle created are removed with its key; comments of the user stay', () => withSandbox(async (sb) => {
+  test('parents Buracle Stack created are removed with its key; comments of the user stay', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.config', 'opencode', 'opencode.jsonc')
     write(p, '{\n  // mine\n  "theme": "x",\n}\n')
     await applyPlans([plan([{ kind: 'jsonc-merge', path: p, set: { 'mcp.servers.context7': { type: 'local' } }, owner: O }])])

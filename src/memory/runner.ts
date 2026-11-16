@@ -33,7 +33,7 @@ export const RUNNER_CHILD_ENV: Readonly<Record<string, string>> = {
 export const OPENCODE_RUNNER_AGENT = 'buracle-memory-runner'
 const OPENCODE_RUNNER_AGENT_FILE = [
   '---',
-  'description: "Buracle\'s memory runner: answers one prompt with text only."',
+  'description: "Buracle Stack\'s memory runner: answers one prompt with text only."',
   'mode: "primary"',
   'permissions:',
   '  - { action: "*", resource: "*", effect: "deny" }',

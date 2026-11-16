@@ -42,7 +42,7 @@ describe('omp turn receipt, loop alarms, the long-turn notification and the resu
     await fp.emit('input', { type: 'input', text: 'change a', source: 'interactive' }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: 'e1', toolName: 'edit', input: { path: join(cwd, 'a.ts'), old_string: 'export const a = 1', new_string: 'export const a = 2' }, content: [{ type: 'text', text: 'ok' }], isError: false }, ctx)
     expect(await fp.emit('session_stop', stop('It works now.'), ctx)).toBeUndefined()
-    expect(notices(ctx)).toContain('Buracle · 1 file (+1 −1) · ⚠ unverified change')
+    expect(notices(ctx)).toContain('Buracle Stack · 1 file (+1 −1) · ⚠ unverified change')
     const before = notices(ctx).length
     await fp.emit('input', { type: 'input', text: 'again', source: 'interactive' }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: 'e2', toolName: 'write', input: { path: join(cwd, 'b.ts'), content: 'export const b = 1\n' }, content: [{ type: 'text', text: 'ok' }], isError: false }, ctx)
@@ -56,7 +56,7 @@ describe('omp turn receipt, loop alarms, the long-turn notification and the resu
     const sub = fakeCtx({ cwd, sid: SID, kind: 'sub' })
     for (const id of ['s1', 's2', 's3']) await fp.emit('tool_result', bash('bun test', 1, id), sub)
     for (const id of ['f1', 'f2', 'f3']) await fp.emit('tool_result', bash('bun test', 1, id), ctx)
-    expect(notices(ctx).filter(n => n.includes('failed 3 times in a row'))).toEqual(['Buracle: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
+    expect(notices(ctx).filter(n => n.includes('failed 3 times in a row'))).toEqual(['Buracle Stack: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
     expect(sub.uiCalls.filter(c => c.method === 'notify')).toEqual([])
   }))
 

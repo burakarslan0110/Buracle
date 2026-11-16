@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { realPath } from '../../engine/fsx'
 
-// The Buracle checkout a folder belongs to, for a harness whose plugin lives as long as the host: the lookup walks
+// The Buracle Stack checkout a folder belongs to, for a harness whose plugin lives as long as the host: the lookup walks
 // the folders itself and is cached, so a tool call starts no git process (src/adapters/shared/repo.ts asks git).
 
 const CACHE_TTL_MS = 30_000

@@ -47,7 +47,7 @@ describe('Qwen Code settings: hooks from canonical/hooks.yaml', () => {
     expect(pre === undefined || /run_shell_command/.test(pre)).toBe(true)
   })
 
-  test('the isBuracleCommand test knows Buracle hook commands only', () => {
+  test('the isBuracleCommand test knows Buracle Stack hook commands only', () => {
     expect(isBuracleCommand('"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" hook qwen Stop')).toBe(true)
     expect(isBuracleCommand('/usr/bin/buracle hook claude Stop')).toBe(false)
     expect(isBuracleCommand('./my-hook.sh')).toBe(false)

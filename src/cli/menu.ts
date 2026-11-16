@@ -11,7 +11,7 @@ export interface MenuDeps {
   updates?: number
   checkedAt?: string
   style?: Style
-  // Runs a Buracle command with the terminal inherited and resolves with its exit code.
+  // Runs a Buracle Stack command with the terminal inherited and resolves with its exit code.
   run(argv: readonly string[]): Promise<number>
 }
 

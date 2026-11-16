@@ -79,7 +79,7 @@ describe('contextWatch: one warning per band, re-armed below warnPct', () => {
     const crit = contextWarning('critical', CFG) as string
     expect(contextWarning('ok', CFG)).toBeUndefined()
     for (const t of [warn, crit]) {
-      expect(t.startsWith('Buracle: the context window is above ')).toBe(true)
+      expect(t.startsWith('Buracle Stack: the context window is above ')).toBe(true)
       expect(t).not.toContain('\n')
     }
     expect(warn).toContain('85%')

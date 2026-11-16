@@ -1,5 +1,5 @@
 // A TOML file cannot define one table twice: `features.memories = false` at the root defines [features], so a later
-// `[features]` header is a "duplicate key" and Codex refuses to start. That is what happened when Buracle wrote the
+// `[features]` header is a "duplicate key" and Codex refuses to start. That is what happened when Buracle Stack wrote the
 // dotted key and herdr's Codex integration then appended a [features] table (it adds one when the file has none).
 // This module moves such dotted root keys into a [table] of their own, where every tool expects to find them.
 import { ensureNl, keepMissingFinalNewline, preserveEol, regionOf, scanOrThrow, tomlKey, validateToml, type Stmt } from './merge'

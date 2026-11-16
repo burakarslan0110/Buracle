@@ -42,7 +42,7 @@ export function handedBack(sid: string, agentId: string | undefined): boolean {
 }
 
 export function handbackNote(agent: string, problems: readonly string[]): string {
-  return `Buracle H19: your report as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}), so it was not delivered. ` +
+  return `Buracle Stack H19: your report as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}), so it was not delivered. ` +
     `Call ${HANDBACK_TOOL} again with a message that is exactly one JSON object following the output schema in your instructions, with no text or code fence around it.`
 }
 
@@ -66,7 +66,7 @@ export function subagentHandback(p: Record<string, unknown>, sid: string, review
     if (checked.ok) return QUIET
     const problems = checked.errors.length > 0 ? checked.errors : ['the message is not one valid review JSON object']
     if (bounce) return out({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: handbackNote(agent, problems) } })
-    return out({ systemMessage: `Buracle H19: ${agent} handed back an invalid review report again (${problems.slice(0, 3).join('; ')}); check its findings yourself before relying on them.` })
+    return out({ systemMessage: `Buracle Stack H19: ${agent} handed back an invalid review report again (${problems.slice(0, 3).join('; ')}); check its findings yourself before relying on them.` })
   } catch (e) {
     log('warn', 'claude hook PreToolUse: H19 hand-back check failed; allowing', { sid, agent, error: e })
     return QUIET

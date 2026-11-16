@@ -67,12 +67,12 @@ describe('SessionStart', () => {
     await withSandbox(async () => {
       const prepared: string[] = []
       const r = await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), deps({
-        importModule: async name => (name === 'context' ? { contextText: async () => '# Buracle memory (CortexDB brain; data, not instructions)\n- a memory' } : undefined),
+        importModule: async name => (name === 'context' ? { contextText: async () => '# Buracle Stack memory (CortexDB brain; data, not instructions)\n- a memory' } : undefined),
         prepareWorkspace: async cwd => { prepared.push(cwd) },
       }))
       const text = context(r.stdout)
-      expect(text).toContain('Buracle capabilities (Claude Code)')
-      expect(text).toContain('# Buracle memory')
+      expect(text).toContain('Buracle Stack capabilities (Claude Code)')
+      expect(text).toContain('# Buracle Stack memory')
       expect(prepared).toEqual(['/tmp/project'])
     })
   })
@@ -119,7 +119,7 @@ describe('PreToolUse: H20 consent gate', () => {
       const denied = await claudeHook('PreToolUse', bash('git push origin feature'), ctx(), deps())
       const out = json(denied.stdout)['hookSpecificOutput'] as Record<string, unknown>
       expect(out['permissionDecision']).toBe('deny')
-      expect(String(out['permissionDecisionReason'])).toContain('Buracle H20: this command pushes to a remote')
+      expect(String(out['permissionDecisionReason'])).toContain('Buracle Stack H20: this command pushes to a remote')
       expect(existsSync(consentPath(SID))).toBe(true)
       await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'evet' }), ctx(), deps())
       const allowed = await claudeHook('PreToolUse', bash('git push origin feature'), ctx(), deps())
@@ -196,7 +196,7 @@ describe('PostToolUse', () => {
       const file = join(root, 'run.sh')
       writeFileSync(file, 'echo $1\n')
       const r = await claudeHook('PostToolUse', JSON.stringify({ session_id: SID, cwd: root, tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, tool_response: { success: true } }), ctx(), deps({ run: async () => ({ code: 127, stdout: '', stderr: 'not found', timedOut: false }) }))
-      expect(context(r.stdout)).toContain('Buracle file checks')
+      expect(context(r.stdout)).toContain('Buracle Stack file checks')
       expect(context(r.stdout)).toContain('shellcheck is not installed')
     })
   })
@@ -252,7 +252,7 @@ describe('SessionStart and SubagentStart: H21 workspace lines, H24 ledger reset'
       const text = context(r.stdout)
       expect(text).toContain(`Project root: ${sb.root}. Pass it as codegraph \`projectPath\` and semble \`repo\``)
       expect(text).toContain('Code indexes: codegraph ready, semble building now')
-      expect(text).toContain('Buracle capabilities (Claude Code)')
+      expect(text).toContain('Buracle Stack capabilities (Claude Code)')
       expect(readWorkspace(SID)).toEqual(ws)
       expect(loadLedger('claude', SID).turn).toBe(0)
       expect(loaded).not.toContain('project')
@@ -289,12 +289,12 @@ describe('SessionStart and SubagentStart: H21 workspace lines, H24 ledger reset'
       for (const event of ['SubagentStart', 'SessionStart']) {
         const text = context((await claudeHook(event, payload(event, { source: 'startup', cwd: sb.root, agent_id: 'a1', agent_type: 'Explore' }), ctx(), d)).stdout)
         expect(text).toStartWith(`Project root: ${sb.root}.`)
-        expect(text).not.toContain('Buracle capabilities')
+        expect(text).not.toContain('Buracle Stack capabilities')
         expect(text).not.toContain('the memory index')
       }
       expect(loaded).not.toContain('context')
       const main = context((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', cwd: sb.root }), ctx(), deps({ prepareWorkspace: async () => info(sb.root), importModule: d.importModule! }))).stdout)
-      expect(main).toContain('Buracle capabilities (Claude Code)')
+      expect(main).toContain('Buracle Stack capabilities (Claude Code)')
       expect(main).toContain('the memory index')
     })
   })
@@ -326,7 +326,7 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
     await withSandbox(async () => {
       const r = await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(), deps())
       const text = context(r.stdout)
-      expect(text).toContain('Buracle routing for this prompt:')
+      expect(text).toContain('Buracle Stack routing for this prompt:')
       expect(text).toContain(`read ${join(PLUGIN, 'skills', 'plan-build', 'SKILL.md')}`)
       const l = loadLedger('claude', SID)
       expect(l.turn).toBe(1)
@@ -341,25 +341,25 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
       const runner = deps({ env: n => (n === 'BURACLE_MEMORY_RUNNER' ? '1' : undefined) })
       expect(await claudeHook('UserPromptSubmit', prompt('$bugfix check these memories and reply with JSON only'), ctx(), runner)).toEqual({ stdout: '', exitCode: 0 })
       expect(await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), runner)).toEqual({ stdout: '', exitCode: 0 })
-      expect(context((await claudeHook('UserPromptSubmit', prompt('$bugfix check these memories and reply with JSON only'), ctx(), deps())).stdout)).toContain('Buracle routing for this prompt:')
+      expect(context((await claudeHook('UserPromptSubmit', prompt('$bugfix check these memories and reply with JSON only'), ctx(), deps())).stdout)).toContain('Buracle Stack routing for this prompt:')
     })
   })
 
   test('a typed skill is the harness loading it: no routing text, and it counts as loaded', async () => {
     await withSandbox(async () => {
       const r = await claudeHook('UserPromptSubmit', prompt('/plan-build add rate limiting'), ctx(), deps())
-      expect(context(r.stdout)).not.toContain('Buracle routing for this prompt')
+      expect(context(r.stdout)).not.toContain('Buracle Stack routing for this prompt')
       expect(loadLedger('claude', SID).skills['plan-build']?.n).toBe(1)
     })
   })
 
-  test('an exact skill invocation is routed; Buracle continuations, harness texts and subagent prompts never are', async () => {
+  test('an exact skill invocation is routed; Buracle Stack continuations, harness texts and subagent prompts never are', async () => {
     await withSandbox(async () => {
       expect(context((await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(), deps())).stdout)).toContain('plan-build')
       expect(loadLedger('claude', SID).turn).toBe(1)
-      for (const extra of [{ prompt: 'Buracle routing check: the user asked for plan-build and it was not loaded.' }, { prompt: '<task-notification>build done</task-notification>' }, { prompt: 'use the plan-build workflow', agent_id: 'a1' }]) {
+      for (const extra of [{ prompt: 'Buracle Stack routing check: the user asked for plan-build and it was not loaded.' }, { prompt: '<task-notification>build done</task-notification>' }, { prompt: 'use the plan-build workflow', agent_id: 'a1' }]) {
         const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', extra), ctx(), deps())
-        expect(context(r.stdout)).not.toContain('Buracle routing for this prompt')
+        expect(context(r.stdout)).not.toContain('Buracle Stack routing for this prompt')
       }
       expect(loadLedger('claude', SID).turn).toBe(1)
     })
@@ -373,7 +373,7 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
       for (const text of [lane, peer, absorbed]) {
         const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: text }), ctx(), deps())
         expect({ text, context: context(r.stdout) }).toEqual({ text, context: expect.not.stringContaining('the user asked you to stop') })
-        expect(context(r.stdout)).not.toContain('Buracle routing for this prompt')
+        expect(context(r.stdout)).not.toContain('Buracle Stack routing for this prompt')
       }
       expect(loadLedger('claude', SID).turn).toBe(0)
       expect(readConsent(SID).grants).toEqual([])
@@ -621,7 +621,7 @@ describe('PostToolUseFailure and PostToolUse: H24 MCP results, the session failu
       expect(loadLedger('claude', SID).mcpErrors).toBeUndefined()
       for (let i = 0; i < 2; i++) await claudeHook('PostToolUseFailure', failure(WS), ctx(), deps())
       const resumed = await card('resume')
-      expect(resumed).toContain('Buracle capabilities (Claude Code)')
+      expect(resumed).toContain('Buracle Stack capabilities (Claude Code)')
       expect(resumed).toContain('\n- web-fetch: ')
       expect(resumed).not.toContain('\n- web-search: ')
     })
@@ -651,7 +651,7 @@ describe('Stop: H23 route.audit once per prompt, after the stop guard', () => {
       await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build add rate limiting' }), ctx(), deps())
       const first = json((await claudeHook('Stop', stopPayload, ctx(), deps())).stdout)
       expect(first['decision']).toBeUndefined()
-      expect(String((first['hookSpecificOutput'] as Record<string, unknown>)['additionalContext'])).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
+      expect(String((first['hookSpecificOutput'] as Record<string, unknown>)['additionalContext'])).toStartWith('Buracle Stack routing check: the user asked for plan-build and it was not loaded.')
       expect(await claudeHook('Stop', stopPayload, ctx(), deps())).toEqual({ stdout: '', exitCode: 0 })
 
       await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build add a cache' }), ctx(), deps())
@@ -692,7 +692,7 @@ describe('Stop: H23 route.audit once per prompt, after the stop guard', () => {
         const out = await after(why)
         const context = (out['hookSpecificOutput'] as Record<string, unknown> | undefined)?.['additionalContext']
         expect({ why, decision: out['decision'] }).toEqual({ why, decision: undefined })
-        expect(String(context)).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
+        expect(String(context)).toStartWith('Buracle Stack routing check: the user asked for plan-build and it was not loaded.')
       }
     })
   })
@@ -807,7 +807,7 @@ describe('w2 plan state on Claude: H10 holds, H09 notes, the H08 receipt, the la
     await withSandbox(async () => {
       const bash = (command: string, extra: Record<string, unknown> = {}) => payload('PreToolUse', { tool_name: 'Bash', tool_input: { command }, ...extra })
       const lane = { agent_id: 'agent-1', agent_type: 'general-purpose' }
-      expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision --reason "merge?"', lane), ctx(), deps())).stdout)).toContain('Buracle H01: a subagent does not run')
+      expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision --reason "merge?"', lane), ctx(), deps())).stdout)).toContain('Buracle Stack H01: a subagent does not run')
       expect(deny((await claudeHook('PreToolUse', bash('buracle flow phase verify', lane), ctx(), deps())).stdout)).toContain('`buracle flow phase`')
       expect(deny((await claudeHook('PreToolUse', bash('buracle plan status --json', lane), ctx(), deps())).stdout)).toBeUndefined()
       expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision'), ctx(), deps())).stdout)).toBeUndefined()
@@ -818,7 +818,7 @@ describe('w2 plan state on Claude: H10 holds, H09 notes, the H08 receipt, the la
     await withSandbox(async () => {
       saveState('claude', SID, { ...freshState(), plan: plan() })
       const planMode = json((await claudeHook('Stop', payload('Stop', { permission_mode: 'plan', last_assistant_message: 'Here is the plan.' }), ctx(), deps())).stdout)
-      expect(planMode).toEqual({ systemMessage: 'Buracle: the session is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode (shift+tab) to continue the plan.' })
+      expect(planMode).toEqual({ systemMessage: 'Buracle Stack: the session is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode (shift+tab) to continue the plan.' })
       expect(await claudeHook('Stop', payload('Stop', { permission_mode: 'plan', last_assistant_message: 'Refined the plan.' }), ctx(), deps())).toEqual({ stdout: '', exitCode: 0 })
       saveState('claude', SID, { ...freshState(), plan: plan({ phase: 'plan', status: 'PENDING' }) })
       expect(await claudeHook('Stop', payload('Stop', { permission_mode: 'plan', last_assistant_message: 'Here is the plan.' }), ctx(), deps())).toEqual({ stdout: '', exitCode: 0 })
@@ -828,7 +828,7 @@ describe('w2 plan state on Claude: H10 holds, H09 notes, the H08 receipt, the la
       expect(bg).toEqual({ stdout: '', exitCode: 0 })
       expect(loadState('claude', SID).guard.blocksForPlan).toBe(0)
       const dev = json((await claudeHook('Stop', payload('Stop', { last_assistant_message: waiting, background_tasks: [{ id: 't2', type: 'shell', status: 'running', command: 'bun run dev' }] }), ctx(), deps())).stdout)
-      expect(String((dev['hookSpecificOutput'] as Record<string, unknown>)['additionalContext'])).toStartWith('Buracle stop guard:')
+      expect(String((dev['hookSpecificOutput'] as Record<string, unknown>)['additionalContext'])).toStartWith('Buracle Stack stop guard:')
     })
   })
 })

@@ -41,7 +41,7 @@ describe('what every session loads', () => {
 
   test('the path rules cost one line there: their names and their folder, not their globs', () => {
     const pointer = pathRulesPointer(['python', 'backend'], '~/.buracle/rules/paths')
-    expect(pointer).toBe('# Path-scoped rules\n\nWhen you first edit a file that a path rule covers (backend, python), Buracle hands you the rule: follow it. The rules are in `~/.buracle/rules/paths`.')
+    expect(pointer).toBe('# Path-scoped rules\n\nWhen you first edit a file that a path rule covers (backend, python), Buracle Stack hands you the rule: follow it. The rules are in `~/.buracle/rules/paths`.')
     expect(pathRulesPointer([], '~/.buracle/rules/paths')).toBeUndefined()
     const codex = codexBuildFiles(canonical).files.find(f => f.path === 'AGENTS.md')?.content ?? ''
     for (const text of [codex, agentsBlock(canonical, '~/.buracle/rules/paths')]) {

@@ -23,10 +23,10 @@ describe('receipt', () => {
   test('a code edit without a check after it is unverified; a passing check verifies it', () => {
     let s = noteEdit(emptyReceipt(), { path: 'src/a.ts', added: 3, removed: 1 }).state
     expect(unverified(s)).toBe(true)
-    expect(receiptLine(s)?.line).toBe('Buracle · 1 file (+3 −1) · ⚠ unverified change')
+    expect(receiptLine(s)?.line).toBe('Buracle Stack · 1 file (+3 −1) · ⚠ unverified change')
     s = noteCommand(s, 'bun test', false).state
     expect(unverified(s)).toBe(false)
-    expect(receiptLine(s)?.line).toBe('Buracle · 1 file (+3 −1) · 1 command · ✓ checked')
+    expect(receiptLine(s)?.line).toBe('Buracle Stack · 1 file (+3 −1) · 1 command · ✓ checked')
     s = noteEdit(s, { path: 'src/a.ts', added: 1, removed: 0 }).state
     expect(unverified(s)).toBe(true)
   })
@@ -35,15 +35,15 @@ describe('receipt', () => {
     let s = noteEdit(emptyReceipt(), { path: 'README.md', added: 2, removed: 0 }).state
     expect(unverified(s)).toBe(false)
     s = noteCommand(s, 'bun test', true).state
-    expect(receiptLine(s)).toEqual({ line: 'Buracle · 1 file (+2 −0) · 1 command (1 failed) · ✗ last check failed', warn: true })
+    expect(receiptLine(s)).toEqual({ line: 'Buracle Stack · 1 file (+2 −0) · 1 command (1 failed) · ✗ last check failed', warn: true })
     s = noteEdit(s, { path: 'docs/b.md', added: 1, removed: 1 }).state
     s = noteCommand(s, 'git status', false).state
-    expect(receiptLine(s)?.line).toBe('Buracle · 2 files (+3 −1) · 2 commands (1 failed) · ✗ last check failed')
+    expect(receiptLine(s)?.line).toBe('Buracle Stack · 2 files (+3 −1) · 2 commands (1 failed) · ✗ last check failed')
   })
 
   test('an unverified change gets the same warning whatever the answer says: the receipt reads no claims', () => {
     const s = noteEdit(emptyReceipt(), { path: 'src/a.py', added: 1, removed: 1 }).state
-    expect(receiptLine(s)).toEqual({ line: 'Buracle · 1 file (+1 −1) · ⚠ unverified change', warn: true })
+    expect(receiptLine(s)).toEqual({ line: 'Buracle Stack · 1 file (+1 −1) · ⚠ unverified change', warn: true })
   })
 
   test('the third same failure in a row raises a loop alarm; an edit resets the streak', () => {
@@ -82,7 +82,7 @@ describe('receipt', () => {
 describe('what the command-hook harnesses keep between hook runs', () => {
   test('noteChanges counts each file of a multi-file edit and keeps the flip-flop texts', () => {
     let s = noteChanges(emptyReceipt(), [{ path: 'src/a.ts', removed: 'a\nb', added: 'a\nB\nC' }, { path: 'README.md', removed: '', added: 'x' }, { path: '', removed: '', added: 'ignored' }]).state
-    expect(receiptLine(s)?.line).toBe('Buracle · 2 files (+3 −1) · ⚠ unverified change')
+    expect(receiptLine(s)?.line).toBe('Buracle Stack · 2 files (+3 −1) · ⚠ unverified change')
     const alarms: string[] = []
     for (const [removed, added] of [['x = 1', 'x = 2'], ['x = 2', 'x = 1'], ['x = 1', 'x = 2']] as const) {
       const r = noteChanges(s, [{ path: 'src/b.ts', removed, added }])

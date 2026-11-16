@@ -105,7 +105,7 @@ describe('golden output (canonical-mini)', () => {
     expect(md).toContain('use `AskUserQuestion` never')
   })
 
-  test('.mcp.json: claude servers only, pinned, env forwarded, Buracle servers through bun and the plugin\'s launcher, critical ones always loaded', () => {
+  test('.mcp.json: claude servers only, pinned, env forwarded, Buracle Stack servers through bun and the plugin\'s launcher, critical ones always loaded', () => {
     const mcp = JSON.parse(file(miniFiles(), '.mcp.json').content) as { mcpServers: Record<string, Record<string, unknown>> }
     expect(Object.keys(mcp.mcpServers)).toEqual(['buracle-memory', 'docs', 'examples'])
     expect(mcp.mcpServers['docs']).toEqual({ command: 'npx', args: ['-y', '@acme/docs-mcp@1.2.3'], env: { DOCS_TOKEN: '${ACME_DOCS_TOKEN}', MODE: 'stdio' }, alwaysLoad: true })
@@ -358,7 +358,7 @@ describe('real repository build', () => {
     expect(launcher.content.startsWith('#!/usr/bin/env bun\n')).toBe(true)
     expect(launcher.content).toContain('process.exit(await runProcess(argv))')
     expect(launcher.content).toContain('const root = shimTree() ?? checkout()')
-    expect(launcher.content).toContain("if (argv[0] === 'hook') failHook('no Buracle runtime or checkout was found')")
+    expect(launcher.content).toContain("if (argv[0] === 'hook') failHook('no Buracle Stack runtime or checkout was found')")
     expect(files.some(f => f.path === 'bin/buracle.cmd')).toBe(false)
     expect(files.some(f => f.path === 'bin/buracle-hook')).toBe(false)
   })

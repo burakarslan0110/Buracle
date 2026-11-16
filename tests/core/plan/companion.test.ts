@@ -41,7 +41,7 @@ describe('chooseCompanion', () => {
 })
 
 describe('companionInputs', () => {
-  test('Buracle\'s own scope lines win; the agent\'s other lines stay, multi-line values included; the closing instruction is dropped', () => {
+  test('Buracle Stack\'s own scope lines win; the agent\'s other lines stay, multi-line values included; the closing instruction is dropped', () => {
     const raw = ['changes-review', 'plan_file: /wrong.md', 'diff_range: main...HEAD', '  continued range text', 'user_request: limit the API', 'clarifications: Q1 per IP? yes', '  Q2 headers? Retry-After', 'Return only your JSON report.'].join('\n')
     expect(companionInputs(raw, [['plan_file', '/repo/plan.md'], ['base_ref', 'abc123'], ['changed_files', 'a.ts, b.ts']])).toBe([
       'plan_file: /repo/plan.md', 'base_ref: abc123', 'changed_files: a.ts, b.ts', 'changes-review', 'user_request: limit the API', 'clarifications: Q1 per IP? yes', '  Q2 headers? Retry-After',

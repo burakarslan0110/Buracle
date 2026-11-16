@@ -41,7 +41,7 @@ describe('the second-opinion fence (BURACLE_REVIEWER_AGENT)', () => {
     for (const tool of ['bash', 'edit', 'eval', 'python', 'task', 'browser', 'ast_edit', 'find']) expect(p(tool)).toBe(`\`${tool}\` is not one of its read tools (read, grep, glob)`)
   })
 
-  test('a look-alike MCP server does not pass: Claude Code takes only Buracle\'s plugin or the bare server, omp only the named tools of the three servers', () => {
+  test('a look-alike MCP server does not pass: Claude Code takes only Buracle Stack\'s plugin or the bare server, omp only the named tools of the three servers', () => {
     const denied = (tool: string) => `\`${tool}\` is not a codegraph, semble or context7 tool`
     for (const tool of ['mcp__plugin_evil_codegraph__write', 'mcp__plugin_buracle2_semble__search', 'mcp__plugin_x_context7__query-docs']) expect(companionToolProblem('claude', tool, {})).toBe(denied(tool))
     for (const tool of ['mcp__semble_evil_write', 'mcp__codegraph_admin_delete', 'mcp__context7_admin_write', 'mcp__semble_search_all', 'mcp__codegraph_codegraph_drop']) expect(companionToolProblem('omp', tool, {})).toBe(denied(tool))
@@ -54,6 +54,6 @@ describe('the second-opinion fence (BURACLE_REVIEWER_AGENT)', () => {
     expect(companionToolProblem('codex', 'shell', { command: ['touch', 'x'] })).toBeUndefined()
     expect(companionToolProblem('opencode', 'edit', {})).toBeUndefined()
     expect(companionToolDenial('omp', 'changes-review', 'read', {})).toBeUndefined()
-    expect(companionToolDenial('omp', 'changes-review', 'bash', { command: 'ls' })).toBe('Buracle: this run is a read-only second opinion (changes-review) and `bash` is not one of its read tools (read, grep, glob). Read files, search, see the change with git diff, log or show, and use codegraph, semble or context7; change nothing and write no memory.')
+    expect(companionToolDenial('omp', 'changes-review', 'bash', { command: 'ls' })).toBe('Buracle Stack: this run is a read-only second opinion (changes-review) and `bash` is not one of its read tools (read, grep, glob). Read files, search, see the change with git diff, log or show, and use codegraph, semble or context7; change nothing and write no memory.')
   })
 })

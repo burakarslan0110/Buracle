@@ -21,7 +21,7 @@ export function shellPatchOf(p: Payload): ShellPatch {
 
 function shellPatchDeny(sp: ShellPatch, undetermined?: string): string {
   const instead = 'Use the apply_patch tool instead (its paths resolve against the session directory), or absolute paths.'
-  if (sp.kind === 'opaque') return `this command runs apply_patch through the shell in a form Buracle cannot follow (${sp.why}), so the write guard cannot tell which files it changes. ${instead}`
+  if (sp.kind === 'opaque') return `this command runs apply_patch through the shell in a form Buracle Stack cannot follow (${sp.why}), so the write guard cannot tell which files it changes. ${instead}`
   return `apply_patch through the shell resolves \`${undetermined ?? '?'}\` against the command's working directory (a \`cd\` or exec workdir), which Codex does not show to hooks, so the write guard cannot check where it lands. ${instead}`
 }
 
@@ -30,7 +30,7 @@ function shellPatchText(sp: Extract<ShellPatch, { kind: 'patch' }>): { text: str
   return { text: sp.body, base: sp.cd !== undefined && isAbsPath(sp.cd) ? normalizePath(sp.cd) : '' }
 }
 
-/** The files a call writes and the text they get, for the pipeline's write guard (H02); a shell apply_patch Buracle cannot follow is denied here. */
+/** The files a call writes and the text they get, for the pipeline's write guard (H02); a shell apply_patch Buracle Stack cannot follow is denied here. */
 export function writeTargets(p: Payload, call: ToolCall, cwd: string, c: Pick<CoreFns, 'parseApplyPatch'>): WriteTargets | { deny: string } | undefined {
   if (call.tool !== SHELL_TOOL && call.kind !== 'patch' && call.kind !== 'edit' && call.kind !== 'write') return undefined
   let paths: string[] = []

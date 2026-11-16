@@ -53,7 +53,7 @@ describe('opencode server plugin: language-server diagnostics after an edit (H04
     const f = await runtime(root, { lspEdits: async (files, o) => { asked.push({ files, cwd: o.cwd }); return ['main.go (gopls): 1 error\n  2:5  error UndeclaredName  undefined: Foo [compiler]'] } })
     writeFileSync(join(root, 'main.go'), 'package main\n')
     const text = await write(f, 'call_1', 'main.go', 'package main\n')
-    expect(text).toContain('Buracle language server diagnostics (H04):\n\nmain.go (gopls): 1 error\n  2:5  error UndeclaredName  undefined: Foo [compiler]')
+    expect(text).toContain('Buracle Stack language server diagnostics (H04):\n\nmain.go (gopls): 1 error\n  2:5  error UndeclaredName  undefined: Foo [compiler]')
     expect(asked).toEqual([{ files: [join(root, 'main.go')], cwd: root }])
   }))
 
@@ -80,7 +80,7 @@ describe('opencode server plugin: language-server diagnostics after an edit (H04
       const f = await runtime(root)
       const body = 'package main\nvar x = 1 // ERROR: declared and not used: x\n'
       writeFileSync(join(root, 'main.go'), body)
-      expect(await write(f, 'call_1', 'main.go', body)).toContain('Buracle language server diagnostics (H04):\n\nmain.go (gopls): 1 error\n  2:14  error E1  declared and not used: x [stub]')
+      expect(await write(f, 'call_1', 'main.go', body)).toContain('Buracle Stack language server diagnostics (H04):\n\nmain.go (gopls): 1 error\n  2:14  error E1  declared and not used: x [stub]')
     } finally {
       served?.close()
       await bridge.close()

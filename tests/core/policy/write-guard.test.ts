@@ -46,14 +46,14 @@ describe('checkWrite: secrets and credentials', () => {
   })
 })
 
-describe('checkWrite: Buracle-managed locations', () => {
+describe('checkWrite: Buracle Stack-managed locations', () => {
   test('~/.buracle/state is changed through the CLI only', () => {
     const reason = deny(['/Users/u/.buracle/state/owned.json'])
     expect(reason).toContain('buracle CLI')
-    expect(reason).toContain("Buracle's own state")
+    expect(reason).toContain("Buracle Stack's own state")
     expect(deny(['~/.buracle/state/memory/spool/x.jsonl'])).toBeDefined()
-    expect(deny(['/Users/u/.buracle/statefile'])).toContain("Buracle's own installation")
-    expect(deny(['/Users/u/.buracle/statefile'])).not.toContain("Buracle's own state")
+    expect(deny(['/Users/u/.buracle/statefile'])).toContain("Buracle Stack's own installation")
+    expect(deny(['/Users/u/.buracle/statefile'])).not.toContain("Buracle Stack's own state")
   })
 
   test('vault internals (.obsidian, .git) are protected; notes are not', () => {
@@ -66,7 +66,7 @@ describe('checkWrite: Buracle-managed locations', () => {
     expect(deny(['/v/.obsidian/x'], { vault: '/v' })).toBeDefined()
   })
 
-  test('the generated harness/ tree is protected inside the Buracle repo (explicit root)', () => {
+  test('the generated harness/ tree is protected inside the Buracle Stack repo (explicit root)', () => {
     const repo = '/Users/u/code/buracle'
     const reason = deny([`${repo}/harness/claude/hooks/register.tsx`], { cwd: repo, buracleRepo: repo })
     expect(reason).toContain('buracle build')
@@ -87,12 +87,12 @@ describe('checkWrite: Buracle-managed locations', () => {
   })
 })
 
-describe("checkWrite: Buracle's own setup (SEC-1)", () => {
+describe("checkWrite: Buracle Stack's own setup (SEC-1)", () => {
   const cases: Array<[string, string]> = [
-    ['~/.buracle/bin/buracle', "Buracle's own installation"], ['~/.buracle/bin/buracle.cmd', "Buracle's own installation"],
-    ['~/.buracle/config.yaml', "Buracle's own installation"], ['/Users/u/.buracle/rules/paths/typescript.md', "Buracle's own installation"],
-    ['~/.buracle/toolchain/npm/x/package.json', "Buracle's own installation"], ['~/.buracle/logs/buracle.log', "Buracle's own installation"],
-    ['~/.buracle/sessions/claude/s1/consent.json', "Buracle's own installation"],
+    ['~/.buracle/bin/buracle', "Buracle Stack's own installation"], ['~/.buracle/bin/buracle.cmd', "Buracle Stack's own installation"],
+    ['~/.buracle/config.yaml', "Buracle Stack's own installation"], ['/Users/u/.buracle/rules/paths/typescript.md', "Buracle Stack's own installation"],
+    ['~/.buracle/toolchain/npm/x/package.json', "Buracle Stack's own installation"], ['~/.buracle/logs/buracle.log', "Buracle Stack's own installation"],
+    ['~/.buracle/sessions/claude/s1/consent.json', "Buracle Stack's own installation"],
     ['~/.local/bin/buracle', '`buracle` command on PATH'],
     ['~/.claude/settings.json', "Claude Code's own configuration"], ['~/.claude/settings.local.json', "Claude Code's own configuration"],
     ['~/.claude/plugins/cache/buracle/buracle/0.3.0/hooks/hooks.json', "Claude Code's own configuration"], ['~/.claude/plugins/installed_plugins.json', "Claude Code's own configuration"],
@@ -142,14 +142,14 @@ describe("checkWrite: Buracle's own setup (SEC-1)", () => {
   })
 
   test('spelling: case, `..` and file:// URLs do not get around it', () => {
-    expect(deny(['/Users/u/.Buracle/BIN/buracle'])).toContain("Buracle's own installation")
+    expect(deny(['/Users/u/.Buracle/BIN/buracle'])).toContain("Buracle Stack's own installation")
     expect(deny(['/Users/u/.CLAUDE/Settings.json'])).toContain('Claude Code')
     expect(deny(['../../.codex/hooks.json'])).toContain('Codex')
     expect(deny(['file:///Users/u/.local/bin/buracle'])).toContain('`buracle` command on PATH')
   })
 
   test('the home folder a path names is recognized, also when it is not ctx.home', () => {
-    expect(deny(['/Users/other/.buracle/bin/buracle'])).toContain("Buracle's own installation")
+    expect(deny(['/Users/other/.buracle/bin/buracle'])).toContain("Buracle Stack's own installation")
     expect(deny(['/home/runner/.codex/hooks.json'])).toContain('Codex')
     expect(deny(['/root/.claude/settings.json'])).toContain('Claude Code')
     expect(deny(['/var/root/.config/opencode/opencode.json'])).toContain('OpenCode')
@@ -158,8 +158,8 @@ describe("checkWrite: Buracle's own setup (SEC-1)", () => {
 
   test('relocated roots (BURACLE_HOME, CLAUDE_CONFIG_DIR, CODEX_HOME, XDG_CONFIG_HOME, PI_CODING_AGENT_DIR) are honored', () => {
     const selfPaths = { buracleHome: '/opt/buracle', claudeDir: '/cfg/claude', codexHome: '/cfg/codex', opencodeConfigDir: '/xdg/opencode', ompAgentDir: '/cfg/omp' }
-    expect(deny(['/opt/buracle/bin/buracle'], { selfPaths })).toContain("Buracle's own installation")
-    expect(deny(['/opt/buracle/state/owned.json'], { selfPaths })).toContain("Buracle's own state")
+    expect(deny(['/opt/buracle/bin/buracle'], { selfPaths })).toContain("Buracle Stack's own installation")
+    expect(deny(['/opt/buracle/state/owned.json'], { selfPaths })).toContain("Buracle Stack's own state")
     expect(deny(['/cfg/claude/settings.json'], { selfPaths })).toContain('Claude Code')
     expect(deny(['/cfg/claude/plugins/x/hooks/hooks.json'], { selfPaths })).toContain('Claude Code')
     expect(deny(['/cfg/codex/config.toml'], { selfPaths })).toContain('Codex')
@@ -179,10 +179,10 @@ describe("checkWrite: Buracle's own setup (SEC-1)", () => {
   })
 })
 
-describe('checkWrite: the Buracle checkout, from an unrelated session', () => {
+describe('checkWrite: the Buracle Stack checkout, from an unrelated session', () => {
   const repo = '/Users/u/Desktop/Buracle Plugin/buracle'
   const selfPaths = { repo }
-  const SOURCE = "Buracle's own source code"
+  const SOURCE = "Buracle Stack's own source code"
 
   test('a session in another project cannot write anywhere in the checkout', () => {
     for (const p of [
@@ -197,8 +197,8 @@ describe('checkWrite: the Buracle checkout, from an unrelated session', () => {
   test('the reason says what the checkout is and where to change it instead', () => {
     const reason = deny([`${repo}/src/cli/main.ts`], { selfPaths }) as string
     expect(reason).toStartWith('`~/Desktop/Buracle Plugin/buracle/src/cli/main.ts` ')
-    expect(reason).toContain('every Buracle hook runs')
-    expect(reason).toContain('a session opened in the Buracle repository')
+    expect(reason).toContain('every Buracle Stack hook runs')
+    expect(reason).toContain('a session opened in the Buracle Stack repository')
     expect(reason).toContain('ask the user')
     expect(reason.trim().endsWith('.')).toBe(true)
   })
@@ -355,7 +355,7 @@ describe('checkWrite: symlinks resolved through ctx.realpath', () => {
     expect(deny(['cfg/config'], { realpath })).toContain("user's SSH directory")
     expect(deny(['cfg/new/dir/file'], { realpath })).toContain("user's SSH directory")
     const toState = fakeFs({ '/Users/u/code/app/st': '/Users/u/.buracle/state' })
-    expect(deny(['st/runtime-config.json'], { realpath: toState })).toContain("Buracle's own state")
+    expect(deny(['st/runtime-config.json'], { realpath: toState })).toContain("Buracle Stack's own state")
     const toVault = fakeFs({ '/Users/u/code/app/v': '/Users/u/Documents/Buracle/.obsidian' })
     expect(deny(['v/app.json'], { realpath: toVault })).toContain('Obsidian')
   })
@@ -368,10 +368,10 @@ describe('checkWrite: symlinks resolved through ctx.realpath', () => {
     expect(deny(['k'], { ...c, realpath: link })).toContain("user's SSH directory")
   })
 
-  test("SEC-1: links into Buracle's setup, and setup folders that are links themselves", () => {
+  test("SEC-1: links into Buracle Stack's setup, and setup folders that are links themselves", () => {
     const toShim = fakeFs({ '/Users/u/code/app/run.sh': '/Users/u/.buracle/bin/buracle' })
     expect(deny(['run.sh'], { realpath: toShim })).toContain('follows a symlink')
-    expect(deny(['run.sh'], { realpath: toShim })).toContain("Buracle's own installation")
+    expect(deny(['run.sh'], { realpath: toShim })).toContain("Buracle Stack's own installation")
     const dotfiles = fakeFs({ '/Users/u/.claude': '/Users/u/dotfiles/claude' }, ['/Users/u/dotfiles/claude/settings.json'])
     expect(deny(['/Users/u/dotfiles/claude/settings.json'], { realpath: dotfiles })).toContain('Claude Code')
     expect(deny(['/Users/u/dotfiles/claude/plugins/x/hooks/hooks.json'], { realpath: dotfiles })).toContain('Claude Code')
@@ -385,7 +385,7 @@ describe('checkWrite: symlinks resolved through ctx.realpath', () => {
     const realpath = fakeFs({ '/tmp': '/private/tmp' })
     const c: Partial<WriteGuardContext> = { home: '/tmp/sb/home', cwd: '/tmp/sb/home/proj', realpath }
     expect(deny(['/private/tmp/sb/home/.ssh/authorized_keys'], c)).toContain("user's SSH directory")
-    expect(deny(['/private/tmp/sb/home/.buracle/config.yaml'], c)).toContain("Buracle's own installation")
+    expect(deny(['/private/tmp/sb/home/.buracle/config.yaml'], c)).toContain("Buracle Stack's own installation")
     expect(deny(['/private/tmp/sb/home/proj/src/a.ts'], c)).toBeUndefined()
   })
 
@@ -449,7 +449,7 @@ describe('checkWrite: symlinks resolved through ctx.realpath', () => {
     symlinkSync(join(home, 'dotfiles', 'claude'), join(home, '.claude'))
     const realpath = (p: string): string | undefined => { try { return realpathSync(p) } catch { return undefined } }
     const c: WriteGuardContext = { cwd: proj, home, vault: join(home, 'vault'), protect: [], realpath }
-    expect(checkWrite([join(proj, 'run.sh')], c).deny).toContain("Buracle's own installation")
+    expect(checkWrite([join(proj, 'run.sh')], c).deny).toContain("Buracle Stack's own installation")
     expect(checkWrite([join(home, '.claude', 'settings.json')], c).deny).toContain('Claude Code')
     expect(checkWrite([join(home, 'dotfiles', 'claude', 'settings.json')], c).deny).toContain('Claude Code')
     expect(checkWrite([join(home, 'dotfiles', 'claude', 'CLAUDE.md')], c)).toEqual({})
@@ -505,15 +505,15 @@ describe('checkWrite: a backslash or a colon is part of a POSIX file name', () =
   test("pwsh's profile under ~/.config/powershell is a shell startup file: a relocation in it is refused, other lines pass", () => {
     const profile = '/Users/u/.config/powershell/Microsoft.PowerShell_profile.ps1'
     expect(deny([profile])).toContain('shell startup file')
-    expect(deny([profile], { contents: { [profile]: { after: "$env:BURACLE_HOME = '/elsewhere'\n" } } })).toContain('moves Buracle or a harness')
-    expect(deny([profile], { contents: { [profile]: { after: "[Environment]::SetEnvironmentVariable('CODEX_HOME', '/c', 'User')\n" } } })).toContain('moves Buracle or a harness')
+    expect(deny([profile], { contents: { [profile]: { after: "$env:BURACLE_HOME = '/elsewhere'\n" } } })).toContain('moves Buracle Stack or a harness')
+    expect(deny([profile], { contents: { [profile]: { after: "[Environment]::SetEnvironmentVariable('CODEX_HOME', '/c', 'User')\n" } } })).toContain('moves Buracle Stack or a harness')
     expect(deny([profile], { contents: { [profile]: { after: 'Set-Alias ll Get-ChildItem\n' } } })).toBeUndefined()
     expect(deny(['/Users/u/Documents/PowerShell/profile.ps1'])).toBeUndefined()
   })
 })
 
 describe('AGY CLI settings file', () => {
-  test('a write to the CLI settings.json (the status line Buracle owns) is denied as AGY self-protection; its other files are not', () => {
+  test('a write to the CLI settings.json (the status line Buracle Stack owns) is denied as AGY self-protection; its other files are not', () => {
     expect(deny([`${HOME}/.gemini/antigravity-cli/settings.json`])).toContain("AGY CLI's own configuration")
     expect(deny([`${HOME}/.gemini/antigravity-cli/other.json`])).toBeUndefined()
     expect(deny([`${HOME}/.gemini/config/hooks.json`])).toContain("AGY CLI's own configuration")

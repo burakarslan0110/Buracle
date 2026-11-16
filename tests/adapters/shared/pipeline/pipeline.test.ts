@@ -42,10 +42,10 @@ describe('pipeline: the seven canonical events', () => {
 
 describe('pipeline: the shared output helpers', () => {
   test('every denial has one shape, and a guard that could not run says so', () => {
-    expect(denyReason('H01', 'rm -rf / is blocked')).toBe('Buracle H01: rm -rf / is blocked')
-    expect(denyReason('H03', 'Buracle: load plan-build first')).toBe('Buracle H03: load plan-build first')
-    expect(guardFailed('H01', new Error('boom\nstack'))).toStartWith('Buracle H01: the bash guard could not check this command (boom), so the call is blocked')
-    expect(guardFailed('H02', 'x')).toStartWith('Buracle H02: the write guard could not check the files of this edit (x)')
+    expect(denyReason('H01', 'rm -rf / is blocked')).toBe('Buracle Stack H01: rm -rf / is blocked')
+    expect(denyReason('H03', 'Buracle Stack: load plan-build first')).toBe('Buracle Stack H03: load plan-build first')
+    expect(guardFailed('H01', new Error('boom\nstack'))).toStartWith('Buracle Stack H01: the bash guard could not check this command (boom), so the call is blocked')
+    expect(guardFailed('H02', 'x')).toStartWith('Buracle Stack H02: the write guard could not check the files of this edit (x)')
   })
 
   test('clipBytes cuts at a line end within the byte budget; fitParts keeps whole parts in order', () => {
@@ -91,9 +91,9 @@ describe('pipeline preTool', () => {
   test('the bash guard denies with its hook id before any later step runs', () => withSandbox(async () => {
     const ran: string[] = []
     const d = preToolDeps({ core: { checkBash: () => ({ deny: 'rm -rf / is blocked' }), routeTool: () => { ran.push('route'); return { action: 'allow' } } } })
-    expect(await preTool(pre({ call: call({ command: 'rm -rf /' }) }), d)).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle H01: rm -rf / is blocked' })
+    expect(await preTool(pre({ call: call({ command: 'rm -rf /' }) }), d)).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle Stack H01: rm -rf / is blocked' })
     expect(ran).toEqual([])
-    expect(await preTool(pre(), preToolDeps({}, { shellDenial: async () => 'Buracle: plan-build-review is a read-only reviewer' }))).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle H01: plan-build-review is a read-only reviewer' })
+    expect(await preTool(pre(), preToolDeps({}, { shellDenial: async () => 'Buracle Stack: plan-build-review is a read-only reviewer' }))).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle Stack H01: plan-build-review is a read-only reviewer' })
   }))
 
   test('a guard that throws denies in the guard-failed words (fail closed)', () => withSandbox(async () => {
@@ -104,15 +104,15 @@ describe('pipeline preTool', () => {
   }))
 
   test('the lane guard runs for a subagent only and keeps its own words; the write guards deny file and MCP writes', () => withSandbox(async () => {
-    const lane = { core: { subagentStateDenial: () => 'Buracle H01: another subagent owns this state' } }
+    const lane = { core: { subagentStateDenial: () => 'Buracle Stack H01: another subagent owns this state' } }
     expect((await preTool(pre(), preToolDeps(lane))).action).toBe('allow')
-    expect(await preTool(pre({ subagent: true }), preToolDeps(lane))).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle H01: another subagent owns this state' })
+    expect(await preTool(pre({ subagent: true }), preToolDeps(lane))).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle Stack H01: another subagent owns this state' })
     const denyWrite = { core: { checkWrite: () => ({ deny: 'a protected file' }) } }
-    expect(await preTool(pre({ call: WRITE }), preToolDeps(denyWrite, targets))).toEqual({ action: 'deny', hook: 'H02', reason: 'Buracle H02: a protected file' })
+    expect(await preTool(pre({ call: WRITE }), preToolDeps(denyWrite, targets))).toEqual({ action: 'deny', hook: 'H02', reason: 'Buracle Stack H02: a protected file' })
     expect((await preTool(pre({ call: WRITE }), preToolDeps(denyWrite))).action).toBe('allow')
-    expect(await preTool(pre({ call: WRITE }), preToolDeps({}, { writeTargets: () => ({ deny: 'the patch cannot be followed' }) }))).toEqual({ action: 'deny', hook: 'H02', reason: 'Buracle H02: the patch cannot be followed' })
+    expect(await preTool(pre({ call: WRITE }), preToolDeps({}, { writeTargets: () => ({ deny: 'the patch cannot be followed' }) }))).toEqual({ action: 'deny', hook: 'H02', reason: 'Buracle Stack H02: the patch cannot be followed' })
     const mcp = call({ tool: 'mcp__fs__write_file', kind: 'mcp', mcp: { server: 'fs', tool: 'write_file' }, input: { path: '/home/u/.ssh/id' } })
-    expect(await preTool(pre({ call: mcp }), preToolDeps(denyWrite))).toEqual({ action: 'deny', hook: 'H02', reason: 'Buracle H02: a protected file' })
+    expect(await preTool(pre({ call: mcp }), preToolDeps(denyWrite))).toEqual({ action: 'deny', hook: 'H02', reason: 'Buracle Stack H02: a protected file' })
   }))
 
   test('the write guard gets the harness\'s resolver and checkout through the dependency object', () => withSandbox(async () => {
@@ -124,16 +124,16 @@ describe('pipeline preTool', () => {
 
   test('the consent gate denies with H20, or holds the command when the harness can ask itself', () => withSandbox(async () => {
     const core = { consentVerdict: ((_c: string, s: unknown) => ({ allow: false, reason: 'git push needs consent', next: s })) as never }
-    expect(await preTool(pre({ call: call({ command: 'git push' }) }), preToolDeps({ core }))).toEqual({ action: 'deny', hook: 'H20', reason: 'Buracle H20: git push needs consent' })
+    expect(await preTool(pre({ call: call({ command: 'git push' }) }), preToolDeps({ core }))).toEqual({ action: 'deny', hook: 'H20', reason: 'Buracle Stack H20: git push needs consent' })
     const held = await preTool(pre({ call: call({ command: 'git push' }) }), preToolDeps({ core }, { holdConsent: async () => true }))
     expect(held).toMatchObject({ action: 'allow', held: { command: 'git push', reason: 'git push needs consent' } })
   }))
 
   test('routing and the usage gate deny with their hook; guards-only stops after the guards', () => withSandbox(async () => {
     expect(await preTool(pre(), preToolDeps({ core: { routeTool: () => ({ action: 'deny', reason: 'use the search server', hook: 'H03' }) } })))
-      .toEqual({ action: 'deny', hook: 'H03', reason: 'Buracle H03: use the search server' })
-    expect(await preTool(pre(), preToolDeps({ core: { reminders: l => ({ next: l, deny: { reason: 'Buracle: load plan-build first', key: 'k' } }) } })))
-      .toEqual({ action: 'deny', hook: 'H03', reason: 'Buracle H03: load plan-build first' })
+      .toEqual({ action: 'deny', hook: 'H03', reason: 'Buracle Stack H03: use the search server' })
+    expect(await preTool(pre(), preToolDeps({ core: { reminders: l => ({ next: l, deny: { reason: 'Buracle Stack: load plan-build first', key: 'k' } }) } })))
+      .toEqual({ action: 'deny', hook: 'H03', reason: 'Buracle Stack H03: load plan-build first' })
     const quiet = await preTool(pre({ guardsOnly: true }), preToolDeps({ core: { routeTool: () => ({ action: 'deny', reason: 'x', hook: 'H03' }) } }))
     expect(quiet).toEqual({ action: 'allow', context: [] })
   }))
@@ -320,7 +320,7 @@ describe('pipeline sessionStart', () => {
     expect(user.notice?.user).toContain('Hello from the pipeline test.')
     expect(user.context.join('\n')).not.toContain('/work/profile-a')
     const model = await sessionStart({ ...input, sessionId: `${SID}-2` }, { ...fakeDeps(o), ...startPorts({ profileNote: f => `tell the user: ${f}` }) })
-    expect(model.context[0]).toStartWith('tell the user: Buracle was installed for Codex into /work/profile-a')
+    expect(model.context[0]).toStartWith('tell the user: Buracle Stack was installed for Codex into /work/profile-a')
     expect(model.notice).toBeUndefined()
     const off = await sessionStart({ ...input, sessionId: `${SID}-3` }, { ...fakeDeps({ ...o, env: { BURACLE_NO_NOTICES: '1' }, canonical: { notices: [{ ...NOTICE, id: 'pipeline-notice-2' }] } as never }), ...startPorts() })
     expect(off).toEqual({ context: ['Capability card'] })

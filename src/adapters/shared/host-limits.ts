@@ -13,7 +13,7 @@ export interface HostLimit {
   id: string
   harness: Harness
   feature: string
-  /** The canonical event the host has no native event for: its profile maps that event to null (src/core/harness/), and this record says why and what Buracle does instead. */
+  /** The canonical event the host has no native event for: its profile maps that event to null (src/core/harness/), and this record says why and what Buracle Stack does instead. */
   event?: CanonicalEvent
   kind: HostLimitKind
   checkedOn: string
@@ -84,7 +84,7 @@ export const HOST_LIMITS: readonly HostLimit[] = [
   },
   {
     id: 'codex.custom-status-line', harness: 'codex', feature: 'customStatusLine', kind: 'limit', checkedOn: '0.166.0',
-    reason: 'the Codex footer shows only its own items (`tui.status_line` takes item ids, no command; openai/codex#17827)', fallback: 'Buracle picks the native items',
+    reason: 'the Codex footer shows only its own items (`tui.status_line` takes item ids, no command; openai/codex#17827)', fallback: 'Buracle Stack picks the native items',
     probe: { kind: 'binary-run', pattern: CODEX_TUI_KEYS, closedBy: String.raw`(?:^_|status_line_)(?:command|script)`, expect: CODEX_TUI_STATUS_KEYS },
     recheck: `codex-rs/tui/src/bottom_pane/status_line_setup.rs (a fixed StatusLineItem enum, no command or script) and https://github.com/openai/codex/issues/17827 (open); ${CHECKED}`,
   },
@@ -158,13 +158,13 @@ export const HOST_LIMITS: readonly HostLimit[] = [
   {
     id: 'omp.companion-shell', harness: 'omp', feature: 'companionShell', kind: 'limit', checkedOn: '18.10.1',
     reason: 'a second opinion runs as a print-mode main session, which is no reviewer, so omp itself does not hold its bash tool to read-only commands; `--tools` can only leave bash out',
-    fallback: 'the second opinion runs with read, grep and glob only (Buracle\'s extension blocks every other tool, MCP tools and `xd://` devices included), and Buracle puts the diff and the changed files into its prompt',
+    fallback: 'the second opinion runs with read, grep and glob only (Buracle Stack\'s extension blocks every other tool, MCP tools and `xd://` devices included), and Buracle Stack puts the diff and the changed files into its prompt',
     recheck: `whether a --config <file> overlay (docs/settings.md) with tools.approvalMode write (docs/approval-mode.md) and bash.patterns allow rules for the read-only git and rg commands (docs/tools/bash.md) lets bash join the read tools: per https://github.com/can1357/oh-my-pi/blob/v18.10.1/docs/bash-tool-runtime.md an allow rule grants a simple command the write tier, while redirections, substitutions, globbing and chains keep the exec tier (bash.allowCompoundCommands opts flat && chains in), bash.patterns do not bind eval (pair them with tools.approval.eval), and a prompt without a UI is refused in print mode. Probe on a real omp: with that overlay, in print mode, \`git status > /tmp/x\` and \`rg x $(pwd)\` must be refused and \`git status\` allowed; ${CHECKED}`,
   },
   {
     id: 'qwen.readonly-shell', harness: 'qwen', feature: 'readonlyShell', kind: 'limit', checkedOn: '0.27.4',
     reason: 'the tool lists of a Qwen Code agent and of a headless run (`tools`, `--core-tools`, `--tools`) name tools, not command patterns, so nothing holds the shell tool to read-only commands',
-    fallback: 'the second opinion gets read, grep, glob and list tools only, and Buracle puts the diff and the changed files into its prompt; a review agent keeps the shell tool under the guard hooks and the read-only rule of its instructions',
+    fallback: 'the second opinion gets read, grep, glob and list tools only, and Buracle Stack puts the diff and the changed files into its prompt; a review agent keeps the shell tool under the guard hooks and the read-only rule of its instructions',
     recheck: `Shell command argument patterns are not supported in tool lists: https://github.com/QwenLM/qwen-code/blob/v0.27.4/docs/users/features/sub-agents.md (Tools and fork_tools), and the headless flags of docs/users/features/headless.md; checked 2026-11-15`,
   },
   {
@@ -275,7 +275,7 @@ const README_POINTER = 'See the Host limits table in README.md.'
 
 /**
  * The doctor rows for a harness's host limits: a summary row first (`<h>.limits`), then one `ok` row per limit or
- * partial record with its reason and Buracle's fallback. None warns: a newer host version is no problem by itself.
+ * partial record with its reason and Buracle Stack's fallback. None warns: a newer host version is no problem by itself.
  */
 export function hostLimitRows(h: Harness): HostLimitRow[] {
   const limits = hostLimitsOf(h)

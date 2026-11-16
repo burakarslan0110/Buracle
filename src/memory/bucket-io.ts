@@ -4,7 +4,7 @@ import { keepOf, plainRow, rowOwner, saveItem, storedId, type BrainRef } from '.
 /** A memory with the metadata a re-save carries over (recall counters, retirement). */
 export interface Entry { item: MemItem, keep: Record<string, unknown> }
 
-/** What a file or bucket held: its memories, oldest first, and how many rows were not Buracle's. */
+/** What a file or bucket held: its memories, oldest first, and how many rows were not Buracle Stack's. */
 export interface Entries { entries: Entry[], foreign: number }
 
 function oldestFirst(a: Entry, b: Entry): number {

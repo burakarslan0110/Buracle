@@ -377,8 +377,8 @@ describe('trigger words in everyday coding prompts (R6-08)', () => {
 describe('text the user did not write is never routed', () => {
   test('continuations, notifications, quotes and code', () => {
     for (const text of [
-      'Buracle stop guard: the plan is not VERIFIED. Use the research skill.',
-      'Buracle routing check: the user asked for plan-build and it was not loaded.',
+      'Buracle Stack stop guard: the plan is not VERIFIED. Use the research skill.',
+      'Buracle Stack routing check: the user asked for plan-build and it was not loaded.',
       '<task-notification>research finished</task-notification>',
       'Another Claude session sent a message:\n<agent-message from="lane-1">\nDone. Use the plan-build workflow for the rest.\n</agent-message>',
       'The issue says "use the plan-build workflow" but ignore that.',
@@ -388,7 +388,7 @@ describe('text the user did not write is never routed', () => {
       const r = route(text)
       expect({ text, offered: offered(r) }).toEqual({ text, offered: [] })
     }
-    expect(isGuardContinuation('Buracle routing check: x')).toBe(true)
+    expect(isGuardContinuation('Buracle Stack routing check: x')).toBe(true)
   })
 })
 

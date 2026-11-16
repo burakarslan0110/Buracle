@@ -1,4 +1,4 @@
-# Buracle architecture
+# Buracle Stack architecture
 
 A short map for contributors: where code lives, how one source becomes the configuration of seven harnesses (Claude
 Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY CLI), and which invariants hold it together.
@@ -63,7 +63,7 @@ and returns a typed decision. It never reads a native payload or writes a native
   `src/adapters/pi/runtime/extension.ts`; Oh My Pi and Pi share `src/adapters/shared/pi-family/`). The build bundles
   each runtime with Bun.
 
-A denial reads `Buracle H<nn>: <reason>`. Hooks fail open: a step that throws is logged and skipped. The exceptions are
+A denial reads `Buracle Stack H<nn>: <reason>`. Hooks fail open: a step that throws is logged and skipped. The exceptions are
 the guards (`H01`, `H02`, `H20`) on `PreToolUse` of the command-hook harnesses (`GUARD_EVENTS` in
 `src/engine/hook-fail.ts`), which deny when they cannot run.
 
@@ -95,8 +95,8 @@ Ops include `file`, the JSON, JSONC and YAML merges, `toml-tables`, `md-block`, 
 names its `owner`. A transaction takes a lock, backs up what it will touch under `~/.buracle/backups/<txn>`, journals,
 writes atomically, verifies, and records each path in the ledger `~/.buracle/state/owned.json`.
 
-The ledger protects user files. A file that is not in the ledger, or whose hash changed since Buracle wrote it, becomes a
-conflict and the user's version stays. Uninstall removes only what the ledger shows Buracle wrote. An unreadable ledger
+The ledger protects user files. A file that is not in the ledger, or whose hash changed since Buracle Stack wrote it, becomes a
+conflict and the user's version stays. Uninstall removes only what the ledger shows Buracle Stack wrote. An unreadable ledger
 stops the run. A failed transaction rolls back, and a journal a crash left unfinished is repaired by `repairUnsettled()`
 before `buracle install` or `buracle update` write anything. Every path comes from `src/engine/paths.ts`, which honors
 `HOME` and `BURACLE_HOME`, so tests and dev builds stay out of the real folders.

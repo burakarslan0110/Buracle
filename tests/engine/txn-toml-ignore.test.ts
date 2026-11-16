@@ -54,7 +54,7 @@ describe('toml-tables ignore (F10)', () => {
     expect(readFileSync(p, 'utf8')).toBe('# mine\nmodel = "gpt-6.1-sol"\n')
   }))
 
-  test('a change of Buracle\'s own keys is still the user\'s change (conflict, kept)', () => withSandbox(async ({ home }) => {
+  test('a change of Buracle Stack\'s own keys is still the user\'s change (conflict, kept)', () => withSandbox(async ({ home }) => {
     const p = setup(home)
     await applyPlans([plan([op(p, v1)])])
     writeFileSync(p, readFileSync(p, 'utf8').replace('context7-mcp@4.5.0', 'context7-mcp@9.9.9') + APPROVAL)

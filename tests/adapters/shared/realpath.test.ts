@@ -40,7 +40,7 @@ describe('realWriteTarget', () => {
 
 describe('command resolution (I8 doctor checks)', () => {
   const env = { HOME: '/h', BURACLE_HOME: '/custom', EMPTY: '' }
-  test('expands the shell parameter forms Buracle writes; refuses what it cannot know', () => {
+  test('expands the shell parameter forms Buracle Stack writes; refuses what it cannot know', () => {
     expect(expandParams('${BURACLE_HOME:-$HOME/.buracle}/bin/buracle', env)).toBe('/custom/bin/buracle')
     expect(expandParams('${BURACLE_HOME:-$HOME/.buracle}/bin/buracle', { HOME: '/h' })).toBe('/h/.buracle/bin/buracle')
     expect(expandParams('${EMPTY:-x}', env)).toBe('x')

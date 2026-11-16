@@ -66,12 +66,12 @@ describe('canonical/routing.yaml', () => {
   test('tooling.md is English and states the index and routing-note rules; their detail is in the working-rules reference', () => {
     const tooling = readFileSync(join(CANON, 'rules', 'always', 'tooling.md'), 'utf8')
     expect(tooling).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/)
-    for (const needle of ['`buracle index ensure --cwd <root>`', 'Buracle routing for this prompt']) {
+    for (const needle of ['`buracle index ensure --cwd <root>`', 'Buracle Stack routing for this prompt']) {
       expect(tooling.toLowerCase()).toContain(needle.toLowerCase())
     }
     const detail = readFileSync(join(CANON, 'skills', 'buracle', 'references', 'working-rules.md'), 'utf8')
     expect(detail).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/)
-    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle routing for this prompt', 'decide YES or NO']) {
+    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle Stack routing for this prompt', 'decide YES or NO']) {
       expect(detail.toLowerCase()).toContain(needle.toLowerCase())
     }
   })
@@ -331,7 +331,7 @@ describe('capabilityCard (H15)', () => {
     }
     const claude = capabilityCard({ policy: POLICY, mcp: catalogMcp(bundle.mcp, 'claude'), plugins: plugins.claude, harness: 'claude', lsp })
     expect(claude).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): ')
-    expect(claude.split('\n')[0]).toBe('Buracle capabilities (Claude Code). Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.')
+    expect(claude.split('\n')[0]).toBe('Buracle Stack capabilities (Claude Code). Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle Stack names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.')
   })
 
   test('lists installed servers, says how skills start and load in the harness, and points to the routing rules', () => {
@@ -346,7 +346,7 @@ describe('capabilityCard (H15)', () => {
     expect(card('omp')).not.toContain('chrome-devtools')
     expect(card('codex')).toContain('Skills: the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md.')
     expect(card('omp')).toContain('Skills: the user starts a workflow with /<id>; you load one by reading skill://<id>.')
-    expect(c).toContain('Buracle names the skills and MCP servers each prompt calls for')
+    expect(c).toContain('Buracle Stack names the skills and MCP servers each prompt calls for')
   })
 
   test('no skill is listed: the harness lists its skills itself; the catalog still marks the workflows that start on request', () => {
@@ -408,7 +408,7 @@ describe('capabilityCard (H15)', () => {
   test('works with empty inputs', () => {
     const c = capabilityCard({ policy: POLICY, mcp: [], plugins: [], harness: 'codex' })
     expect(c.split('\n')).toEqual([c.split('\n')[0] as string, 'Skills: the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md.'])
-    expect(c).toStartWith('Buracle capabilities (Codex). ')
+    expect(c).toStartWith('Buracle Stack capabilities (Codex). ')
     expect(c).toContain('Tool routing (strict)')
   })
 })

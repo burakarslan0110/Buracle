@@ -42,13 +42,13 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'src/adapters/opencode/runtime/server.ts': { why: 'canonical data baked into the OpenCode bundle', only: /contentHash: "/ },
   'src/adapters/opencode/runtime/tui.tsx': { why: 'canonical data baked into the OpenCode TUI bundle', only: /contentHash: "/ },
   // The ab-test fixture of PRD 2026-11-04 R9: Turkish prompts and plans in the format before the standard are the
-  // measured input of the comparison, not text Buracle ships.
+  // measured input of the comparison, not text Buracle Stack ships.
   'tests/fixtures/ab-test/plan-format/cases.json': { why: 'ab-test fixture: Turkish prompts, typed the way the user types' },
   ...Object.fromEntries(['slugify', 'duration', 'window', 'bytes', 'frontmatter'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/docs/plan-build/baseline.md`, { why: 'ab-test fixture: a plan in the prompt-language format before the standard, the baseline arm of PRD R9' }])),
   ...Object.fromEntries(['slugify', 'duration', 'window', 'bytes', 'frontmatter'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/docs/plan-build/candidate.md`, { why: 'ab-test fixture: the English plan quotes the Turkish input its test uses', only: /Kurulum Başlar|ı, ş, ğ, ü, ö, ç and İ/ }])),
   ...Object.fromEntries(['slugify'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/tests/${c}.test.ts`, { why: 'ab-test fixture: the slug test folds Turkish letters' }])),
   // The ab-test fixture of PRD 2026-11-06 G1 to G5: prompts in the user's languages (Turkish, German with
-  // its ü and ö, Japanese, Arabic) are the measured input, not text Buracle ships.
+  // its ü and ö, Japanese, Arabic) are the measured input, not text Buracle Stack ships.
   'tests/fixtures/ab-test/user-language/cases.json': { why: 'ab-test fixture: prompts in the user\'s languages, typed the way users type' },
 }
 
@@ -121,7 +121,7 @@ function scan(dir: string, base: string): { files: number, hits: string[] } {
   return { files, hits }
 }
 
-describe('language guard (R1): what Buracle ships is English', () => {
+describe('language guard (R1): what Buracle Stack ships is English', () => {
   test('canonical/ carries Turkish only in the trigger phrases and the eval prompts', () => {
     const r = scan(join(REPO, 'canonical'), REPO)
     expect(r.files).toBeGreaterThanOrEqual(60)
@@ -158,7 +158,7 @@ describe('language guard (R1): what Buracle ships is English', () => {
     }
   })
 
-  test('the memories Buracle itself writes are English: the session memory, and a handoff', () => withBrain(async ({ repo }) => {
+  test('the memories Buracle Stack itself writes are English: the session memory, and a handoff', () => withBrain(async ({ repo }) => {
     const sid = '0199a213-81c0-7800-8aa1-bbab2a035a99'
     await sessionStart('claude', sid, repo)
     appendSpool('claude', sid, [

@@ -1,6 +1,6 @@
 # Harness and platform compatibility
 
-Buracle generates configuration for seven harnesses (Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY
+Buracle Stack generates configuration for seven harnesses (Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY
 CLI) and runs on macOS and native Linux. No harness supports MCP, hooks, skills and the command line in the same way. A
 missing capability is recorded in `src/adapters/shared/host-limits.ts` with its fallback (see the README's
 [Host limits](README.md#host-limits)). Windows and WSL are not supported.
@@ -41,7 +41,7 @@ Limits that matter most:
 - Codex: a hook cannot ask the user, so guard H20 relies on Codex's approval prompt, which never appears in
   `codex exec`, `--yolo` or `-a never` sessions (the denial explains it). The footer shows only Codex's own items.
 - OpenCode: no hook runs before a session stops, so the stop guard re-prompts afterwards, with caps. Leaving the plan
-  agent is no approval, so the plan is captured as a draft. Buracle turns on the experimental todo tool
+  agent is no approval, so the plan is captured as a draft. Buracle Stack turns on the experimental todo tool
   (`experimental.todo` in `opencode.jsonc`) and carries its open items into the handoff memory.
 - Oh My Pi: a second opinion cannot hold bash to read-only commands, so it gets read, grep and glob only.
 - AGY CLI: the memory context comes in at session start and is captured at every Stop.
@@ -51,7 +51,7 @@ Limits that matter most:
 
 A memory-enabled terminal runs the Bun MCP server (`buracle mcp memory`) and one CortexDB child over a single brain file.
 Session start, a prompt and a tool call start no detached process. Session end starts one bounded `buracle mem finalize`.
-The Buracle Console runs while a harness session is open.
+The Buracle Stack Console runs while a harness session is open.
 
 ## Platforms
 

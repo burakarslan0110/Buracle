@@ -95,7 +95,7 @@ export const register: Register = on => {
     }
   }).catch(($, e, next) => next(e))
   on('command.describe', { command: 'buracle:buracle' }, async ($, e, next) => ({
-    ...(await next(e)), description: 'Buracle status: status, memory, plan or flow (also /buracle-status)', argumentHint: '[status|memory|plan|flow]', isHidden: false,
+    ...(await next(e)), description: 'Buracle Stack status: status, memory, plan or flow (also /buracle-status)', argumentHint: '[status|memory|plan|flow]', isHidden: false,
   })).catch(($, e, next) => next(e))
 
   on('command.run', { command: /^buracle:[a-z][a-z0-9-]*$/ }, async ($, e, next) => {
@@ -250,13 +250,13 @@ async function registerCommand($: EngineInterface, S: ModState, spec: CommandSpe
 }
 
 async function registerCommands($: EngineInterface, S: ModState): Promise<void> {
-  await registerCommand($, S, { name: 'buracle-ping', description: 'Buracle: liveness check (no model call)' })
-  await registerCommand($, S, { name: 'buracle-status', description: 'Buracle status: status, memory, plan or flow', argumentHint: '[status|memory|plan|flow]' })
-  await registerCommand($, S, { name: 'buracle', description: 'Buracle status (short name of /buracle-status)', argumentHint: '[status|memory|plan|flow]' })
+  await registerCommand($, S, { name: 'buracle-ping', description: 'Buracle Stack: liveness check (no model call)' })
+  await registerCommand($, S, { name: 'buracle-status', description: 'Buracle Stack status: status, memory, plan or flow', argumentHint: '[status|memory|plan|flow]' })
+  await registerCommand($, S, { name: 'buracle', description: 'Buracle Stack status (short name of /buracle-status)', argumentHint: '[status|memory|plan|flow]' })
   const specs: CommandSpec[] = [
-    { name: 'remember', description: 'Buracle: save the text to memory as a capture the next harness files', argumentHint: '<text>' },
-    { name: 'brain', description: 'Buracle: open the memory web UI in the browser (review: the plan and change review page)', argumentHint: '[review]' },
-    { name: 'aside', description: 'Buracle: ask a side question without touching the session (read-only)', argumentHint: '<question>' },
+    { name: 'remember', description: 'Buracle Stack: save the text to memory as a capture the next harness files', argumentHint: '<text>' },
+    { name: 'brain', description: 'Buracle Stack: open the memory web UI in the browser (review: the plan and change review page)', argumentHint: '[review]' },
+    { name: 'aside', description: 'Buracle Stack: ask a side question without touching the session (read-only)', argumentHint: '<question>' },
   ]
   for (const spec of specs) {
     if (!(await registerCommand($, S, spec))) await registerCommand($, S, { ...spec, name: `buracle-${spec.name}` })
@@ -299,7 +299,7 @@ async function statusCommand($: EngineInterface, S: ModState, args: string): Pro
     version: META.buracleVersion, sid: S.sid, interactive: S.interactive,
     bypass: cfg.permissions.bypass, strictness: cfg.routing.strictness, redact: cfg.guards.redact, band: cfg.workflow.band, commands: [...S.registered],
   }
-  // The installed Claude Code version, as Buracle's harness version cache last read it; the mod API has none.
+  // The installed Claude Code version, as Buracle Stack's harness version cache last read it; the mod API has none.
   const versions = buracleHome !== '' ? await $.fs.read(`${buracleHome}/cache/harness-versions.json`).catch(() => undefined) : undefined
   const claude = Core.cachedHarnessVersionOf(typeof versions === 'string' ? versions : undefined, 'claude', Date.now())
   if (claude !== undefined) info.claude = claude
@@ -313,7 +313,7 @@ async function rememberCommand($: EngineInterface, S: ModState, args: string): P
   if (text === '') return 'Usage: /remember <text>'
   const rt = await runtime($, S)
   if (rt.shim === '' || !(await $.fs.exists(rt.shim).catch(() => false))) {
-    return 'The Buracle CLI was not found (~/.buracle/bin/buracle); run `buracle install` first.'
+    return 'The Buracle Stack CLI was not found (~/.buracle/bin/buracle); run `buracle install` first.'
   }
   const ran = await $.process.run([...rt.cli, 'mem', 'remember', '--', text], { timeoutMs: 20_000 })
   if (ran.exitCode === 0) {
@@ -502,12 +502,12 @@ async function consentDialog($: EngineInterface, S: ModState, commands: readonly
     const shown = need.command.length > 120 ? `${need.command.slice(0, 117)}...` : need.command
     let answer: string
     try {
-      answer = await $.ui.ask(`Buracle consent: \`${shown}\` ${need.summary}. Run it?`, { header: 'Consent', options: [ALLOW_ONCE, ALLOW_SESSION, REFUSE] })
+      answer = await $.ui.ask(`Buracle Stack consent: \`${shown}\` ${need.summary}. Run it?`, { header: 'Consent', options: [ALLOW_ONCE, ALLOW_SESSION, REFUSE] })
     } catch {
       break
     }
     if (answer !== ALLOW_ONCE && answer !== ALLOW_SESSION) {
-      return `Buracle H20: the user refused \`${shown}\` in the consent dialog. Do not run it or anything that does the same; ask the user what they want instead.`
+      return `Buracle Stack H20: the user refused \`${shown}\` in the consent dialog. Do not run it or anything that does the same; ask the user what they want instead.`
     }
     const uses = commands.filter(c => Core.consentNeeds(c).some(n => n.kind === need.kind || (need.kind === 'force-push' && n.kind === 'push'))).length
     const grant: Core.ConsentGrant = answer === ALLOW_SESSION
@@ -556,7 +556,7 @@ async function takeConsentLock($: EngineInterface, rt: Runtime, lock: string): P
 function noteCommandRan($: EngineInterface, S: ModState, command: string, failed: boolean): void {
   const r = Core.noteCommand(S.receipt, command, failed)
   S.receipt = r.state
-  if (r.alarm !== undefined) $.ui.toast(`Buracle: ${r.alarm}`, { timeoutMs: 10_000 })
+  if (r.alarm !== undefined) $.ui.toast(`Buracle Stack: ${r.alarm}`, { timeoutMs: 10_000 })
 }
 
 function noteEditRan($: EngineInterface, S: ModState, tool: string, e: object): string | undefined {
@@ -566,7 +566,7 @@ function noteEditRan($: EngineInterface, S: ModState, tool: string, e: object): 
   const delta = Core.lineDelta(edit.removed, edit.added)
   const r = Core.noteEdit(S.receipt, { path: edit.path, added: delta.added, removed: delta.removed, removedText: edit.removed.slice(0, 2_000), addedText: edit.added.slice(0, 2_000) })
   S.receipt = r.state
-  if (r.alarm !== undefined) $.ui.toast(`Buracle: ${r.alarm}`, { timeoutMs: 10_000 })
+  if (r.alarm !== undefined) $.ui.toast(`Buracle Stack: ${r.alarm}`, { timeoutMs: 10_000 })
   return edit.path
 }
 
@@ -577,7 +577,7 @@ async function masked($: EngineInterface, S: ModState, toolUseId: string, ran: T
     if (!rt.cfg.guards.redact) return ran
     const r = Core.maskSecrets(ran.result, MASK_MAX_CHARS)
     if (r.count === 0) return ran
-    try { $.ui.notice(toolUseId, `Buracle: ${r.count === 1 ? '1 secret value' : `${r.count} secret values`} hidden from the model`) } catch {  }
+    try { $.ui.notice(toolUseId, `Buracle Stack: ${r.count === 1 ? '1 secret value' : `${r.count} secret values`} hidden from the model`) } catch {  }
     return { ...ran, result: r.value } as ToolCallResult
   } catch (err) {
     debug($, `mask: ${errText(err)}`)
@@ -622,7 +622,7 @@ async function planLines($: EngineInterface, S: ModState): Promise<Core.FlowPane
 async function openPane($: EngineInterface, id: string, close = false): Promise<void> {
   try {
     if (close) await $.ui.close({ id })
-    else await $.ui.open({ id, title: id === MEMORY_PANE ? 'Buracle \u00B7 memory' : 'Buracle \u00B7 plan', focus: true, closeOnEscape: true })
+    else await $.ui.open({ id, title: id === MEMORY_PANE ? 'Buracle Stack \u00B7 memory' : 'Buracle Stack \u00B7 plan', focus: true, closeOnEscape: true })
   } catch (err) {
     debug($, `pane ${id}: ${errText(err)}`)
   }

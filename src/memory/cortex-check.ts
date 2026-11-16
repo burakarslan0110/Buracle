@@ -30,14 +30,14 @@ export async function cortexdbVersion(bin: Pick<CortexdbBinary, 'path' | 'source
   }
 }
 
-/** What to tell the user when a binary's own version is below Buracle's minimum; undefined when it is new enough or does not say. */
+/** What to tell the user when a binary's own version is below Buracle Stack's minimum; undefined when it is new enough or does not say. */
 export function cortexdbVersionProblem(version: string | undefined): string | undefined {
-  return version !== undefined && cortexdbTooOld(version) ? `it is CortexDB ${version}, older than the ${CORTEXDB_MIN_VERSION} Buracle needs` : undefined
+  return version !== undefined && cortexdbTooOld(version) ? `it is CortexDB ${version}, older than the ${CORTEXDB_MIN_VERSION} Buracle Stack needs` : undefined
 }
 
-// A new CortexDB binary is used only when it is not older than Buracle's minimum and after it does in a throwaway
+// A new CortexDB binary is used only when it is not older than Buracle Stack's minimum and after it does in a throwaway
 // database what the memory does with it: save the same memory id into two buckets (a project's and the person's),
-// read, list and find each in its own bucket only, list the graph, sweep and delete them, through the tools Buracle calls.
+// read, list and find each in its own bucket only, list the graph, sweep and delete them, through the tools Buracle Stack calls.
 export async function checkCortexdbBinary(bin: string, timeoutMs = 30_000): Promise<{ ok: true } | { ok: false, error: string }> {
   const old = cortexdbVersionProblem(await cortexdbVersion({ path: bin, source: 'env' }))
   if (old !== undefined) return { ok: false, error: old }

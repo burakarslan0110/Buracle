@@ -11,7 +11,7 @@ export const PROTECTED_TARGETS: readonly string[] = [
   '.omp/agent/config.yml', '.omp/agent/AGENTS.md', '.omp/agent/RULES.md', '.omp/agent/mcp.json',
   '.omp/agent/extensions', '.omp/agent/skills', '.omp/agent/rules', '.omp/plugins',
   '.agents/skills',
-  // Qwen Code, Pi and AGY CLI: the settings, rule, extension, skill and agent files Buracle writes, not the folders the programs keep state in
+  // Qwen Code, Pi and AGY CLI: the settings, rule, extension, skill and agent files Buracle Stack writes, not the folders the programs keep state in
   // (sessions, caches, `antigravity-cli/*.db`, AGY's `config/config.json`, which the program rewrites on every start).
   '.qwen/settings.json', '.qwen/hookApprovals.json', '.qwen/QWEN.md', '.qwen/AGENTS.md', '.qwen/agents', '.qwen/commands', '.qwen/skills', '.qwen/extensions', '.qwen/plugins',
   '.pi/agent/settings.json', '.pi/agent/mcp.json', '.pi/agent/AGENTS.md', '.pi/agent/extensions', '.pi/agent/skills', '.pi/agent/prompts',

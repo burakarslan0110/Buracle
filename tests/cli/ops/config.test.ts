@@ -24,7 +24,7 @@ describe('config set in a terminal', () => {
       const set = memoryIO({ ttyOut: true })
       expect(await configRun(['set', 'plan.questions', 'false'], set)).toBe(0)
       const setOut = lines(set.out())
-      expect(setOut[0]).toBe(`  ◉ buracle v${cliVersion()} · config set`)
+      expect(setOut[0]).toBe(`  ◉ buracle stack v${cliVersion()} · config set`)
       expect(setOut[1]).toBe('  ✔ plan.questions = false (~/.buracle/config.yaml)')
       const piped = memoryIO()
       expect(await configRun(['set', 'plan.questions', 'true'], piped)).toBe(0)

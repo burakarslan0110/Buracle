@@ -30,7 +30,7 @@ describe('PostToolUseMask (guards.redact)', () => {
     expect(String(out['reason'])).toContain('PORT=8080')
     expect(String(out['reason'])).toContain('[REDACTED:aws]')
     expect(String(out['reason'])).toMatch(/the call itself ran/i)
-    expect(out['systemMessage']).toBe('Buracle: 1 secret value hidden from the model')
+    expect(out['systemMessage']).toBe('Buracle Stack: 1 secret value hidden from the model')
   }))
 
   test('an MCP result is rendered from its text content, other parts named', () => withSandbox(async () => {
@@ -81,18 +81,18 @@ describe('G11: exec_command workdir for H01', () => {
     expect(seen).toEqual([home, join(cwd, 'sub'), cwd, cwd])
   }))
 
-  test('with the real guard: `rm -rf .buracle` in a workdir of the home folder is refused (Buracle\'s own folder)', () => withSandbox(async ({ root, home }) => {
+  test('with the real guard: `rm -rf .buracle` in a workdir of the home folder is refused (Buracle Stack\'s own folder)', () => withSandbox(async ({ root, home }) => {
     const rollout = join(root, 'rollout.jsonl')
     const cwd = join(root, 'proj')
     mkdirSync(cwd)
     writeFileSync(rollout, callLine('exec_command', 'call_h', { cmd: 'rm -rf .buracle', workdir: home }) + '\n')
     const core: Partial<CoreFns> = { routeTool: allow, checkQuestion: () => ({}) }
     const inProject = await handleCodexHook('PreToolUse', payload('PreToolUse', { cwd, tool_name: 'Bash', tool_use_id: 'call_x', tool_input: { command: 'rm -rf .buracle' } }), ctx(), deps(core))
-    expect(inProject.stdout).not.toContain('Buracle H01')
+    expect(inProject.stdout).not.toContain('Buracle Stack H01')
     const inHome = await handleCodexHook('PreToolUse', payload('PreToolUse', { cwd, transcript_path: rollout, tool_name: 'Bash', tool_use_id: 'call_h', tool_input: { command: 'rm -rf .buracle' } }), ctx(), deps(core))
     const out = JSON.parse(inHome.stdout)
     expect(out.hookSpecificOutput.permissionDecision).toBe('deny')
-    expect(out.hookSpecificOutput.permissionDecisionReason).toContain('Buracle H01')
+    expect(out.hookSpecificOutput.permissionDecisionReason).toContain('Buracle Stack H01')
   }))
 })
 

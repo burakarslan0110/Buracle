@@ -49,7 +49,7 @@ describe('install output for a terminal', () => {
 describe('install starts with one header line in a terminal', () => {
   const strip = (s: string): string => s.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '').replace(/\u001b\]8;;[^\u001b]*\u001b\\/g, '')
   const firstLine = (s: string): string => strip(s).split('\n').find(l => l.trim() !== '') ?? ''
-  const headers = (s: string): number => strip(s).split('\n').filter(l => /^ {2}(◉ )?buracle v\S+ · /.test(l)).length
+  const headers = (s: string): number => strip(s).split('\n').filter(l => /^ {2}(◉ )?buracle stack v\S+ · /.test(l)).length
 
   test('live steps put the wordmark, the version and the command first, once; a pipe gets no header', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
@@ -57,7 +57,7 @@ describe('install starts with one header line in a terminal', () => {
     await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli, confirm: async () => false }, () => withEnv({ TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined }, async () => {
       const live = memoryIO({ tty: true, liveErr: true, ttyOut: true })
       expect(await installRun([], live)).toBe(0)
-      expect(firstLine(live.err())).toBe(`  ◉ buracle v${cliVersion()} · install`)
+      expect(firstLine(live.err())).toBe(`  ◉ buracle stack v${cliVersion()} · install`)
       expect(headers(live.err()) + headers(live.out())).toBe(1)
       const piped = memoryIO()
       expect(await installRun([], piped)).toBe(0)
@@ -74,7 +74,7 @@ describe('install starts with one header line in a terminal', () => {
         const io = memoryIO({ tty: true, liveErr: true, ttyOut: true })
         expect(await installRun([], io)).toBe(0)
         expect(io.err() + io.out()).not.toContain('\u001b')
-        expect(firstLine(io.out())).toBe(`  buracle v${cliVersion()} · install`)
+        expect(firstLine(io.out())).toBe(`  buracle stack v${cliVersion()} · install`)
         expect(headers(io.err()) + headers(io.out())).toBe(1)
         expect(io.out()).toContain(`  -- Result `)
       })
@@ -124,7 +124,7 @@ describe('install progress on a terminal', () => {
       expect(rest[4]).toBe('✔ Codex: 1 change')
       expect(rest[5]).toMatch(/^✔ Memory (ready|checked \(see the next steps\))$/)
       expect(rest).toHaveLength(6)
-      expect(first.err().replace(/\u001b\[[0-9;]*m/g, '')).toStartWith(`\n  ◉ buracle v${cliVersion()} · install\n`)
+      expect(first.err().replace(/\u001b\[[0-9;]*m/g, '')).toStartWith(`\n  ◉ buracle stack v${cliVersion()} · install\n`)
       expect(read(join(home, '.codex/hooks.json'))).toBe('{}\n')
       expect(first.out()).not.toContain('Rebuilt the generated files (')
 
@@ -184,7 +184,7 @@ describe('install: values the user keeps', () => {
       expect(JSON.parse(read(settings))).toEqual({ effortLevel: 'high' })
       const plain = memoryIO()
       expect(await installRun(['--yes'], plain)).toBe(0)
-      expect(plain.out()).toContain('Kept your values (you changed them; Buracle leaves them as they are):\n  - ~/.claude/settings.json effortLevel\n')
+      expect(plain.out()).toContain('Kept your values (you changed them; Buracle Stack leaves them as they are):\n  - ~/.claude/settings.json effortLevel\n')
       expect(renderInstallStyled(r, makeStyle(0), 100)).toContain('Kept your value of effortLevel in ~/.claude/settings.json')
     })
   }))
@@ -255,7 +255,7 @@ describe('buracle install', () => {
     })
   }))
 
-  test('Buracle skills are installed once, as real files under ~/.agents/skills, and nowhere else', () => withSandbox(async ({ root, home }) => {
+  test('Buracle Stack skills are installed once, as real files under ~/.agents/skills, and nowhere else', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n', 'harness/agents-skills/bugfix/references/x.md': 'x\n' })
     const adapters = async () => [fakeAdapter('codex'), fakeAdapter('opencode'), fakeAdapter('omp')]
     await withDeps({ repoRoot: () => repo, adapters, runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
@@ -329,8 +329,8 @@ describe('buracle install', () => {
       expect(await installRun(['--yes'], io)).toBe(2)
       expect(read(join(home, '.codex/AGENTS.md'))).toBe('my own notes\n')
       expect(io.out()).toContain('Conflicts (your version was kept):')
-      expect(io.out()).toContain('~/.codex/AGENTS.md exists and is not owned by Buracle')
-      expect(io.out()).toContain('Adopted (these already had Buracle\'s value')
+      expect(io.out()).toContain('~/.codex/AGENTS.md exists and is not owned by Buracle Stack')
+      expect(io.out()).toContain('Adopted (these already had Buracle Stack\'s value')
       expect(io.out()).toContain('  - ~/.codex/same.txt')
       expect((await readLedger())[join(home, '.codex/same.txt')]?.adopted).toBe(true)
     })
@@ -350,7 +350,7 @@ describe('buracle install', () => {
       expect(r.pruned).toBe(2)
       expect(existsSync(join(home, '.codex/agents/b.toml'))).toBe(false)
       expect(read(join(home, '.codex/agents/c.toml'))).toBe('c edited\n')
-      expect(r.conflicts[0]?.detail).toContain('modified outside Buracle')
+      expect(r.conflicts[0]?.detail).toContain('modified outside Buracle Stack')
       expect(readInstallRecord().record.plans['codex']?.keys).toEqual([join(home, '.codex/agents/a.toml')])
     })
   }))
@@ -713,7 +713,7 @@ describe('buracle install', () => {
   test('shim template quoting and a non-default BURACLE_HOME', () => {
     expect(shellQuote("it's")).toBe(`'it'\\''s'`)
     const checkout = shimContent({ bun: '/b/bun', repoRoot: "/r e/p'o", buracleHome: '/h/.b' }).split('\n')
-    expect(checkout.slice(0, 3)).toEqual(['#!/bin/sh', '# Buracle CLI shim written by `buracle install`. Re-run `buracle install` instead of editing it.', '# buracle-shim: checkout'])
+    expect(checkout.slice(0, 3)).toEqual(['#!/bin/sh', '# Buracle Stack CLI shim written by `buracle install`. Re-run `buracle install` instead of editing it.', '# buracle-shim: checkout'])
     expect(checkout).toContain(`if [ -z "\${BURACLE_HOME:-}" ]; then BURACLE_HOME='/h/.b'; export BURACLE_HOME; fi`)
     expect(checkout).toContain(`m='/r e/p'\\''o/src/cli/main.ts'`)
     expect(parseShimText(checkout.join('\n'))).toEqual({ mode: 'checkout', bun: '/b/bun', main: "/r e/p'o/src/cli/main.ts", checkout: resolve("/r e/p'o") })

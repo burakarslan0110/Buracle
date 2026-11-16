@@ -32,7 +32,7 @@ export function bypassUnitBlocked(configText: string | undefined, ledger: Ledger
     const entry = ledger?.[ledgerKey(configPath, key)]
     const buracles = entry !== undefined && entry.owner === OWNER && entry.adopted !== true
     if (cur === undefined) {
-      if (buracles) return `${key} was removed from ${configPath} after Buracle set it`
+      if (buracles) return `${key} was removed from ${configPath} after Buracle Stack set it`
       continue
     }
     if (valueHash(cur) === valueHash(want)) continue

@@ -75,7 +75,7 @@ export async function worktreeBranch(slugArg: string | undefined, o: { base?: st
   if (facts === undefined) return fail('not_a_repo', `not a git repository: ${ctx.cwd}`)
   if (facts.head === undefined) return fail('no_commits', 'the repository has no commits yet; commit once before creating a branch')
   const inside = facts.linked ? metaForCheckout(facts) : undefined
-  if (inside !== undefined) return fail('inside_worktree', `you are inside the Buracle worktree '${inside.slug}'; run this from the main checkout`)
+  if (inside !== undefined) return fail('inside_worktree', `you are inside the Buracle Stack worktree '${inside.slug}'; run this from the main checkout`)
   const baseArg = o.base?.trim()
   if (baseArg !== undefined && (baseArg === '' || baseArg.startsWith('-') || !await refExists(facts.top, baseArg))) {
     return fail('no_base', `--base '${o.base ?? ''}' is not a branch, tag or commit of this repository`)

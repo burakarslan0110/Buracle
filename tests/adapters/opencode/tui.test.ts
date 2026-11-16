@@ -99,7 +99,7 @@ describe('the utility commands (tui-commands.ts): no model turn, output as a toa
     expect(none.runs).toEqual([])
   })
 
-  test('/brain opens the Buracle Console (or says it is off)', async () => {
+  test('/brain opens the Buracle Stack Console (or says it is off)', async () => {
     const h = host({ result: { code: 0, stdout: JSON.stringify({ url: 'http://localhost:41777' }), stderr: '' } })
     await brain(h)
     expect(h.runs).toEqual([['/shim', 'mem', 'ui', '--open', '--json']])
@@ -115,16 +115,16 @@ describe('the utility commands (tui-commands.ts): no model turn, output as a toa
     const running: BandView = { visible: true, workflow: 'plan-build', breadcrumb: ['plan-build'], status: 'running', phases: [{ id: 'plan', label: 'Plan', short: 'Plan', state: 'current' }], agents: [], title: 'Rate limit' }
     const h = host({ band: () => running })
     await status(h, '')
-    expect(h.alerts[0]?.title).toBe('Buracle status')
-    expect(h.alerts[0]?.message.split('\n')[0]).toBe('Buracle on OpenCode 2.0.24')
+    expect(h.alerts[0]?.title).toBe('Buracle Stack status')
+    expect(h.alerts[0]?.message.split('\n')[0]).toBe('Buracle Stack on OpenCode 2.0.24')
     expect(h.alerts[0]?.message).not.toMatch(/tested|minimum/i)
     const unknown = host({ band: () => running, about: () => ({ workflows: [] }) })
     await status(unknown, '')
-    expect(unknown.alerts[0]?.message.split('\n')[0]).toBe('Buracle on OpenCode')
+    expect(unknown.alerts[0]?.message.split('\n')[0]).toBe('Buracle Stack on OpenCode')
     expect(h.alerts[0]?.message).not.toContain('effort')
     expect(h.alerts[0]?.message).toContain('workflows: /goal-build /plan-build')
     await status(h, 'flow')
-    expect(h.alerts[1]).toMatchObject({ title: 'Buracle workflow' })
+    expect(h.alerts[1]).toMatchObject({ title: 'Buracle Stack workflow' })
     expect(h.alerts[1]?.message).toContain('plan-build · Rate limit · running')
     await status(h, 'plan')
     expect(h.alerts[2]?.message).toContain('No plan is bound to this session.')
@@ -185,7 +185,7 @@ describe('the utility commands (tui-commands.ts): no model turn, output as a toa
 describe('pure helpers of the server plugin', () => {
   test('a workflow command\'s prompt is recognized by its metadata, and by its closing note when the host drops metadata', () => {
     const text = workflowPromptText('plan-build', 'add rate limiting\nper user', true)
-    expect(text).toBe('add rate limiting\nper user\n\n(Run this with the Buracle plan-build workflow: its skill is attached above; follow it.)')
+    expect(text).toBe('add rate limiting\nper user\n\n(Run this with the Buracle Stack plan-build workflow: its skill is attached above; follow it.)')
     expect(commandOfPrompt({ [COMMAND_MARK]: 'plan-build', [COMMAND_ARGS]: 'add rate limiting\nper user' }, text)).toEqual({ command: 'plan-build', args: 'add rate limiting\nper user' })
     expect(commandOfPrompt(undefined, text)).toEqual({ command: 'plan-build', args: 'add rate limiting\nper user' })
     expect(commandOfPrompt(undefined, workflowPromptText('bugfix', '', false))).toEqual({ command: 'bugfix', args: '' })
@@ -255,7 +255,7 @@ describe('pure helpers of the server plugin', () => {
     expect(noteReviewMessages(messages)).toEqual(['changes-review', 'changes-review', 'plan-build-review'])
     const notes = messages.map(m => m.content.length === 2 ? (m.content[1] as { text: string }).text : undefined)
     expect(notes.slice(0, 3)).toEqual([undefined, undefined, undefined])
-    expect(notes[3]).toContain('Buracle H19: the changes-review report is not valid review JSON')
+    expect(notes[3]).toContain('Buracle Stack H19: the changes-review report is not valid review JSON')
     expect(notes[3]).toContain('Continue the reviewer once with the subagent tool (agent changes-review, sessionID ses_9)')
     expect(notes[4]).toContain('It failed twice')
     expect(notes[5]).toContain('sessionID ses_10')

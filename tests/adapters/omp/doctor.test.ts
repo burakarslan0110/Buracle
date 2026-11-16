@@ -27,7 +27,7 @@ describe('omp doctor: host limits (PARITY-10)', () => {
     expect(items.filter(i => hostLimitsOf('omp').some(l => l.id === i.check)).map(i => i.check)).toEqual(hostLimitsOf('omp').map(l => l.id))
   }))
 
-  test('with an omp far newer than any Buracle knows: the version row and the limit rows are ok', () => withSandbox(async () => {
+  test('with an omp far newer than any Buracle Stack knows: the version row and the limit rows are ok', () => withSandbox(async () => {
     const newer = '99.0.0'
     const items = await doctor(devContext(REPO), { detect: detect(newer) })
     expect(items.find(i => i.check === 'omp.limits')?.level).toBe('ok')

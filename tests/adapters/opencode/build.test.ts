@@ -98,7 +98,7 @@ describe('opencode build', () => {
     }
   }, 60_000)
 
-  test('config fragments and the AGENTS.md block carry the Buracle keys', async () => {
+  test('config fragments and the AGENTS.md block carry the Buracle Stack keys', async () => {
     const files = await built()
     const cfg = jsoncParse(file(files, 'config/opencode.fragment.jsonc'))
     expect(cfg.ok).toBe(true)
@@ -173,8 +173,8 @@ describe('opencode build', () => {
       const r = JSON.parse(out) as { id: string, slots: string[], root: string, line: string, tip: string, band: string[], commands: Array<{ id: string, slash: { name: string, aliases?: string[], arguments?: boolean } }> }
       expect(r.id).toBe('buracle')
       expect(r.slots).toEqual(['prompt.footer.status', 'home.footer', 'session.composer.top'])
-      expect(r.tip.startsWith('Buracle: ')).toBe(true)
-      expect((canonical().tips ?? []).map(t => `Buracle: ${t.text}`)).toContain(r.tip)
+      expect(r.tip.startsWith('Buracle Stack: ')).toBe(true)
+      expect((canonical().tips ?? []).map(t => `Buracle Stack: ${t.text}`)).toContain(r.tip)
       expect(r.root).toBe('box')
       expect(r.line).toContain('big')
       expect(r.line).toContain('30%')
@@ -209,7 +209,7 @@ describe('opencode build', () => {
       const p = await runIn('buracle-ping', '')
       expect({ btw: p.btw, toasts: p.toasts.map(t => [t.message, t.variant]) }).toEqual({ btw: [], toasts: [['pong', 'success']] })
       const s = await runIn('buracle', '')
-      expect(s.alerts.map(x => x.title)).toEqual(['Buracle status'])
+      expect(s.alerts.map(x => x.title)).toEqual(['Buracle Stack status'])
     })
   }, 60_000)
 })

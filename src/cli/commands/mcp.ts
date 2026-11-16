@@ -4,7 +4,7 @@ import type { StartGate, StartGateOptions } from '../../workflow/workspace-index
 import type { CommandIO } from '../router'
 
 export const name = 'mcp'
-export const summary = 'Run, share, turn off and inspect Buracle\'s MCP servers and set their API keys (buracle mcp run <id>, disable, status, key)'
+export const summary = 'Run, share, turn off and inspect Buracle Stack\'s MCP servers and set their API keys (buracle mcp run <id>, disable, status, key)'
 export const usage = `Usage: buracle mcp memory
        buracle mcp run <id>
        buracle mcp disable <id> [--harness <h>]
@@ -28,9 +28,9 @@ run <id>  A server with a shared backend (context7, semble, web-search, web-fetc
           server, and every server with mcp.shared: false, starts as before: the copy
           \`buracle install\` put in ~/.buracle/toolchain (newest release), which takes over this
           process, else the package
-          runner (npx with Buracle's own npm cache, or uvx on Python 3.12) as a child while a
+          runner (npx with Buracle Stack's own npm cache, or uvx on Python 3.12) as a child while a
           background install fills the toolchain for the next start. codegraph in a project
-          without an index first starts Buracle's index run and waits up to 4 s while
+          without an index first starts Buracle Stack's index run and waits up to 4 s while
           it builds, so the server usually starts with the index in place and still answers within
           the 5 s Claude Code gives an always-loaded server. A server that cannot start, or exits
           with an error while starting, is marked down in ~/.buracle/state/health.json for 10
@@ -48,7 +48,7 @@ disable <id> [--harness <h>]  Turns server <id> off in every harness it ships to
 enable <id> [--harness <h>]   Turns it on again, the same way.
 list      Every server, its state per harness (on, off, - when it does not ship there) and
           the command that starts it now.
-status    Every running Buracle MCP process: server, role (forwarder, backend, upstream,
+status    Every running Buracle Stack MCP process: server, role (forwarder, backend, upstream,
           lazy, session, codegraph), sessions, memory and uptime.
 stop [<id>]  Stops the shared backends (or the one of <id>) now; the next call starts them again.
 key <id> [<key>]  Stores the API key of server <id> (context7: CONTEXT7_API_KEY) in
@@ -264,7 +264,7 @@ async function runServer(id: string | undefined, io: CommandIO): Promise<number>
   }
   if (id === 'codegraph') await codegraphGate(process.cwd())
   const env: Record<string, string | undefined> = { ...process.env, ...plan.env }
-  // A server that starts `node`, `npx` or `uvx` itself finds the copies Buracle downloaded when the system has none.
+  // A server that starts `node`, `npx` or `uvx` itself finds the copies Buracle Stack downloaded when the system has none.
   const { withSystemTools } = await import('../../engine/toolchain/packages')
   const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH'
   env[pathKey] = withSystemTools(env[pathKey])
@@ -317,7 +317,7 @@ async function statusCmd(argv: string[], io: CommandIO): Promise<number> {
     return { server: p.server, role: p.role, pid: p.pid, ppid: p.ppid, sessions, rssMb: Math.round(p.rssKb / 102.4) / 10, uptime: p.etime, ...(st?.log !== undefined ? { log: st.log } : {}) }
   })
   if (json) { io.stdout.write(JSON.stringify({ processes: rows }, null, 2) + '\n'); return 0 }
-  if (rows.length === 0) { io.stdout.write('no Buracle MCP process runs\n'); return 0 }
+  if (rows.length === 0) { io.stdout.write('no Buracle Stack MCP process runs\n'); return 0 }
   const w = Math.max(...rows.map(r => r.server.length)) + 2
   io.stdout.write(`${'server'.padEnd(w)}${'role'.padEnd(11)}${'pid'.padEnd(8)}${'sessions'.padEnd(14)}${'MB'.padEnd(8)}${'uptime'.padEnd(12)}log\n`)
   for (const r of rows) io.stdout.write(`${r.server.padEnd(w)}${r.role.padEnd(11)}${String(r.pid).padEnd(8)}${(Array.isArray(r.sessions) ? `${r.sessions.length} session(s)` : r.sessions).padEnd(14)}${String(r.rssMb).padEnd(8)}${r.uptime.padEnd(12)}${r.log ?? ''}\n`)

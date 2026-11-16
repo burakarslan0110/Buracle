@@ -123,7 +123,7 @@ export interface RuntimePlan {
 const RUNTIME_ID = /^[0-9a-f]{16}$/
 
 export function planRuntime(checkout: string): RuntimePlan | { error: string } {
-  if (!paths.isCheckout(checkout)) return { error: `${checkout} is not a Buracle checkout` }
+  if (!paths.isCheckout(checkout)) return { error: `${checkout} is not a Buracle Stack checkout` }
   if (paths.isFrozenRuntime(checkout)) return { error: `${checkout} is a frozen runtime; run \`buracle install\` from the checkout` }
   if (!existsSync(join(checkout, 'src', 'cli', 'main.ts'))) return { error: `${checkout} has no src/cli/main.ts` }
   const pk = runtimePackages(checkout)

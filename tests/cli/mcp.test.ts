@@ -299,7 +299,7 @@ describe('buracle mcp run: the launcher becomes the server (PERF-5)', () => {
     })
   })
 
-  test('the server finds the tools Buracle downloaded first on its PATH (an npm server that runs `node` itself)', async () => {
+  test('the server finds the tools Buracle Stack downloaded first on its PATH (an npm server that runs `node` itself)', async () => {
     await withSandbox(async ({ root }) => {
       const pathFile = join(root, 'server.path')
       const nodeBin = paths.systemToolBinDirs()[0] as string

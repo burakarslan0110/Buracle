@@ -54,7 +54,7 @@ describe('runner', () => {
     })
   })
 
-  test('the child gets the prompt on stdin and every Buracle switch that keeps it out of the memory', async () => {
+  test('the child gets the prompt on stdin and every Buracle Stack switch that keeps it out of the memory', async () => {
     await withSandbox(async sb => {
       const bin = join(sb.root, 'bin')
       const log = join(sb.root, 'log')

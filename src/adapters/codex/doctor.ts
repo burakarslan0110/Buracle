@@ -138,8 +138,8 @@ export function permissionCheck(toml: Record<string, unknown>, cfg: Pick<Buracle
   const split = off.length < Object.keys(BYPASS_KEYS).length && old === '' ? ' The two keys are one unit: a no-approval policy with a narrower sandbox refuses every call that needs an approval, MCP tools included.' : ''
   const fix = cfg.permissions.enforce
     ? 'run `buracle install codex` (permissions.enforce writes them again)'
-    : 'permissions.enforce is off, so Buracle keeps your values: set both keys yourself, or turn permissions.enforce on and run `buracle install codex`'
-  return { level: 'warn', check, detail: `permissions.bypass is on, but Codex does not start in Buracle's no-approval mode (${live}).${old}${split} To fix it, ${fix}.` }
+    : 'permissions.enforce is off, so Buracle Stack keeps your values: set both keys yourself, or turn permissions.enforce on and run `buracle install codex`'
+  return { level: 'warn', check, detail: `permissions.bypass is on, but Codex does not start in Buracle Stack's no-approval mode (${live}).${old}${split} To fix it, ${fix}.` }
 }
 
 export function routingCheck(toml: Record<string, unknown>, ctx: Pick<AdapterContext, 'canonical' | 'config'>): DoctorItem {
@@ -159,7 +159,7 @@ export function routingCheck(toml: Record<string, unknown>, ctx: Pick<AdapterCon
   return { level: 'ok', check, detail: `critical MCP tools are top-level from the first turn${ctx.config.routing.strictness === 'enforce' ? '; the built-in web search is off (routing enforced)' : ''}` }
 }
 
-/** `tooOld`: the oldest supported Codex, given when the installed one is older (it cannot read the keys Buracle writes). */
+/** `tooOld`: the oldest supported Codex, given when the installed one is older (it cannot read the keys Buracle Stack writes). */
 export function configLoadCheck(r: RunResult, tooOld?: string): DoctorItem {
   const check = 'codex.config'
   let report: unknown
@@ -172,7 +172,7 @@ export function configLoadCheck(r: RunResult, tooOld?: string): DoctorItem {
   const details = rec(load['details'])
   if (load['status'] === 'fail') {
     const cause = tooOld !== undefined
-      ? `; this Codex is older than ${tooOld} and cannot read the keys Buracle writes: update Codex with the installer that installed it, then run \`buracle install codex\``
+      ? `; this Codex is older than ${tooOld} and cannot read the keys Buracle Stack writes: update Codex with the installer that installed it, then run \`buracle install codex\``
       : typeof load['remediation'] === 'string' ? ` (${load['remediation']})` : ''
     return { level: 'error', check, detail: `Codex cannot load its config, so it does not start: ${String(details['error'] ?? load['summary'] ?? 'unknown error')}${cause}` }
   }
@@ -205,14 +205,14 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   } else if (found.version === undefined) {
     add('warn', 'codex.version', `could not read \`codex --version\` (${found.path ?? 'codex'})`)
   } else if (compareVersions(found.version, MIN_CODEX) < 0) {
-    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle supports: update Codex with the installer that installed it, then run \`buracle install codex\``)
+    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle Stack supports: update Codex with the installer that installed it, then run \`buracle install codex\``)
   } else {
     add('ok', 'codex.version', `codex ${found.version} (minimum ${MIN_CODEX})`)
   }
   items.push(...hostLimitRows('codex'))
   add('ok', 'codex.workflow-view', ctx.config.workflow.codexNotices
-    ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle hooks show as one warning line (workflow.codexNotices)'
-    : 'workflow.codexNotices is off: Codex shows no live view of a workflow or of failing Buracle hooks')
+    ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle Stack hooks show as one warning line (workflow.codexNotices)'
+    : 'workflow.codexNotices is off: Codex shows no live view of a workflow or of failing Buracle Stack hooks')
 
   const hooksPath = join(codexHome, 'hooks.json')
   const hooksText = readText(hooksPath)
@@ -226,17 +226,17 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
     else {
       const handlers = findBuracleHandlers(parsed, hooksPath)
       const missing = CODEX_HOOK_EVENTS.filter(e => !handlers.some(h => h.event === e))
-      if (missing.length > 0) add('error', 'codex.hooks', `Buracle hooks missing for ${missing.join(', ')} in ${hooksPath}; run \`buracle install codex\` (\`--dry-run\` lists conflicts)`)
-      else add('ok', 'codex.hooks', `all ${CODEX_HOOK_EVENTS.length} Buracle events are registered`)
+      if (missing.length > 0) add('error', 'codex.hooks', `Buracle Stack hooks missing for ${missing.join(', ')} in ${hooksPath}; run \`buracle install codex\` (\`--dry-run\` lists conflicts)`)
+      else add('ok', 'codex.hooks', `all ${CODEX_HOOK_EVENTS.length} Buracle Stack events are registered`)
       const dups = duplicateBuracleHandlers(handlers, parsed)
-      if (dups.length > 0) add('warn', 'codex.hooks', `Buracle handlers registered more than once (they run twice): ${dups.join(', ')}; remove the extra copies from ${hooksPath}`)
+      if (dups.length > 0) add('warn', 'codex.hooks', `Buracle Stack handlers registered more than once (they run twice): ${dups.join(', ')}; remove the extra copies from ${hooksPath}`)
       if (handlers.length > 0) {
         const problems = hookCommandProblems(handlers, env)
         const bh = env['BURACLE_HOME']
         if (problems.length > 0) {
-          add('error', 'codex.hooks.command', `Codex cannot start Buracle's hooks, so it runs every tool unguarded (hooks fail open): ${problems.join('; ')}. ${bh !== undefined && bh !== '' ? `BURACLE_HOME is ${bh} here; ` : ''}install Buracle again (\`buracle install codex\`) and make sure Codex starts with the same BURACLE_HOME as this shell.`)
+          add('error', 'codex.hooks.command', `Codex cannot start Buracle Stack's hooks, so it runs every tool unguarded (hooks fail open): ${problems.join('; ')}. ${bh !== undefined && bh !== '' ? `BURACLE_HOME is ${bh} here; ` : ''}install Buracle Stack again (\`buracle install codex\`) and make sure Codex starts with the same BURACLE_HOME as this shell.`)
         } else {
-          add('ok', 'codex.hooks.command', `every Buracle hook command resolves to an executable${bh !== undefined && bh !== '' ? ` (BURACLE_HOME=${bh}; Codex needs it in its environment too)` : ''}`)
+          add('ok', 'codex.hooks.command', `every Buracle Stack hook command resolves to an executable${bh !== undefined && bh !== '' ? ` (BURACLE_HOME=${bh}; Codex needs it in its environment too)` : ''}`)
         }
       }
       const pre = handlers.find(h => h.event === 'PreToolUse')
@@ -245,8 +245,8 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
       const pending = [...t.untrusted, ...t.modified]
       if (t.disabled.length > 0) add('warn', 'codex.hooks.trust', `disabled in /hooks: ${t.disabled.join(', ')}`)
       if (pending.length > 0) {
-        add('warn', 'codex.hooks.trust', `${pending.length} Buracle hook(s) need approval: open Codex, run /hooks and trust ${pending.join(', ')}${t.modified.length > 0 ? ` (changed since approval: ${t.modified.join(', ')})` : ''}`)
-      } else if (t.trusted.length > 0) add('ok', 'codex.hooks.trust', `${t.trusted.length} Buracle hook(s) trusted`)
+        add('warn', 'codex.hooks.trust', `${pending.length} Buracle Stack hook(s) need approval: open Codex, run /hooks and trust ${pending.join(', ')}${t.modified.length > 0 ? ` (changed since approval: ${t.modified.join(', ')})` : ''}`)
+      } else if (t.trusted.length > 0) add('ok', 'codex.hooks.trust', `${t.trusted.length} Buracle Stack hook(s) trusted`)
     }
   }
 
@@ -255,10 +255,10 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   if (feats.code !== 0) add('warn', 'codex.features', `\`codex features list\` failed (exit ${feats.code}): ${(feats.stderr || feats.stdout).trim().slice(0, 200)}`)
   else {
     const hooksOn = featureEnabled(feats.stdout, 'hooks')
-    if (hooksOn === false) add('error', 'codex.features', 'hooks are disabled (`[features] hooks = false`); Buracle guards and memory capture do not run')
+    if (hooksOn === false) add('error', 'codex.features', 'hooks are disabled (`[features] hooks = false`); Buracle Stack guards and memory capture do not run')
     else if (hooksOn === undefined) add('warn', 'codex.features', 'the `hooks` feature is not listed by `codex features list`')
     else add('ok', 'codex.features', 'hooks are enabled')
-    if (featureEnabled(feats.stdout, 'memories') === true) add('warn', 'codex.memories', 'Codex native memories are on (a value you set; the install keeps it); Buracle keeps its brain as the single memory, so set `[features] memories = false` (`codex features disable memories`)')
+    if (featureEnabled(feats.stdout, 'memories') === true) add('warn', 'codex.memories', 'Codex native memories are on (a value you set; the install keeps it); Buracle Stack keeps its brain as the single memory, so set `[features] memories = false` (`codex features disable memories`)')
   }
 
   const tables = codexArtifacts({ canonical: ctx.canonical, buracle: ctx.buracleBin, pathRulesDir: '' }).mcpTables
@@ -272,11 +272,11 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
     else {
       const byName = new Map(list.map(x => [String(rec(x)['name']), rec(x)] as const))
       const missing = expected.filter(id => !byName.has(id))
-      // A server the user turned off through Buracle (mcp.off.codex) is meant to be disabled: no warning for it.
+      // A server the user turned off through Buracle Stack (mcp.off.codex) is meant to be disabled: no warning for it.
       const disabled = expected.filter(id => byName.get(id)?.['enabled'] === false && !ctx.config.mcp.off.codex.includes(id))
       if (missing.length > 0) add('error', 'codex.mcp', `MCP servers missing from Codex: ${missing.join(', ')}`)
       else if (disabled.length > 0) add('warn', 'codex.mcp', `MCP servers disabled in Codex: ${disabled.join(', ')}`)
-      else add('ok', 'codex.mcp', `${expected.length} Buracle MCP servers configured`)
+      else add('ok', 'codex.mcp', `${expected.length} Buracle Stack MCP servers configured`)
     }
   }
   const mcpProblems = mcpCommandProblems(configText, expected, env)
@@ -289,9 +289,9 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   let malformed: string | undefined
   try { block = mdBlockGet(readText(agentsPath) ?? '', AGENTS_BLOCK_ID) } catch (e) { malformed = e instanceof Error ? e.message : String(e) }
   if (malformed !== undefined) add('error', 'codex.agents_md', `${agentsPath}: ${malformed}`)
-  else if (block === undefined) add('error', 'codex.agents_md', `the Buracle block is missing from ${agentsPath}`)
-  else if (override !== undefined && override.trim() !== '') add('warn', 'codex.agents_md', `${join(codexHome, 'AGENTS.override.md')} is non-empty, so Codex ignores AGENTS.md and the Buracle rules`)
-  else add('ok', 'codex.agents_md', 'Buracle rules block present in AGENTS.md')
+  else if (block === undefined) add('error', 'codex.agents_md', `the Buracle Stack block is missing from ${agentsPath}`)
+  else if (override !== undefined && override.trim() !== '') add('warn', 'codex.agents_md', `${join(codexHome, 'AGENTS.override.md')} is non-empty, so Codex ignores AGENTS.md and the Buracle Stack rules`)
+  else add('ok', 'codex.agents_md', 'Buracle Stack rules block present in AGENTS.md')
 
   const rulesDir = join(ctx.paths.buracleHome(), 'rules', 'paths')
   const missingRules = pathRuleFiles(ctx.canonical).filter(r => readText(join(rulesDir, r.file)) === undefined).map(r => r.file)

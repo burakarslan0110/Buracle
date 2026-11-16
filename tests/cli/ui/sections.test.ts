@@ -15,7 +15,7 @@ function sink(): { out: { write(s: string): void }, text: () => string } {
 
 describe('install sections', () => {
   test('the fixed order of the sections', () => {
-    expect([...SECTION_ORDER]).toEqual(['Prerequisites', 'Buracle', 'Harnesses', 'Tools', 'Memory', 'Result'])
+    expect([...SECTION_ORDER]).toEqual(['Prerequisites', 'Buracle Stack', 'Harnesses', 'Tools', 'Memory', 'Result'])
   })
 
   test('a section with a failed item: the section line, then the item indented by four', () => {

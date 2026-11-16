@@ -210,7 +210,7 @@ export function profileGuard(h: Harness, runtimeCfg: unknown, env: Record<string
   if (typeof installed !== 'string' || !posix.isAbsolute(installed)) return undefined
   const live = liveHarnessDir(h, env)
   if (live === undefined || samePath(installed, live)) return undefined
-  return `Buracle was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`
+  return `Buracle Stack was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle Stack's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`
 }
 
 export const SESSION_ALIASES_MAX = 500

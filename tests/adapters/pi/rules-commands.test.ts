@@ -35,15 +35,15 @@ describe('Pi rules: the AGENTS.md block', () => {
     await applyPlans([await adapter.installPlan(c)])
     const text = readFileSync(piAgentsFile(dir()), 'utf8')
     expect(text).toContain('# My rules\n\nBe kind.')
-    expect(text).toContain('Managed by Buracle')
+    expect(text).toContain('Managed by Buracle Stack')
     expect(Object.keys(await readLedger()).some(k => k.includes(`#md:${AGENTS_BLOCK_ID}`))).toBe(true)
     await applyPlans([await uninstallPlan(c)])
     const after = readFileSync(piAgentsFile(dir()), 'utf8')
     expect(after).toContain('Be kind.')
-    expect(after).not.toContain('Managed by Buracle')
+    expect(after).not.toContain('Managed by Buracle Stack')
   }))
 
-  test('an AGENTS.md that Buracle created is removed with its block', () => withSandbox(async () => {
+  test('an AGENTS.md that Buracle Stack created is removed with its block', () => withSandbox(async () => {
     const c = ctx()
     await applyPlans([await adapter.installPlan(c)])
     expect(existsSync(piAgentsFile(dir()))).toBe(true)

@@ -155,11 +155,11 @@ describe('opencode TUI (real binary in tmux, opt-in)', () => {
 
       const beforeStatus = agentRequests()
       await submit('/buracle-status flow')
-      await waitFor(s => s.includes('Buracle workflow') && s.includes('phases:'), 'status-dialog', 20_000)
+      await waitFor(s => s.includes('Buracle Stack workflow') && s.includes('phases:'), 'status-dialog', 20_000)
       expect(agentRequests()).toBe(beforeStatus)
-      await closeDialog('Buracle workflow')
+      await closeDialog('Buracle Stack workflow')
       await submit('/buracle-status plan')
-      await waitFor(s => s.includes('Buracle plan') && s.includes('Live view, updated every few seconds'), 'plan-pane', 20_000)
+      await waitFor(s => s.includes('Buracle Stack plan') && s.includes('Live view, updated every few seconds'), 'plan-pane', 20_000)
       expect(agentRequests()).toBe(beforeStatus)
       await closeDialog('Live view, updated every few seconds')
 
@@ -167,9 +167,9 @@ describe('opencode TUI (real binary in tmux, opt-in)', () => {
       await submitBare('/buracle-ping', 'ping-completed')
       await waitFor(s => s.split('\n').some(l => /\bpong\b/.test(l)), 'ping-toast', 20_000)
       await submitBare('/buracle', 'bare-status-completed')
-      await waitFor(s => s.includes('Buracle status') && s.includes('Buracle on OpenCode'), 'bare-status-dialog', 20_000)
+      await waitFor(s => s.includes('Buracle Stack status') && s.includes('Buracle Stack on OpenCode'), 'bare-status-dialog', 20_000)
       expect(provider.requests.length).toBe(beforeBare)
-      await closeDialog('Buracle on OpenCode')
+      await closeDialog('Buracle Stack on OpenCode')
 
       const QUESTION = 'what does the health check return'
       await submit(`/aside ${QUESTION}`)
@@ -207,14 +207,14 @@ describe('opencode TUI (real binary in tmux, opt-in)', () => {
     try {
       await waitFor(s => s.includes('Ask anything') && s.includes(FOOTER_MARK), 'consent-home')
       await submit(MARK_ONE)
-      await waitFor(s => s.includes('Buracle consent:') && s.includes('Allow once') && s.includes('Allow for this session') && s.includes('Refuse'), 'consent-dialog', 60_000)
+      await waitFor(s => s.includes('Buracle Stack consent:') && s.includes('Allow once') && s.includes('Allow for this session') && s.includes('Refuse'), 'consent-dialog', 60_000)
       tmux('send-keys', '-t', 'oc', 'Enter')
       const end = Date.now() + 30_000
       while (Date.now() < end && git(remote, 'rev-parse', '--verify', '-q', 'refs/heads/feature') !== 0) await Bun.sleep(300)
       expect(git(remote, 'rev-parse', '--verify', '-q', 'refs/heads/feature')).toBe(0)
-      await waitFor(s => !s.includes('Buracle consent:'), 'consent-closed', 30_000)
+      await waitFor(s => !s.includes('Buracle Stack consent:'), 'consent-closed', 30_000)
       await submit(MARK_TWO)
-      await waitFor(s => s.includes('Buracle consent:') && s.includes('heads/other'), 'consent-dialog-2', 60_000)
+      await waitFor(s => s.includes('Buracle Stack consent:') && s.includes('heads/other'), 'consent-dialog-2', 60_000)
       tmux('send-keys', '-t', 'oc', 'Down')
       tmux('send-keys', '-t', 'oc', 'Down')
       await Bun.sleep(300)

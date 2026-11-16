@@ -241,7 +241,7 @@ describe('checkBash: home folders, ${HOME:?} and unfiltered find', () => {
     expect(denied('rm -rf "$HOME/Library"')).toContain('~/Library')
     expect(denied('rm -rf ~/.ssh')).toContain('~/.ssh')
     expect(denied('rm -rf /Users/burak/Downloads')).toContain('/Users/burak/Downloads')
-    expect(denied('rm -rf ~/Documents/Buracle')).toContain('Buracle memory vault')
+    expect(denied('rm -rf ~/Documents/Buracle')).toContain('Buracle Stack memory vault')
     expect(denied('chmod -R 000 ~/Documents')).toBeDefined()
     expect(denied('mv ~/Desktop /tmp/x')).toBeDefined()
     for (const ok of ['rm -rf ~/Downloads/foo.zip', 'rm -rf ~/Library/Caches/com.x', 'rm -rf ~/.config/nvim/lazy', 'rm -rf ~/Documents/Buracle/inbox/tmp.md', 'find ~/Downloads/old-builds -name "*.dmg" -delete', 'rm -f ~/Downloads/*.dmg']) {
@@ -552,8 +552,8 @@ describe('checkBash: review fixes stay fast on hostile input', () => {
   })
 })
 
-describe("checkBash: SEC-1 Buracle's own setup", () => {
-  const INSTALL = "Buracle's own installation"
+describe("checkBash: SEC-1 Buracle Stack's own setup", () => {
+  const INSTALL = "Buracle Stack's own installation"
   const SHIM = '`buracle` command on PATH'
   const cases: Array<[string, string]> = [
     ['echo "exit 0" > ~/.buracle/bin/buracle', INSTALL], ['printf "#!/bin/sh\\nexit 0\\n" > "$HOME/.buracle/bin/buracle"', INSTALL],

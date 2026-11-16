@@ -47,7 +47,7 @@ describe('the escape sentence', () => {
   })
 
   test('names the stop request in any language and says the hook records only a whole-message English or Turkish word', () => {
-    expect(STOP_GUARD_ESCAPE).toBe('The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself.')
+    expect(STOP_GUARD_ESCAPE).toBe('The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle Stack records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself.')
   })
 })
 
@@ -112,7 +112,7 @@ describe('stopVerdict (H08): blocking', () => {
     expect(decision.action).toBe('block')
     if (decision.action !== 'block') return
     expect(decision.hook).toBe('H08')
-    expect(decision.reason).toStartWith('Buracle stop guard:')
+    expect(decision.reason).toStartWith('Buracle Stack stop guard:')
     for (const part of ['docs/plans/2026-10-08-rate-limit.md', 'IN_PROGRESS', 'phase implement', STOP_GUARD_ESCAPE]) expect(decision.reason).toContain(part)
   })
 
@@ -196,7 +196,7 @@ describe('planValidateVerdict (H11)', () => {
     expect(d.action).toBe('block')
     if (d.action !== 'block') return
     expect(d.hook).toBe('H11')
-    expect(d.reason).toStartWith('Buracle plan check:')
+    expect(d.reason).toStartWith('Buracle Stack plan check:')
     expect(d.reason).toContain('does not exist')
     expect(d.reason).toContain(STOP_GUARD_ESCAPE)
   })
@@ -408,7 +408,7 @@ describe('H08 continuation text: the objective after the marker', () => {
   test('restates the Goal and its Done-when lines between the next step and the escape sentence', () => {
     const r = stopGuardVerdict(withPlan(), input(), CFG, { exists: true, findings: [], text: featurePlan([1]) })
     const reason = r.decision.action === 'block' ? r.decision.reason : ''
-    expect(reason).toStartWith('Buracle stop guard:')
+    expect(reason).toStartWith('Buracle Stack stop guard:')
     expect(reason).toContain('Objective: API clients get at most 100 requests per minute per key. Done when: the 101st request in a minute returns 429 with Retry-After; other keys are unaffected.')
     expect(reason.indexOf('keep working')).toBeLessThan(reason.indexOf('Objective:'))
     expect(reason).toEndWith(STOP_GUARD_ESCAPE)
@@ -487,7 +487,7 @@ describe('H08 answer receipt: a decision answered in the question tool while the
     const r = stopVerdictDetailed(answerReceipt(held, 150), input({ now: 160 }), CFG)
     expect([r.decision.action, r.why]).toEqual(['block', 'decision-answered'])
     const reason = r.decision.action === 'block' ? r.decision.reason : ''
-    expect(reason).toStartWith('Buracle stop guard:')
+    expect(reason).toStartWith('Buracle Stack stop guard:')
     expect(reason).toContain('(merge decision) was answered in the question tool')
     expect(reason).toContain('run `buracle plan resume`')
     expect(r.next.interaction).toEqual({ state: 'paused', kind: 'decision', since: 100, reason: 'merge decision' })

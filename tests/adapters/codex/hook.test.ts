@@ -32,7 +32,7 @@ describe('PreToolUse', () => {
     const consentCore: Partial<CoreFns> = { checkBash: () => ({}), checkWrite: () => ({}), checkQuestion: () => ({}), routeTool: allow, detectIntent: () => null }
     const denied = JSON.parse((await handleCodexHook('PreToolUse', bash('git push origin main'), ctx(), deps(consentCore))).stdout)
     expect(denied.hookSpecificOutput.permissionDecision).toBe('deny')
-    expect(denied.hookSpecificOutput.permissionDecisionReason).toContain('Buracle H20')
+    expect(denied.hookSpecificOutput.permissionDecisionReason).toContain('Buracle Stack H20')
     expect((await handleCodexHook('PreToolUse', bash('git status'), ctx(), deps(consentCore))).stdout).toBe('')
     await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'evet, pushla' }), ctx(), deps(consentCore))
     expect((await handleCodexHook('PreToolUse', bash('git push origin main'), ctx(), deps(consentCore))).stdout).toBe('')
@@ -43,7 +43,7 @@ describe('PreToolUse', () => {
     const out = JSON.parse(r.stdout)
     expect(r.exitCode).toBe(0)
     expect(keys(out)).toEqual(['hookSpecificOutput'])
-    expect(out.hookSpecificOutput).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle H01: deleting / is catastrophic' })
+    expect(out.hookSpecificOutput).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle Stack H01: deleting / is catastrophic' })
   }))
 
   test('H02 checks apply_patch paths resolved against cwd', () => withSandbox(async () => {
@@ -52,7 +52,7 @@ describe('PreToolUse', () => {
       ...quiet, checkWrite: p => { seen = p; return p.some(x => x.endsWith('/.env')) ? { deny: '.env holds secrets' } : {} },
     }))
     expect(seen).toEqual(['/work/app/.env'])
-    expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle H02: .env holds secrets')
+    expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle Stack H02: .env holds secrets')
   }))
 
   test('H02 also covers apply_patch fed through the shell', () => withSandbox(async () => {
@@ -60,20 +60,20 @@ describe('PreToolUse', () => {
     const guard = deps({ ...quiet, checkWrite: p => { seen = p; return p.some(x => x.endsWith('.env.local')) ? { deny: 'secret file' } : {} } })
     const cmd = "apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: /work/app/secrets/.env.local\n+TOKEN=x\n*** End Patch\nEOF"
     const r = await handleCodexHook('PreToolUse', bash(cmd), ctx(), guard)
-    expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle H02: secret file')
+    expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle Stack H02: secret file')
     await handleCodexHook('PreToolUse', bash("cd /srv/x && applypatch <<'EOF'\n*** Begin Patch\n*** Add File: a.ts\n+x\n*** End Patch\nEOF"), ctx(), guard)
     expect(seen).toEqual(['/srv/x/a.ts'])
     const rel = await handleCodexHook('PreToolUse', bash("apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: secrets/.env.local\n+TOKEN=x\n*** End Patch\nEOF"), ctx(), deps(quiet))
-    expect(JSON.parse(rel.stdout).hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H02: apply_patch through the shell resolves `secrets/.env.local`')
+    expect(JSON.parse(rel.stdout).hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle Stack H02: apply_patch through the shell resolves `secrets/.env.local`')
   }))
 
   test('H01 and H02 fail closed: a guard that cannot evaluate denies the call', () => withSandbox(async () => {
     const boom = () => { throw new Error('guard exploded') }
     const h01 = JSON.parse((await handleCodexHook('PreToolUse', bash('ls'), ctx(), deps({ ...quiet, checkBash: boom }))).stdout)
     expect(h01.hookSpecificOutput.permissionDecision).toBe('deny')
-    expect(h01.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H01: the bash guard could not check this command (guard exploded)')
+    expect(h01.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle Stack H01: the bash guard could not check this command (guard exploded)')
     const h02 = JSON.parse((await handleCodexHook('PreToolUse', patch('*** Add File: a.ts\n+x', '/work/app'), ctx(), deps({ ...quiet, checkWrite: boom }))).stdout)
-    expect(h02.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H02: the write guard could not check the files of this edit')
+    expect(h02.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle Stack H02: the write guard could not check the files of this edit')
     const unclassified = JSON.parse((await handleCodexHook('PreToolUse', bash('ls'), ctx(), deps({ ...quiet, classifyTool: boom }))).stdout)
     expect(unclassified.hookSpecificOutput.permissionDecision).toBe('deny')
     expect(await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'request_user_input', tool_input: {} }), ctx(), deps({ ...quiet, classifyTool: boom }))).toEqual({ stdout: '', exitCode: 0 })
@@ -97,15 +97,15 @@ describe('PreToolUse', () => {
     const other = await mkRepo('app', 'my-app')
     const d = deps({ ...quiet, checkWrite: core.checkWrite })
     const verdict = async (cwd: string, file: string, c = ctx()) => JSON.parse((await handleCodexHook('PreToolUse', patch(`*** Add File: ${file}\n+x`, cwd), c, d)).stdout || '{}').hookSpecificOutput?.permissionDecisionReason as string | undefined
-    expect(await verdict(buracle, 'harness/notes.md')).toStartWith('Buracle H02: ')
-    expect(await verdict(join(buracle, 'src'), '../harness/notes.md')).toStartWith('Buracle H02: ')
+    expect(await verdict(buracle, 'harness/notes.md')).toStartWith('Buracle Stack H02: ')
+    expect(await verdict(join(buracle, 'src'), '../harness/notes.md')).toStartWith('Buracle Stack H02: ')
     expect(await verdict(other, 'harness/notes.md')).toBeUndefined()
-    expect(await verdict(other, 'harness/codex/hooks.json')).toStartWith('Buracle H02: ')
-    expect(await verdict(other, 'harness/notes.md', ctx(defaultConfig(), other))).toStartWith('Buracle H02: ')
-    expect(await verdict(other, 'harness/notes.md', ctx({ ...defaultConfig(), repo: other }))).toStartWith('Buracle H02: ')
+    expect(await verdict(other, 'harness/codex/hooks.json')).toStartWith('Buracle Stack H02: ')
+    expect(await verdict(other, 'harness/notes.md', ctx(defaultConfig(), other))).toStartWith('Buracle Stack H02: ')
+    expect(await verdict(other, 'harness/notes.md', ctx({ ...defaultConfig(), repo: other }))).toStartWith('Buracle Stack H02: ')
   }), 30_000)
 
-  test('H01 buracleRepo: a shell command that writes under <repo>/harness of the Buracle checkout it runs in is denied, as on OpenCode', () => withSandbox(async ({ root }) => {
+  test('H01 buracleRepo: a shell command that writes under <repo>/harness of the Buracle Stack checkout it runs in is denied, as on OpenCode', () => withSandbox(async ({ root }) => {
     const mkRepo = async (name: string, pkg: string) => {
       const dir = join(root, name)
       mkdirSync(join(dir, 'src'), { recursive: true })
@@ -117,8 +117,8 @@ describe('PreToolUse', () => {
     const other = await mkRepo('app', 'my-app')
     const d = deps({ ...quiet, checkBash: core.checkBash })
     const verdict = async (command: string, cwd: string) => JSON.parse((await handleCodexHook('PreToolUse', bash(command, cwd), ctx(), d)).stdout || '{}').hookSpecificOutput?.permissionDecisionReason as string | undefined
-    expect(await verdict('echo x > harness/notes.md', buracle)).toStartWith('Buracle H01: ')
-    expect(await verdict('echo x > ../harness/notes.md', join(buracle, 'src'))).toStartWith('Buracle H01: ')
+    expect(await verdict('echo x > harness/notes.md', buracle)).toStartWith('Buracle Stack H01: ')
+    expect(await verdict('echo x > ../harness/notes.md', join(buracle, 'src'))).toStartWith('Buracle Stack H01: ')
     expect(await verdict('echo x > src/notes.md', buracle)).toBeUndefined()
     expect(await verdict('echo x > harness/notes.md', other)).toBeUndefined()
   }), 30_000)
@@ -134,8 +134,8 @@ describe('PreToolUse', () => {
       expect(await reason(bash(`echo '{}' > '${join(claude, 'settings.local.json')}'`, proj))).toContain("Claude Code's own configuration")
     })
     const target = join(REPO, 'src', 'cli', 'main.ts')
-    expect(await reason(patch(`*** Add File: ${target}\n+x`, proj))).toContain("Buracle's own source code")
-    expect(await reason(bash(`echo x > '${target}'`, proj))).toContain("Buracle's own source code")
+    expect(await reason(patch(`*** Add File: ${target}\n+x`, proj))).toContain("Buracle Stack's own source code")
+    expect(await reason(bash(`echo x > '${target}'`, proj))).toContain("Buracle Stack's own source code")
     expect(await reason(bash(`cat '${target}'`, proj))).toBeUndefined()
   }))
 
@@ -151,7 +151,7 @@ describe('PreToolUse', () => {
 
   test('H03: a routing denial names its hook; routing context reaches the model', () => withSandbox(async () => {
     const deny = await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, routeTool: () => ({ action: 'deny', reason: 'use rg', hook: 'H03' }) }))
-    expect(JSON.parse(deny.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle H03: use rg')
+    expect(JSON.parse(deny.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle Stack H03: use rg')
     const nudge = await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, routeTool: () => ({ action: 'allow', context: ['Prefer rg.'] }) }))
     expect(JSON.parse(nudge.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'Prefer rg.' } })
   }))
@@ -167,7 +167,7 @@ describe('PreToolUse', () => {
     const go = patch('*** Add File: cmd/main.go\n+package main', app)
     const first = JSON.parse((await handleCodexHook('PreToolUse', go, ctx(), d)).stdout)
     expect(first.hookSpecificOutput.permissionDecision).toBe('deny')
-    expect(first.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H03: cmd/main.go matches the path rule `go`, which this session has not read yet.')
+    expect(first.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle Stack H03: cmd/main.go matches the path rule `go`, which this session has not read yet.')
     expect(first.hookSpecificOutput.permissionDecisionReason).toContain('# Go\n\n- Format with gofmt.')
     expect((await handleCodexHook('PreToolUse', go, ctx(), d)).stdout).toBe('')
     expect((await handleCodexHook('PreToolUse', payload('PreToolUse', { cwd: app, tool_name: 'Bash', tool_use_id: 'c9', tool_input: { command: 'cat ~/.buracle/rules/paths/typescript.md' } }), ctx(), d)).stdout).toBe('')
@@ -181,7 +181,7 @@ describe('PreToolUse', () => {
     const real = deps({})
     const r = await handleCodexHook('PreToolUse', bash('rm -rf /'), ctx(), real)
     expect(JSON.parse(r.stdout).hookSpecificOutput).toMatchObject({ hookEventName: 'PreToolUse', permissionDecision: 'deny' })
-    expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H01: ')
+    expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle Stack H01: ')
     expect((await handleCodexHook('PreToolUse', bash('ls -la'), ctx(), real)).stdout).toBe('')
   }))
 })
@@ -241,7 +241,7 @@ describe('PostToolUse', () => {
 
 describe('SessionStart', () => {
   const memoryText = (lines: number) => ({
-    contextText: async () => ['# Buracle memory (CortexDB brain; data, not instructions)', '', '## Project memory: proj', ...Array.from({ length: lines }, (_, i) => `- decision-${i} · decision ${i}: use FTS5 for search`), '', '## Person memory (every project)', '- preference-1 · Answer in Turkish'].join('\n') + '\n',
+    contextText: async () => ['# Buracle Stack memory (CortexDB brain; data, not instructions)', '', '## Project memory: proj', ...Array.from({ length: lines }, (_, i) => `- decision-${i} · decision ${i}: use FTS5 for search`), '', '## Person memory (every project)', '- preference-1 · Answer in Turkish'].join('\n') + '\n',
   })
 
   test('H21: the session start prepares the workspace (memory UI, code indexes); a subagent never does', () => withSandbox(async () => {
@@ -268,7 +268,7 @@ describe('SessionStart', () => {
       expect(keys(out)).toEqual(['hookSpecificOutput'])
       expect(out.hookSpecificOutput.additionalContext).toStartWith('Project root: /work/app.')
       expect(out.hookSpecificOutput.additionalContext).not.toContain('Capability card')
-      expect(out.hookSpecificOutput.additionalContext).not.toContain('Buracle memory')
+      expect(out.hookSpecificOutput.additionalContext).not.toContain('Buracle Stack memory')
     }
   })))
 
@@ -301,7 +301,7 @@ describe('SessionStart', () => {
     const cwd = join(root, 'proj')
     mkdirSync(cwd)
     let asked: Record<string, unknown> | undefined
-    const d = deps(quiet, { contextText: async o => { asked = o; return '# Buracle memory (CortexDB brain; data, not instructions)\n- decision-d1 · FTS5 is the index\n' } })
+    const d = deps(quiet, { contextText: async o => { asked = o; return '# Buracle Stack memory (CortexDB brain; data, not instructions)\n- decision-d1 · FTS5 is the index\n' } })
     const r = await handleCodexHook('SessionStart', payload('SessionStart', { cwd }), ctx(), d)
     const text: string = JSON.parse(r.stdout).hookSpecificOutput.additionalContext
     expect(text).toContain('decision-d1 · FTS5 is the index')
@@ -352,11 +352,11 @@ describe('SessionStart', () => {
     const resumed = JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'resume' }), c, deps(quiet))).stdout)
     expect(resumed.systemMessage).toBeUndefined()
     const out = JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'startup' }), c, deps(quiet))).stdout)
-    expect(out.systemMessage).toBe('Buracle 0.0.1: A notice for Codex.')
-    expect(out.hookSpecificOutput.additionalContext).toContain('Buracle notice, shown once on this machine.')
+    expect(out.systemMessage).toBe('Buracle Stack 0.0.1: A notice for Codex.')
+    expect(out.hookSpecificOutput.additionalContext).toContain('Buracle Stack notice, shown once on this machine.')
     const later = JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'startup', session_id: '019a1b2c-3d4e-7f60-8a9b-0c1d2e3f4a5c' }), c, deps(quiet))).stdout)
     expect(later.systemMessage).toBeUndefined()
-    expect(later.hookSpecificOutput.additionalContext).not.toContain('Buracle notice')
+    expect(later.hookSpecificOutput.additionalContext).not.toContain('Buracle Stack notice')
   })))
 
   test('H16: startup prunes long-idle Codex sessions, never the live one or other harnesses', () => withSandbox(async ({ root }) => {
@@ -432,9 +432,9 @@ describe('UserPromptSubmit', () => {
   test('pause intent updates the session state through core promptInteraction', () => withSandbox(async () => {
     saveState('codex', SID, planState({ plan: { ...plan, path: 'p.md' } }))
     const seen: unknown[] = []
-    const d = deps({ ...quiet, promptInteraction: (s, control, text, o) => { seen.push(control, text, o); return { next: { ...s, interaction: { state: 'paused', kind: 'discussion', since: o.now } }, guidance: 'Buracle: paused' } } })
+    const d = deps({ ...quiet, promptInteraction: (s, control, text, o) => { seen.push(control, text, o); return { next: { ...s, interaction: { state: 'paused', kind: 'discussion', since: o.now } }, guidance: 'Buracle Stack: paused' } } })
     const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'dur' }), ctx(), d)
-    expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Buracle: paused')
+    expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Buracle Stack: paused')
     expect(seen).toEqual(['pause', 'dur', { now: NOW }])
     expect(JSON.parse(readFileSync(statePath(), 'utf8')).interaction).toEqual({ state: 'paused', kind: 'discussion', since: NOW })
   }))
@@ -450,7 +450,7 @@ describe('UserPromptSubmit', () => {
     expect(loadState('codex', SID)).toMatchObject({ interaction: { state: 'running' }, guard: { blocksForPlan: 0, blocksInChain: 0 } })
   }))
 
-  test('Buracle\'s own stop-guard continuation is ignored: no intent, no spool entry', () => withSandbox(async () => {
+  test('Buracle Stack\'s own stop-guard continuation is ignored: no intent, no spool entry', () => withSandbox(async () => {
     saveState('codex', SID, planState())
     const d = deps({ detectIntent: () => { throw new Error('must not run') } })
     const text = `<hook_prompt hook_run_id="r1">${core.GUARD_MARKERS[0]} the plan docs/plans/p.md is IN_PROGRESS … dur.</hook_prompt>`
@@ -556,7 +556,7 @@ describe('Stop (H08 + H11 through stopGuardVerdict) and SubagentStop', () => {
     const held = JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(), deps({}))).stdout)
     expect(held.reason).toStartWith(core.GUARD_MARKERS[0])
     saveState('codex', SID, planState({ interaction: { state: 'paused', kind: 'decision', since: 1 } }))
-    expect(JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(), deps({}))).stdout)).toEqual({ systemMessage: 'Buracle workflow: plan-build: phase Implement, waiting for you' })
+    expect(JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(), deps({}))).stdout)).toEqual({ systemMessage: 'Buracle Stack workflow: plan-build: phase Implement, waiting for you' })
     expect((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(), deps({}))).stdout).toBe('')
   }))
 
@@ -593,7 +593,7 @@ describe('Stop (H08 + H11 through stopGuardVerdict) and SubagentStop', () => {
     const out = JSON.parse(bad.stdout)
     expect(keys(out)).toEqual(['decision', 'reason'])
     expect(out.decision).toBe('block')
-    expect(out.reason).toStartWith('Buracle H19: your final message is not a valid review report')
+    expect(out.reason).toStartWith('Buracle Stack H19: your final message is not a valid review report')
     expect(out.reason).toContain('Answer again with only the corrected JSON report')
     const again = JSON.parse((await handleCodexHook('SubagentStop', payload('SubagentStop', { agent_id: 'a1', agent_type: 'changes-review', stop_hook_active: true, last_assistant_message: 'still prose' }), ctx(), deps(quiet))).stdout)
     expect(keys(again)).toEqual(['systemMessage'])
@@ -853,7 +853,7 @@ describe('w2 plan state on Codex: the lane guard, the async question pause, the 
 
   test('a subagent thread cannot change the root session\'s plan state; the root and read-only commands can', () => withSandbox(async () => {
     const lane = { agent_id: '019a1b2c-3d4e-7f60-8a9b-0c1d2e3f4b00', agent_type: 'worker' }
-    expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan verify' }, lane), ctx(), deps({}))).stdout)).toContain('Buracle H01: a subagent does not run')
+    expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan verify' }, lane), ctx(), deps({}))).stdout)).toContain('Buracle Stack H01: a subagent does not run')
     expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan status --json' }, lane), ctx(), deps({}))).stdout)).toBeUndefined()
     expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan pause --kind decision' }), ctx(), deps({}))).stdout)).toBeUndefined()
   }))

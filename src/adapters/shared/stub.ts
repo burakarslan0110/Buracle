@@ -6,7 +6,7 @@ import type { Adapter, AdapterContext } from '../registry'
 type Finding = { level: 'ok' | 'warn' | 'error', check: string, detail: string }
 
 /**
- * The adapter of a harness Buracle knows but does not support yet: detects the program, builds and installs nothing,
+ * The adapter of a harness Buracle Stack knows but does not support yet: detects the program, builds and installs nothing,
  * and says so in `doctor`. `extra` adds findings that already hold today (Pi's folder shared with omp).
  */
 export function stubAdapter(harness: Harness, extra?: (ctx: AdapterContext) => Promise<Finding[]>): Adapter {
@@ -17,7 +17,7 @@ export function stubAdapter(harness: Harness, extra?: (ctx: AdapterContext) => P
     build: async () => [],
     installPlan: async () => ({ id: harness, harness, ops: [] }),
     doctor: async ctx => [
-      { level: 'warn', check: `${harness}.support`, detail: `Buracle support for ${profile.label} is not installed yet` },
+      { level: 'warn', check: `${harness}.support`, detail: `Buracle Stack support for ${profile.label} is not installed yet` },
       ...(extra !== undefined ? await extra(ctx) : []),
     ],
   }

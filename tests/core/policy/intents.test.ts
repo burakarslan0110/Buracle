@@ -80,7 +80,7 @@ describe('no intent (false-positive corpus)', () => {
 })
 
 describe('precedence and guard prompts', () => {
-  test("Buracle's own stop-guard text is never read as the user's intent", () => {
+  test("Buracle Stack's own stop-guard text is never read as the user's intent", () => {
     const { decision } = stopVerdict(
       { ...emptyState(), plan: { path: 'docs/plans/x.md', slug: 'x', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: 1 } },
       { harness: 'codex', sessionId: 's', cwd: '/r', now: 5 }, defaultConfig().plan,
@@ -93,9 +93,9 @@ describe('precedence and guard prompts', () => {
   })
 
   test('guard text wrapped by a harness is still recognized', () => {
-    expect(isGuardContinuation('<hook_prompt hook_run_id="abc">Buracle stop guard: the plan … dur</hook_prompt>')).toBe(true)
-    expect(isGuardContinuation('Stop hook feedback: Buracle plan check: the plan …')).toBe(true)
-    expect(isGuardContinuation('please stop. Buracle stop guard: is annoying')).toBe(false)
+    expect(isGuardContinuation('<hook_prompt hook_run_id="abc">Buracle Stack stop guard: the plan … dur</hook_prompt>')).toBe(true)
+    expect(isGuardContinuation('Stop hook feedback: Buracle Stack plan check: the plan …')).toBe(true)
+    expect(isGuardContinuation('please stop. Buracle Stack stop guard: is annoying')).toBe(false)
     expect(isGuardContinuation(42 as unknown as string)).toBe(false)
   })
 
@@ -120,17 +120,17 @@ describe('precedence and guard prompts', () => {
     expect(detectIntent(undefined as unknown as string)).toBeNull()
   })
 
-  test("the routing check's continuation is Buracle's, not the user's", () => {
-    expect(isGuardContinuation('Buracle routing check: the user asked for plan-build and it was not loaded.')).toBe(true)
-    expect(detectIntent('Buracle routing check: stop and load it')).toBeNull()
+  test("the routing check's continuation is Buracle Stack's, not the user's", () => {
+    expect(isGuardContinuation('Buracle Stack routing check: the user asked for plan-build and it was not loaded.')).toBe(true)
+    expect(detectIntent('Buracle Stack routing check: stop and load it')).toBeNull()
   })
 })
 
 describe('isUserText', () => {
-  test('user prompts versus harness and Buracle text', () => {
+  test('user prompts versus harness and Buracle Stack text', () => {
     expect(isUserText('fix the parser')).toBe(true)
     expect(isUserText('/plan-build add login')).toBe(true)
-    for (const t of ['', '   ', 'Buracle stop guard: x', '<task-notification>x</task-notification>', '<system-reminder>x</system-reminder>', '<command-name>/buracle:plan-build</command-name>', 'Base directory for this skill: /x', 42 as unknown as string]) {
+    for (const t of ['', '   ', 'Buracle Stack stop guard: x', '<task-notification>x</task-notification>', '<system-reminder>x</system-reminder>', '<command-name>/buracle:plan-build</command-name>', 'Base directory for this skill: /x', 42 as unknown as string]) {
       expect({ t, user: isUserText(t) }).toEqual({ t, user: false })
     }
   })
@@ -158,18 +158,18 @@ describe('detectSignals: control words only; no history or remember phrases (the
     for (const t of ['dur', 'devam', 'iptal', 'stop', 'continue', 'vazgeç', 'wait, that is wrong', 'stop using grep, use rg']) {
       expect({ t, control: sig(t).control as Intent }).toEqual({ t, control: detectIntent(t) })
     }
-    expect(sig('Buracle stop guard: dur')).toEqual({ control: null, recall: false, write: false })
+    expect(sig('Buracle Stack stop guard: dur')).toEqual({ control: null, recall: false, write: false })
   })
 })
 
 describe('H10 guidance (CONTROL_GUIDANCE, controlGuidance)', () => {
   test('the wording every harness sends', () => {
     expect(CONTROL_GUIDANCE).toEqual({
-      pausePlan: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait. The active plan is now paused; the user saying "continue" (in any language) or `buracle plan resume` continues it. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-      pause: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-      resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
-      stop: 'Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-      resultApproved: 'Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`.',
+      pausePlan: 'Buracle Stack: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait. The active plan is now paused; the user saying "continue" (in any language) or `buracle plan resume` continues it. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
+      pause: 'Buracle Stack: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
+      resume: 'Buracle Stack: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
+      stop: 'Buracle Stack: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
+      resultApproved: 'Buracle Stack: the user approved the verified result, so Buracle Stack recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`.',
     })
   })
 
@@ -215,7 +215,7 @@ describe('H10 replies while the plan is paused (pausedReply, isResultApproval, i
   })
 
   test('a discussion pause gets a meaning-based note (no word list); a running plan gets none', () => {
-    expect(pausedReply({ state: 'paused', kind: 'discussion' }, 'ok devam edelim, önce testleri çalıştır')).toBe('Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.')
+    expect(pausedReply({ state: 'paused', kind: 'discussion' }, 'ok devam edelim, önce testleri çalıştır')).toBe('Buracle Stack: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.')
     expect(pausedReply({ state: 'running' }, 'done')).toBeUndefined()
     expect(pausedReply(undefined, 'done')).toBeUndefined()
   })
@@ -224,7 +224,7 @@ describe('H10 replies while the plan is paused (pausedReply, isResultApproval, i
     for (const t of ['approve', 'Approved!', 'I approve', 'approve the result', 'LGTM', 'looks good to me', 'ship it', 'yes, approve', 'Onaylıyorum', 'onayla', 'kabul ediyorum', 'evet onaylıyorum']) {
       expect({ t, ok: isResultApproval(t) }).toEqual({ t, ok: true })
     }
-    for (const t of ['continue', 'devam', 'yes', 'ok', 'tamam', 'approve it but first rename every handler in the module, then run it again', '<teammate-message teammate_id="r">lgtm</teammate-message>', 'Buracle stop guard: approve', 'do not approve']) {
+    for (const t of ['continue', 'devam', 'yes', 'ok', 'tamam', 'approve it but first rename every handler in the module, then run it again', '<teammate-message teammate_id="r">lgtm</teammate-message>', 'Buracle Stack stop guard: approve', 'do not approve']) {
       expect({ t, ok: isResultApproval(t) }).toEqual({ t, ok: false })
     }
   })
@@ -254,10 +254,10 @@ describe('H10 replies while the plan is paused (pausedReply, isResultApproval, i
     expect(controlGuidance(null, { hasPlan: true })).toBeUndefined()
   })
 
-  test('English only: no Turkish letters and none of the Turkish control words Buracle recognizes', () => {
+  test('English only: no Turkish letters and none of the Turkish control words Buracle Stack recognizes', () => {
     for (const [key, text] of Object.entries(CONTROL_GUIDANCE)) {
       expect({ key, turkish: /[ğüşıöçĞÜŞİÖÇ]|\b(?:dur|bekle|devam|iptal|vazgeç)\b/i.test(text) }).toEqual({ key, turkish: false })
-      expect(text.startsWith('Buracle: ')).toBe(true)
+      expect(text.startsWith('Buracle Stack: ')).toBe(true)
     }
   })
 

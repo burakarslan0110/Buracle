@@ -12,7 +12,7 @@ import { canonical, ctx, REPO } from './helpers'
 
 // The real `qwen` program, started with HOME and QWEN_HOME in the sandbox. It needs no login for what is checked here:
 // the settings load, the MCP servers list, and the hooks that fire before a model is asked (SessionStart, UserPromptSubmit,
-// SessionEnd) reach Buracle. The hooks that need a model turn (PreToolUse, PostToolUse, Stop) cannot run without a login
+// SessionEnd) reach Buracle Stack. The hooks that need a model turn (PreToolUse, PostToolUse, Stop) cannot run without a login
 // and a model, so they are checked on the same command line with a payload in the shape the docs give (hook.test.ts, doctor.test.ts).
 const QWEN = Bun.which('qwen') ?? undefined
 // `qwen -p` runs a prompt against a real provider and can open a sign-in flow, so it is opt-in (BURACLE_LIVE_SMOKE=1).
@@ -43,31 +43,31 @@ async function installed(home: string): Promise<void> {
 }
 
 describe(`the real qwen program${NOTE}`, () => {
-  local('reads the settings Buracle wrote: every shipped MCP server is listed', () => withSandbox(async ({ home }) => {
+  local('reads the settings Buracle Stack wrote: every shipped MCP server is listed', () => withSandbox(async ({ home }) => {
     await installed(home)
     const list = await run([QWEN as string, 'mcp', 'list'], { cwd: home, env: qwenEnv(home), timeoutMs: 60_000 })
     expect(list.code).toBe(0)
     for (const id of Object.keys(qwenMcpServers(canonical, ctx().buracleBin))) expect({ id, listed: list.stdout.includes(`${id}:`) }).toEqual({ id, listed: true })
   }), 120_000)
 
-  local('discovers the three review agents Buracle wrote into ~/.qwen/agents (a listing, no model, no login)', () => withSandbox(async ({ home }) => {
+  local('discovers the three review agents Buracle Stack wrote into ~/.qwen/agents (a listing, no model, no login)', () => withSandbox(async ({ home }) => {
     await installed(home)
     const list = await run([QWEN as string, 'agents', 'list'], { cwd: home, env: qwenEnv(home), timeoutMs: 60_000 })
     expect(list.code).toBe(0)
     for (const id of ['changes-review', 'goal-build-review', 'plan-build-review']) expect({ id, listed: list.stdout.includes(id) }).toEqual({ id, listed: true })
   }), 120_000)
 
-  live('starts with the settings Buracle wrote: no hook config is rejected', () => withSandbox(async ({ home }) => {
+  live('starts with the settings Buracle Stack wrote: no hook config is rejected', () => withSandbox(async ({ home }) => {
     await installed(home)
     const p = await run([QWEN as string, '-p', 'hi', '--no-session-persistence'], { cwd: home, env: qwenEnv(home), timeoutMs: 60_000 })
     expect(p.stderr + p.stdout).not.toMatch(/error loading hook configs/i)
   }), 120_000)
 
-  live('fires the hooks: SessionStart and UserPromptSubmit reach Buracle, which records the session and the prompt', () => withSandbox(async ({ home }) => {
+  live('fires the hooks: SessionStart and UserPromptSubmit reach Buracle Stack, which records the session and the prompt', () => withSandbox(async ({ home }) => {
     await installed(home)
     const p = await run([QWEN as string, '-p', 'hello from the smoke test', '--no-session-persistence'], { cwd: home, env: qwenEnv(home), timeoutMs: 90_000 })
     expect(p.stderr + p.stdout).not.toMatch(/error loading hook configs/i)
-    // The workspace file is written by Buracle's SessionStart; the program ends before a model answers, which is expected here.
+    // The workspace file is written by Buracle Stack's SessionStart; the program ends before a model answers, which is expected here.
     const sessions = existsSync(paths.sessionsDir('qwen')) ? readdirSync(paths.sessionsDir('qwen')) : []
     expect(sessions.length).toBeGreaterThan(0)
     expect(existsSync(join(paths.sessionDir('qwen', sessions[0] as string), 'workspace.json'))).toBe(true)

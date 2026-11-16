@@ -371,7 +371,7 @@ describe('projectInit', () => {
     })
   })
 
-  test('takes back the autoMemoryDirectory an older Buracle wrote, and keeps a value the user set', async () => {
+  test('takes back the autoMemoryDirectory an older Buracle Stack wrote, and keeps a value the user set', async () => {
     await withBrain(async ({ repo, root }) => {
       const settings = join(repo, '.claude', 'settings.local.json')
       await applyPlans([{ id: 'memory-project-demo', harness: 'claude', ops: [{ kind: 'json-merge', path: settings, set: { autoMemoryDirectory: '/old/vault/projects/demo/claude' }, owner: 'memory' }] }])

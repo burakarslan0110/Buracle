@@ -61,7 +61,7 @@ describe('I2: one transaction for the core plans, then one per harness', () => {
   }))
 })
 
-describe('F05: BURACLE_HOME must be a directory of its own; purge removes only Buracle\'s files', () => {
+describe('F05: BURACLE_HOME must be a directory of its own; purge removes only Buracle Stack\'s files', () => {
   test('HOME, a directory above HOME and shared directories are refused', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
@@ -75,7 +75,7 @@ describe('F05: BURACLE_HOME must be a directory of its own; purge removes only B
     })
   }))
 
-  test('in a pre-existing directory, purge removes Buracle\'s files and keeps the user\'s', () => withSandbox(async ({ root, home }) => {
+  test('in a pre-existing directory, purge removes Buracle Stack\'s files and keeps the user\'s', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const tools = join(home, 'tools')
     write(join(tools, 'bin', 'my-tool'), '#!/bin/sh\n')
@@ -92,7 +92,7 @@ describe('F05: BURACLE_HOME must be a directory of its own; purge removes only B
       expect(existsSync(join(tools, 'bin', 'buracle'))).toBe(false)
       expect(existsSync(join(tools, 'state', 'owned.json'))).toBe(false)
       expect(existsSync(join(tools, 'journal'))).toBe(false)
-      expect(r.purgeKept.some(k => k.includes('not Buracle\'s: my-tool'))).toBe(true)
+      expect(r.purgeKept.some(k => k.includes('not Buracle Stack\'s: my-tool'))).toBe(true)
     }))
   }))
 
@@ -113,7 +113,7 @@ describe('F05: BURACLE_HOME must be a directory of its own; purge removes only B
     }))
   }))
 
-  test('a BURACLE_HOME Buracle created is marked and purged as a whole', () => withSandbox(async ({ root, home }) => {
+  test('a BURACLE_HOME Buracle Stack created is marked and purged as a whole', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const bh = join(home, '.config', 'buracle')
     await withEnv({ BURACLE_HOME: bh }, () => withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
@@ -126,7 +126,7 @@ describe('F05: BURACLE_HOME must be a directory of its own; purge removes only B
 })
 
 describe('F09: uninstall takes the transaction lock before anything runs', () => {
-  test('while another Buracle transaction holds the lock, no undo command runs', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('while another Buracle Stack transaction holds the lock, no undo command runs', () => withSandbox(async ({ root, home, buracleHome }) => {
     const repo = makeRepo(root)
     const log = join(root, 'tool.log')
     const tool = fakeExe(join(root, 'bin', 'tool'), `append(${JSON.stringify(log)}, argv.join(' '))`)
@@ -140,7 +140,7 @@ describe('F09: uninstall takes the transaction lock before anything runs', () =>
         write(join(buracleHome, 'state', 'txn.lock'), JSON.stringify({ pid: holder.pid, startedAt }) + '\n')
         const io = memoryIO()
         expect(await uninstallRun(['--yes'], io)).toBe(1)
-        expect(io.err()).toContain('another Buracle transaction is running')
+        expect(io.err()).toContain('another Buracle Stack transaction is running')
         expect(read(log)).toBe('add\n')
         expect(read(join(home, '.codex/AGENTS.md'))).toBe('x\n')
       } finally {
@@ -189,7 +189,7 @@ describe('F12: a lost ownership ledger', () => {
     })
   }))
 
-  test('without journals it warns; a yes to the question in a terminal re-owns values equal to Buracle\'s', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('without journals it warns; a yes to the question in a terminal re-owns values equal to Buracle Stack\'s', () => withSandbox(async ({ root, home, buracleHome }) => {
     const repo = makeRepo(root)
     const codex = fakeAdapter('codex', { plan: () => filePlan('codex', home, { '.codex/rules/buracle.rules': 'r\n' }) })
     await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli }, async () => {
@@ -204,7 +204,7 @@ describe('F12: a lost ownership ledger', () => {
         const io = memoryIO({ tty: true, json: true })
         expect(await installRun([], { ...io, flags: { json: false, verbose: false } })).toBe(0)
       })
-      expect(asked[0]).toBe('The ownership ledger is gone; record the values that equal Buracle\'s as Buracle\'s own?')
+      expect(asked[0]).toBe('The ownership ledger is gone; record the values that equal Buracle Stack\'s as Buracle Stack\'s own?')
       expect((await readLedger())[join(home, '.codex/rules/buracle.rules')]?.adopted).toBeUndefined()
       expect(await uninstallRun(['--yes'], memoryIO())).toBe(0)
       expect(existsSync(join(home, '.codex/rules/buracle.rules'))).toBe(false)
@@ -222,8 +222,8 @@ describe('F13: items the user deleted', () => {
       unlinkSync(join(buracleHome, 'bin/buracle'))
       const io = memoryIO()
       expect(await installRun(['--yes'], io)).toBe(2)
-      expect(io.out()).toContain('removed since Buracle installed it; not re-creating it')
-      expect(io.out()).toContain('1 Buracle item(s) you removed stay removed; run `buracle install` in a terminal to put them back.')
+      expect(io.out()).toContain('removed since Buracle Stack installed it; not re-creating it')
+      expect(io.out()).toContain('1 Buracle Stack item(s) you removed stay removed; run `buracle install` in a terminal to put them back.')
       expect(existsSync(join(home, '.codex/agents/browser.toml'))).toBe(false)
       expect(existsSync(join(buracleHome, 'bin/buracle'))).toBe(true)
       const asked: string[] = []
@@ -234,7 +234,7 @@ describe('F13: items the user deleted', () => {
         answer = true
         expect(await installRun([], memoryIO({ tty: true }))).toBe(0)
       })
-      expect(asked).toEqual(['Put back 1 Buracle item(s) you removed?', 'Put back 1 Buracle item(s) you removed?'])
+      expect(asked).toEqual(['Put back 1 Buracle Stack item(s) you removed?', 'Put back 1 Buracle Stack item(s) you removed?'])
       expect(read(join(home, '.codex/agents/browser.toml'))).toBe('b\n')
     })
   }))

@@ -66,7 +66,7 @@ describe('buracle index status', () => {
   test('the home folder is never indexed: status says so (exit 0), ensure refuses (exit 2)', () => withSandbox(async ({ home }) => {
     const s = await index('status', '--cwd', home, '--json')
     expect(s.code).toBe(0)
-    expect(s.json<unknown>()).toEqual({ ok: false, cwd: home, excluded: 'your home folder', error: `${home} is your home folder: Buracle never indexes it` })
+    expect(s.json<unknown>()).toEqual({ ok: false, cwd: home, excluded: 'your home folder', error: `${home} is your home folder: Buracle Stack never indexes it` })
     const e = await index('ensure', '--cwd', home)
     expect(e.code).toBe(2)
     expect(e.err).toContain('is your home folder')

@@ -38,7 +38,7 @@ function isFile(p: string): boolean {
   try { return statSync(p).isFile() } catch { return false }
 }
 
-// The start of an argv that runs the Buracle CLI through the installed shim: the shim itself, or undefined
+// The start of an argv that runs the Buracle Stack CLI through the installed shim: the shim itself, or undefined
 // when there is no shim.
 export function shimLaunch(shim: string = paths.shimPath()): string[] | undefined {
   return isFile(shim) ? [shim] : undefined

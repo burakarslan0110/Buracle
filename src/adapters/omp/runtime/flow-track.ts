@@ -1,7 +1,7 @@
 import { flowDef } from '../../../core/flow/catalog'
 
 export function workflowCommandLead(id: string): string {
-  return `Run Buracle's \`${id}\` workflow for the request below; the user asked for it explicitly.`
+  return `Run Buracle Stack's \`${id}\` workflow for the request below; the user asked for it explicitly.`
 }
 
 export function workflowCommandBody(id: string): string {
@@ -31,7 +31,7 @@ export function workflowOfInput(text: string, commands: readonly string[]): Work
 
 export function workflowOfExpanded(prompt: string): { workflow: string, args: string } | undefined {
   const t = typeof prompt === 'string' ? prompt.trimStart() : ''
-  const m = /^Run Buracle's `([a-z][a-z0-9-]{0,39})` workflow for the request below;/.exec(t)
+  const m = /^Run Buracle Stack's `([a-z][a-z0-9-]{0,39})` workflow for the request below;/.exec(t)
   const id = m?.[1]
   if (id === undefined || flowDef(id) === undefined) return undefined
   const request = /\nRequest: ([^\n]*)/.exec(t)?.[1] ?? ''

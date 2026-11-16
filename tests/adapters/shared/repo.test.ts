@@ -13,7 +13,7 @@ async function repo(dir: string, name?: string): Promise<string> {
 }
 
 describe('buracleRepoFor', () => {
-  test('a git toplevel whose package.json is named "buracle" is the Buracle repo, from any subdirectory', () => withSandbox(async ({ root }) => {
+  test('a git toplevel whose package.json is named "buracle" is the Buracle Stack repo, from any subdirectory', () => withSandbox(async ({ root }) => {
     const r = await repo(join(root, 'checkout'), 'buracle')
     expect(await buracleRepoFor(r)).toBe(r)
     expect(await buracleRepoFor(join(r, 'src', 'deep'))).toBe(r)

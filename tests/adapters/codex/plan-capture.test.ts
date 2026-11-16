@@ -37,11 +37,11 @@ function rolloutLine(text: string): string {
 }
 
 describe('Codex H12: an approved <proposed_plan> is saved to docs/plan-build/', () => {
-  test('Stop keeps the block (also through a Buracle continuation); Codex\'s "Implement the plan." saves it once, as approved, naming Codex', () => withSandbox(async ({ root }) => {
+  test('Stop keeps the block (also through a Buracle Stack continuation); Codex\'s "Implement the plan." saves it once, as approved, naming Codex', () => withSandbox(async ({ root }) => {
     const cwd = app(root)
     await stop(cwd, PROPOSED)
     expect(existsSync(join(paths.sessionDir('codex', SID), 'proposed-plan.json'))).toBe(true)
-    await stop(cwd, 'Continuing as Buracle asked.', { stop_hook_active: true })
+    await stop(cwd, 'Continuing as Buracle Stack asked.', { stop_hook_active: true })
     expect(existsSync(join(paths.sessionDir('codex', SID), 'proposed-plan.json'))).toBe(true)
     const r = await prompt(cwd, 'Implement the plan.')
     expect(contextOf(r.stdout)).toContain(`docs/plan-build/${SAVED} (H12)`)

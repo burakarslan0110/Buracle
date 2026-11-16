@@ -115,7 +115,7 @@ describe('routing (H21-H26)', () => {
     const mcp = (input: Record<string, unknown>, extra: Record<string, unknown> = {}) => payload('PreToolUse', { tool_name: 'mcp__codegraph__codegraph_explore', tool_input: input, ...extra })
     const denied = JSON.parse((await handleCodexHook('PreToolUse', mcp({ query: 'x', projectPath: home }), ctx(), deps({}))).stdout)
     expect(denied.hookSpecificOutput.permissionDecision).toBe('deny')
-    expect(denied.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H03: codegraph `projectPath`')
+    expect(denied.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle Stack H03: codegraph `projectPath`')
     expect(denied.hookSpecificOutput.permissionDecisionReason).toContain(`Pass the project root ${proj} instead`)
     expect((await handleCodexHook('PreToolUse', mcp({ query: 'uploadFile', projectPath: proj }), ctx(), deps({}))).stdout).toBe('')
     expect(loadLedger('codex', SID).mcp['codegraph']?.n).toBe(1)
@@ -154,7 +154,7 @@ describe('routing (H21-H26)', () => {
     expect(allowed.permissionDecision).toBeUndefined()
     expect(String(allowed.additionalContext)).toContain('MCP server is down, so the built-in web search is allowed as a fallback')
     const resumed = await card()
-    expect(resumed).toContain('Buracle capabilities (Codex)')
+    expect(resumed).toContain('Buracle Stack capabilities (Codex)')
     expect(resumed).not.toContain('\n- web-search')
     await result('mcp__web_search__search', false)
     expect(loadLedger('codex', SID).mcpErrors).toEqual({ 'web-fetch': 2 })
@@ -234,10 +234,10 @@ describe('routing (H21-H26)', () => {
     const call = (tool: string, input: Record<string, unknown>, extra: Record<string, unknown> = sub) => payload('PreToolUse', { cwd: proj, tool_name: tool, tool_input: input, ...extra })
     for (let i = 0; i < 2; i++) {
       const why = await reason(call('mcp__semble__search', { query: 'where is auth', repo: home }))
-      expect(why).toStartWith(`Buracle H03: semble \`repo\` is ${home}, your home folder`)
+      expect(why).toStartWith(`Buracle Stack H03: semble \`repo\` is ${home}, your home folder`)
       expect(why).toContain(`Pass the project root ${proj} instead.`)
     }
-    expect(await reason(call('mcp__codegraph__codegraph_explore', { query: 'auth', projectPath: home }))).toStartWith('Buracle H03: codegraph `projectPath`')
+    expect(await reason(call('mcp__codegraph__codegraph_explore', { query: 'auth', projectPath: home }))).toStartWith('Buracle Stack H03: codegraph `projectPath`')
     expect(await reason(call('mcp__semble__search', { query: 'where is auth', repo: proj }))).toBeUndefined()
     const l = loadLedger('codex', SID)
     expect([l.mcp, l.usedOnce, l.turnTools.calls]).toEqual([{}, [], 0])
@@ -248,7 +248,7 @@ describe('routing (H21-H26)', () => {
     await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare bun and deno'), ctx(), d)
     const blocked = JSON.parse((await handleCodexHook('Stop', payload('Stop'), ctx(), d)).stdout)
     expect(keys(blocked)).toEqual(['decision', 'reason'])
-    expect(blocked.reason).toStartWith('Buracle routing check: the user asked for research')
+    expect(blocked.reason).toStartWith('Buracle Stack routing check: the user asked for research')
     expect(core.isGuardContinuation(blocked.reason)).toBe(true)
     expect((await handleCodexHook('Stop', payload('Stop', { stop_hook_active: true }), ctx(), d)).stdout).toBe('')
     await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare zod and yup'), ctx(), d)
@@ -284,12 +284,12 @@ describe('routing (H21-H26)', () => {
     for (const why of ['runaway-chain', 'runaway-plan'] as StopWhy[]) {
       const out = await after(why)
       expect({ why, keys: keys(out) }).toEqual({ why, keys: ['systemMessage'] })
-      expect(String(out['systemMessage'])).toStartWith('Buracle stop guard:')
+      expect(String(out['systemMessage'])).toStartWith('Buracle Stack stop guard:')
     }
     for (const why of ['finished', 'disabled'] as StopWhy[]) {
       const out = await after(why)
       expect({ why, decision: out['decision'] }).toEqual({ why, decision: 'block' })
-      expect(String(out['reason'])).toStartWith('Buracle routing check: the user asked for research')
+      expect(String(out['reason'])).toStartWith('Buracle Stack routing check: the user asked for research')
     }
   }))
 
@@ -335,7 +335,7 @@ describe('routing (H21-H26)', () => {
   test('H25: a session resumed on an unfinished workflow run says so (user: systemMessage; model: one line); workflow.band off says nothing', () => withSandbox(async () => {
     recordFlowStart('codex', SID, { workflow: 'plan-build', title: 'Rate limit the uploads', source: 'prompt' }, NOW - 60_000)
     const out = JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { source: 'resume' }), ctx(), deps(quiet))).stdout)
-    expect(out.systemMessage).toStartWith('Buracle: this session has an unfinished workflow run (plan-build (Rate limit the uploads)')
+    expect(out.systemMessage).toStartWith('Buracle Stack: this session has an unfinished workflow run (plan-build (Rate limit the uploads)')
     expect(out.systemMessage).toContain('To go on, say: continue the plan-build run')
     expect(out.hookSpecificOutput.additionalContext).toContain('Continue it only when the user asks.')
     expect(JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), deps(quiet))).stdout).systemMessage).toBeUndefined()
@@ -365,7 +365,7 @@ describe('H28 project assets on Codex', () => {
     const spawned: string[] = []
     const d: CodexHookDeps = { ...deps(quiet), prepareWorkspace: async () => infoAt(repo), assetsSpawn: (argv, cwd) => { spawned.push(`${argv.slice(-4).join(' ')} @ ${cwd}`) } }
     const text = contextOf(await handleCodexHook('SessionStart', payload('SessionStart', { cwd: repo, source: 'startup' }), ctx(), d))
-    expect(text).toContain('Buracle project rules (H28)')
+    expect(text).toContain('Buracle Stack project rules (H28)')
     expect(text).toContain('- `.claude/rules/web.md` \u2014 `src/**/*.tsx`')
     expect(text).toContain('- `review`: Review a diff')
     expect(spawned).toEqual([`project sync --auto --quiet @ ${repo}`])

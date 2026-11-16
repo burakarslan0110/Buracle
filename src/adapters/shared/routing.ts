@@ -16,7 +16,7 @@ export function capabilityCardText(ctx: AdapterContext, h: Harness, health: McpH
   return capabilityCard({ policy: routingPolicy(ctx), mcp, plugins: [], harness: h, lsp })
 }
 
-/** The Buracle MCP servers of the harness that are not known to be down. */
+/** The Buracle Stack MCP servers of the harness that are not known to be down. */
 export function availableServers(ctx: AdapterContext, h: Harness, health: McpHealth): string[] {
   return catalogMcp(ctx.canonical.mcp, h).map(m => m.id).filter(id => !mcpUnavailable(health[id]))
 }

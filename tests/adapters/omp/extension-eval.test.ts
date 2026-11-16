@@ -27,7 +27,7 @@ describe("omp eval cells and the user's guards.bash.extraDeny", () => {
       { language: 'js', code: "require('child_process').execSync('kubectl delete ns prod')" },
     ]) {
       const r = await call(input)
-      expect({ input, block: r?.block, reason: r?.reason }).toEqual({ input, block: true, reason: expect.stringContaining('Buracle H01: Blocked by the guards.bash.extraDeny pattern') })
+      expect({ input, block: r?.block, reason: r?.reason }).toEqual({ input, block: true, reason: expect.stringContaining('Buracle Stack H01: Blocked by the guards.bash.extraDeny pattern') })
     }
     expect(await call({ language: 'py', code: "import os; os.system('kubectl get pods')" })).toBeUndefined()
   }))

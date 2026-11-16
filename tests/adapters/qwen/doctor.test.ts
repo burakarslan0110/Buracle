@@ -105,7 +105,7 @@ describe('doctor', () => {
     })
   }, 60_000)
 
-  test('disableAllHooks, a hook event Buracle lost, a missing server and invalid JSON are reported', async () => {
+  test('disableAllHooks, a hook event Buracle Stack lost, a missing server and invalid JSON are reported', async () => {
     await withQwen('0.27.4', async () => {
       await applyPlans([await adapter.installPlan(ctx())])
       const file = join(paths.qwenHome(), 'settings.json')
@@ -114,7 +114,7 @@ describe('doctor', () => {
       delete s['mcpServers']?.['semble']
       writeFileSync(file, JSON.stringify({ ...s, disableAllHooks: true }))
       const items = await qwenDoctor(ctx(defaultConfig()))
-      expect(items.filter(i => i.check === 'qwen.hooks' && i.level === 'error').map(i => i.detail).join('\n')).toMatch(/disableAllHooks[^]*no Buracle hook for Stop/)
+      expect(items.filter(i => i.check === 'qwen.hooks' && i.level === 'error').map(i => i.detail).join('\n')).toMatch(/disableAllHooks[^]*no Buracle Stack hook for Stop/)
       expect(byCheck(items, 'qwen.mcp')).toMatchObject({ level: 'warn' })
       expect(byCheck(items, 'qwen.mcp')?.detail).toContain('semble')
       writeFileSync(file, '{ nope')

@@ -55,12 +55,12 @@ describe('checkEval: recursive deletes and protected files', () => {
   })
 
   test('trees that contain a protected location, and the vault (H02)', () => {
-    expect(verdict("shutil.rmtree(os.path.expanduser('~/.buracle'))", 'py')).toEqual({ deny: expect.stringContaining("Buracle's own state"), hook: 'H02' })
+    expect(verdict("shutil.rmtree(os.path.expanduser('~/.buracle'))", 'py')).toEqual({ deny: expect.stringContaining("Buracle Stack's own state"), hook: 'H02' })
     expect(verdict("shutil.rmtree('/data/vault')", 'py', { vault: '/data/vault' })).toEqual({ deny: expect.stringContaining('memory vault'), hook: 'H02' })
     expect(verdict("shutil.rmtree('/Users/u/.ssh/old')", 'py')).toEqual({ deny: expect.stringContaining("SSH directory"), hook: 'H02' })
   })
 
-  test("trees that hold part of Buracle's own setup (SEC-1): deleted or moved away (H02)", () => {
+  test("trees that hold part of Buracle Stack's own setup (SEC-1): deleted or moved away (H02)", () => {
     const cases: Array<[string, string, string]> = [
       ['py', "shutil.rmtree(os.path.expanduser('~/.claude'))", "would delete Claude Code's own configuration"],
       ['py', "shutil.rmtree('/Users/u/.codex')", "would delete Codex's own configuration"],
@@ -78,9 +78,9 @@ describe('checkEval: recursive deletes and protected files', () => {
     }
   })
 
-  test("the Buracle checkout from an unrelated session (selfPaths.repo): deletes and writes are refused", () => {
+  test("the Buracle Stack checkout from an unrelated session (selfPaths.repo): deletes and writes are refused", () => {
     const repo = '/Users/u/src/buracle'
-    const SOURCE = "Buracle's own source code"
+    const SOURCE = "Buracle Stack's own source code"
     expect(verdict(`shutil.rmtree('${repo}/src')`, 'py', { selfPaths: { repo } })).toEqual({ deny: expect.stringContaining(SOURCE), hook: 'H02' })
     expect(verdict("shutil.rmtree('/Users/u/src')", 'py', { selfPaths: { repo } })).toEqual({ deny: expect.stringContaining(SOURCE), hook: 'H02' })
     expect(verdict(`open('${repo}/src/cli/main.ts', 'w').write('x')`, 'py', { selfPaths: { repo } })).toEqual({ deny: expect.stringContaining(SOURCE), hook: 'H02' })
@@ -110,7 +110,7 @@ describe('checkEval: recursive deletes and protected files', () => {
 describe('checkEval: shell commands of a cell get the write context (home, relocated roots, checkout, session folder)', () => {
   test('relocated roots, the checkout and relative paths are judged like in H01', () => {
     expect(verdict("os.system('echo x > /cfg/codex/hooks.json')", 'py', { selfPaths: { codexHome: '/cfg/codex' } })).toEqual({ deny: expect.stringContaining('Codex'), hook: 'H01' })
-    expect(verdict("os.system('echo x > /Users/u/src/buracle/src/a.ts')", 'py', { selfPaths: { repo: '/Users/u/src/buracle' } })).toEqual({ deny: expect.stringContaining("Buracle's own source code"), hook: 'H01' })
+    expect(verdict("os.system('echo x > /Users/u/src/buracle/src/a.ts')", 'py', { selfPaths: { repo: '/Users/u/src/buracle' } })).toEqual({ deny: expect.stringContaining("Buracle Stack's own source code"), hook: 'H01' })
     expect(verdict("os.system('echo {} > .claude/settings.json')", 'py', { cwd: '/Users/u' })).toEqual({ deny: expect.stringContaining('Claude Code'), hook: 'H01' })
     expect(verdict("os.system('echo {} > .claude/settings.json')", 'py')).toEqual({ deny: expect.stringContaining('switch off plugins and hooks'), hook: 'H01' })
     expect(verdict("os.system('echo x > /cfg/codex/hooks.json')", 'py')).toEqual({})
@@ -196,8 +196,8 @@ describe('checkEval: code that runs in another folder than the session (execCwd)
     expect(exec("import os; os.system('rm -rf Desktop')", 'py', home)).toEqual({ deny: expect.stringContaining('Desktop'), hook: 'H01' })
     const repo = '/Users/u/src/buracle'
     const self = { selfPaths: { repo } }
-    expect(exec("open('src/cli/main.ts', 'w').write('x')", 'py', repo, self)).toEqual({ deny: expect.stringContaining("Buracle's own source code"), hook: 'H02' })
-    expect(exec("import os; os.system('echo x > package.json')", 'py', repo, self).deny).toContain("Buracle's own source code")
+    expect(exec("open('src/cli/main.ts', 'w').write('x')", 'py', repo, self)).toEqual({ deny: expect.stringContaining("Buracle Stack's own source code"), hook: 'H02' })
+    expect(exec("import os; os.system('echo x > package.json')", 'py', repo, self).deny).toContain("Buracle Stack's own source code")
     expect(exec("open('src/cli/main.ts', 'w').write('x')", 'py', repo, { ...self, cwd: repo })).toEqual({})
   })
 

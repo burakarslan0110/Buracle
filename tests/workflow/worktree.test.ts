@@ -163,7 +163,7 @@ describe('worktree cleanup', () => {
     expect((await worktreeCleanup('second', { force: false, discard: false }, ctx)).lines[0]).toContain('Nothing to clean up')
   }), 60_000)
 
-  test('in phase verify, discarding the plan\'s worktree ends a held merge-decision pause; a lane worktree an older Buracle left and a refused cleanup do not (HOOKS-WORKFLOW-3)', () => sandbox(async root => {
+  test('in phase verify, discarding the plan\'s worktree ends a held merge-decision pause; a lane worktree an older Buracle Stack left and a refused cleanup do not (HOOKS-WORKFLOW-3)', () => sandbox(async root => {
     const { repo } = await setup(root)
     const ctx = ctxAt(repo)
     const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])

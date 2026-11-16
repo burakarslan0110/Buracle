@@ -1,6 +1,6 @@
 # Contributing
 
-Buracle is one developer's harness, published as it is. Bug reports, questions and small, focused pull requests are
+Buracle Stack is one developer's harness, published as it is. Bug reports, questions and small, focused pull requests are
 welcome. For a larger change, open an issue first.
 
 ## Set up

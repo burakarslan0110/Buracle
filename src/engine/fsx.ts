@@ -6,12 +6,12 @@ export type ReadResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: string; code: 'missing' | 'parse' | 'io' }
 
-// The one spelling of a path that Buracle compares: links resolved. Throws like realpathSync.
+// The one spelling of a path that Buracle Stack compares: links resolved. Throws like realpathSync.
 export function realPath(p: string): string {
   return realpathSync.native(p)
 }
 
-// A path from another source (git, a harness's cwd) in the form Buracle compares: resolved against base or the cwd.
+// A path from another source (git, a harness's cwd) in the form Buracle Stack compares: resolved against base or the cwd.
 export function comparablePath(p: string, base?: string): string {
   return base !== undefined ? resolve(base, p) : resolve(p)
 }

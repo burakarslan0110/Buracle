@@ -73,7 +73,7 @@ describe('cortexdb toolchain: the newest release', () => {
     expect(readdirSync(cortexdbDir()).sort()).toEqual(['2.154.0', '2.155.0'])
   })))
 
-  test.if(supported)('a new version that fails Buracle\'s check is not used: the installed one stays, and the newer one is named', () => withSandbox(() => withEnv({ BURACLE_CORTEXDB_BIN: undefined }, async () => {
+  test.if(supported)('a new version that fails Buracle Stack\'s check is not used: the installed one stays, and the newer one is named', () => withSandbox(() => withEnv({ BURACLE_CORTEXDB_BIN: undefined }, async () => {
     await installCortexdb({ fetch: releases('2.144.0', { '2.144.0': bin('v2144') }).fetch })
     let switched = false
     const got = await installCortexdb({
@@ -111,7 +111,7 @@ describe('cortexdb toolchain: the newest release', () => {
     await installCortexdb({ fetch: releases('2.136.9', { '2.136.9': bin('v21369') }).fetch })
     const check = checkCortexdb()
     expect(check.status).toBe('old')
-    if (check.status === 'old') expect(check.detail).toBe(`CortexDB 2.136.9 is older than the ${CORTEXDB_MIN_VERSION} Buracle needs (buracle install takes the newest release)`)
+    if (check.status === 'old') expect(check.detail).toBe(`CortexDB 2.136.9 is older than the ${CORTEXDB_MIN_VERSION} Buracle Stack needs (buracle install takes the newest release)`)
     // Without a network the old one cannot be replaced, and the install says why.
     expect(await installCortexdb({ fetch: offline })).toMatchObject({ ok: false })
     expect(await installCortexdb({ fetch: releases('2.154.0', { '2.154.0': bin('v2154') }).fetch })).toMatchObject({ ok: true, version: '2.154.0', changed: true })

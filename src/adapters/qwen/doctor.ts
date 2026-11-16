@@ -31,23 +31,23 @@ export async function qwenDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   const bin = await detectBinary('qwen')
   if (!bin.installed) return [{ level: 'warn', check: 'qwen.binary', detail: 'qwen is not on PATH; nothing to check' }]
   const min = MIN_VERSIONS.qwen
-  if (bin.version !== undefined && compareVersions(bin.version, min) < 0) out.push({ level: 'error', check: 'qwen.version', detail: `Qwen Code ${bin.version} is older than ${min}, the oldest Buracle supports (hook events and the ~/.agents/skills folder); update it with the installer that installed it` })
+  if (bin.version !== undefined && compareVersions(bin.version, min) < 0) out.push({ level: 'error', check: 'qwen.version', detail: `Qwen Code ${bin.version} is older than ${min}, the oldest Buracle Stack supports (hook events and the ~/.agents/skills folder); update it with the installer that installed it` })
   else out.push({ level: 'ok', check: 'qwen.version', detail: `Qwen Code ${bin.version ?? '(version unknown)'} (minimum ${min})` })
 
   const file = settingsPath(ctx)
   let settings: Record<string, unknown> = {}
   if (!existsSync(file)) return [...out, { level: 'warn', check: 'qwen.settings', detail: `${file} does not exist: run \`buracle install qwen\`` }]
   const parsed = jsoncParse(readFileSync(file, 'utf8'))
-  if (!parsed.ok) return [...out, { level: 'error', check: 'qwen.settings', detail: `${file} is not valid JSON (${parsed.error}); Buracle does not touch it, so its hooks cannot be registered` }]
+  if (!parsed.ok) return [...out, { level: 'error', check: 'qwen.settings', detail: `${file} is not valid JSON (${parsed.error}); Buracle Stack does not touch it, so its hooks cannot be registered` }]
   settings = rec(parsed.value)
 
-  if (settings['disableAllHooks'] === true) out.push({ level: 'error', check: 'qwen.hooks', detail: `disableAllHooks is true in ${file}: no Buracle hook runs, including the guards` })
+  if (settings['disableAllHooks'] === true) out.push({ level: 'error', check: 'qwen.hooks', detail: `disableAllHooks is true in ${file}: no Buracle Stack hook runs, including the guards` })
   const hooks = rec(settings['hooks'])
   const want = qwenHooks(ctx.canonical)
   const missing = QWEN_HOOK_EVENTS.filter(e => (want[e]?.length ?? 0) > 0 && !(Array.isArray(hooks[e]) && (hooks[e] as unknown[]).some(g => rec(g)['hooks'] !== undefined && (rec(g)['hooks'] as unknown[]).some(h => isBuracleCommand(rec(h)['command'])))))
-  if (missing.length > 0) out.push({ level: 'error', check: 'qwen.hooks', detail: `no Buracle hook for ${missing.join(', ')} in ${file}: run \`buracle install qwen\`` })
+  if (missing.length > 0) out.push({ level: 'error', check: 'qwen.hooks', detail: `no Buracle Stack hook for ${missing.join(', ')} in ${file}: run \`buracle install qwen\`` })
   else {
-    out.push({ level: 'ok', check: 'qwen.hooks', detail: `Buracle hooks for ${QWEN_HOOK_EVENTS.filter(e => (want[e]?.length ?? 0) > 0).length} events in ${file} (user-level hooks need no approval)` })
+    out.push({ level: 'ok', check: 'qwen.hooks', detail: `Buracle Stack hooks for ${QWEN_HOOK_EVENTS.filter(e => (want[e]?.length ?? 0) > 0).length} events in ${file} (user-level hooks need no approval)` })
     const guard = rec(((hooks['PreToolUse'] as unknown[]) ?? []).map(rec).flatMap(g => (Array.isArray(g['hooks']) ? g['hooks'] as unknown[] : [])).map(rec).find(h => isBuracleCommand(h['command'])))
     if (typeof guard['command'] === 'string') out.push(await guardProbe(guard['command'], ctx.paths.home()))
   }
@@ -58,15 +58,15 @@ export async function qwenDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
 
   const statusCmd = rec(rec(settings['ui'])['statusLine'])['command']
   if (typeof statusCmd !== 'string') out.push({ level: 'warn', check: 'qwen.statusLine', detail: `no ui.statusLine in ${file}: run \`buracle install qwen\`` })
-  else if (!isBuracleStatusLine(statusCmd)) out.push({ level: 'warn', check: 'qwen.statusLine', detail: `ui.statusLine runs ${JSON.stringify(statusCmd)}, not Buracle's status line (kept as the user's choice)` })
+  else if (!isBuracleStatusLine(statusCmd)) out.push({ level: 'warn', check: 'qwen.statusLine', detail: `ui.statusLine runs ${JSON.stringify(statusCmd)}, not Buracle Stack's status line (kept as the user's choice)` })
   else out.push({ level: 'ok', check: 'qwen.statusLine', detail: `ui.statusLine in ${file} runs \`buracle statusline qwen\`` })
 
-  // Buracle's tips ride in `ui.customWittyPhrases`; Qwen Code shows those phrases only in the `witty` and `all` modes (default `off`, 1.0.0-preview.1).
+  // Buracle Stack's tips ride in `ui.customWittyPhrases`; Qwen Code shows those phrases only in the `witty` and `all` modes (default `off`, 1.0.0-preview.1).
   if ((ctx.canonical.tips ?? []).length > 0) {
     const mode = rec(settings['ui'])['loadingPhrases']
     out.push(mode === 'witty' || mode === 'all'
-      ? { level: 'ok', check: 'qwen.tips', detail: `ui.loadingPhrases is ${mode}: Buracle's tips show while the model works` }
-      : { level: 'warn', check: 'qwen.tips', detail: `Buracle's tips show only when ui.loadingPhrases is "witty" or "all" (it is ${typeof mode === 'string' ? JSON.stringify(mode) : 'unset, so "off"'} in ${file}); Buracle leaves that setting to you` })
+      ? { level: 'ok', check: 'qwen.tips', detail: `ui.loadingPhrases is ${mode}: Buracle Stack's tips show while the model works` }
+      : { level: 'warn', check: 'qwen.tips', detail: `Buracle Stack's tips show only when ui.loadingPhrases is "witty" or "all" (it is ${typeof mode === 'string' ? JSON.stringify(mode) : 'unset, so "off"'} in ${file}); Buracle Stack leaves that setting to you` })
   }
 
   // The always-loaded rules (a block in QWEN.md), the path rules, the review agents and the commands are files the install writes.
@@ -76,7 +76,7 @@ export async function qwenDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   const absent = qwenContentFiles(ctx.canonical).map(f => f.path).filter(p => !existsSync(join(home, p)))
   out.push(hasBlock && absent.length === 0
     ? { level: 'ok', check: 'qwen.content', detail: `the rules block in ${memory}, the path rules, the review agents and the commands are in ${home}` }
-    : { level: 'warn', check: 'qwen.content', detail: `${[...(hasBlock ? [] : [`the Buracle block in ${memory}`]), ...absent.map(p => join(home, p))].join(', ')} missing: run \`buracle install qwen\`` })
+    : { level: 'warn', check: 'qwen.content', detail: `${[...(hasBlock ? [] : [`the Buracle Stack block in ${memory}`]), ...absent.map(p => join(home, p))].join(', ')} missing: run \`buracle install qwen\`` })
 
   const skills = join(ctx.paths.agentsDir(), 'skills')
   out.push(existsSync(skills) ? { level: 'ok', check: 'qwen.skills', detail: `Qwen Code reads the skills from ${skills}` } : { level: 'warn', check: 'qwen.skills', detail: `${skills} does not exist: run \`buracle install\`` })

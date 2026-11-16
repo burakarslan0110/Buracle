@@ -155,10 +155,10 @@ async function installRun(root: string, env: Record<string, string> = {}): Promi
 }
 
 describe.skipIf(!run)('install.sh: two sections, the log and the hand-over to `buracle install --script`', () => {
-  test('without a terminal: Prerequisites and Buracle as one line each, the child output in the log, `--script --yes` with the log and the start time', () => withSandbox(async ({ root }) => {
+  test('without a terminal: Prerequisites and Buracle Stack as one line each, the child output in the log, `--script --yes` with the log and the start time', () => withSandbox(async ({ root }) => {
     const r = await installRun(root)
     expect(r.code).toBe(0)
-    expect(r.out).toBe('✔ Prerequisites   git, curl, Bun 1.4.3\n✔ Buracle         ~/co · main @ abc1234\n✔ Harnesses       claude\n')
+    expect(r.out).toBe('✔ Prerequisites   git, curl, Bun 1.4.3\n✔ Buracle Stack   ~/co · main @ abc1234\n✔ Harnesses       claude\n')
     expect(r.out).not.toContain('\u001b')
     const log = join(root, '.buracle', 'logs', `install-${today()}.log`)
     const text = readFileSync(log, 'utf8')
@@ -166,7 +166,7 @@ describe.skipIf(!run)('install.sh: two sections, the log and the hand-over to `b
     expect(text).toContain('bun install v1.4.3 (120 packages)')
     expect(readFileSync(join(root, 'bun-args'), 'utf8').trim()).toMatch(new RegExp(`^src/cli/main\\.ts install --script --log ${log.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} --started \\d{13} --yes$`))
     const again = await installRun(root)
-    expect(again.out.split('\n')[1]).toBe('✔ Buracle         ~/co · main @ abc1234')
+    expect(again.out.split('\n')[1]).toBe('✔ Buracle Stack   ~/co · main @ abc1234')
     expect(readFileSync(join(root, 'ran.log'), 'utf8')).toContain('pull --ff-only')
   }))
 
@@ -182,7 +182,7 @@ describe.skipIf(!run)('install.sh: two sections, the log and the hand-over to `b
 
   test('a C locale gets the ASCII icons and separator', () => withSandbox(async ({ root }) => {
     const r = await installRun(root, { LANG: 'C', LC_ALL: 'C' })
-    expect(r.out.split('\n').slice(0, 2)).toEqual(['+ Prerequisites   git, curl, Bun 1.4.3', '+ Buracle         ~/co - main @ abc1234'])
+    expect(r.out.split('\n').slice(0, 2)).toEqual(['+ Prerequisites   git, curl, Bun 1.4.3', '+ Buracle Stack   ~/co - main @ abc1234'])
   }))
 
   test('`buracle install` exit 2 (installed with warnings) ends the script with 0; any other code with 1 and the log path', () => withSandbox(async ({ root }) => {
@@ -207,16 +207,16 @@ describe.skipIf(!run)('install.sh: two sections, the log and the hand-over to `b
     expect(readFileSync(join(root, '.buracle', 'logs', `install-${today()}.log`), 'utf8')).toContain('Could not resolve host: bun.sh')
   }))
 
-  test('a failed `bun install` stops at Buracle with the log path', () => withSandbox(async ({ root }) => {
+  test('a failed `bun install` stops at Buracle Stack with the log path', () => withSandbox(async ({ root }) => {
     const r = await installRun(root, { BUN_INSTALL_EXIT: '1' })
     expect(r.code).toBe(1)
-    expect(r.out.split('\n')[1]).toBe(`✖ Buracle         bun install failed · log ~/.buracle/logs/install-${today()}.log`)
+    expect(r.out.split('\n')[1]).toBe(`✖ Buracle Stack   bun install failed · log ~/.buracle/logs/install-${today()}.log`)
     expect(existsSync(join(root, 'bun-args'))).toBe(false)
   }))
 
   test('the section names, their order and widths are the ones of src/cli/ui/sections.ts', () => {
     const sh = readFileSync(SCRIPT, 'utf8')
-    expect(/^SECTION_ORDER=\(([^)]*)\)/m.exec(sh)?.[1]?.split(' ')).toEqual([...SECTION_ORDER])
+    expect(/^SECTION_ORDER=\(([^)]*)\)/m.exec(sh)?.[1]?.match(/"[^"]*"|[^\s"]+/g)?.map(w => w.replaceAll('"', ''))).toEqual([...SECTION_ORDER])
     expect(sh).toContain(`'%s %-${NAME_WIDTH}s%s\\n'`)
     expect(sh).toContain(`'    %s %-${ITEM_NAME_WIDTH}s %s\\n'`)
   })
@@ -280,10 +280,10 @@ describe.skipIf(!run)('install.sh shows the logo', () => {
     expect(await banner(root, { FORCE_COLOR: '0' })).toBe(PLAIN)
   }))
 
-  test('a terminal too narrow for the logo gets one line; 54 columns hold the logo', () => withSandbox(async ({ root }) => {
-    expect(await banner(root, { COLUMNS: '50' })).toBe(`\n  buracle  ${TAGLINE}\n\n`)
-    expect(await banner(root, { COLUMNS: '53' })).toBe(`\n  buracle  ${TAGLINE}\n\n`)
-    expect(await banner(root, { COLUMNS: '54' })).toBe(PLAIN)
+  test('a terminal too narrow for the logo gets one line; 94 columns hold the logo', () => withSandbox(async ({ root }) => {
+    expect(await banner(root, { COLUMNS: '90' })).toBe(`\n  buracle stack  ${TAGLINE}\n\n`)
+    expect(await banner(root, { COLUMNS: '93' })).toBe(`\n  buracle stack  ${TAGLINE}\n\n`)
+    expect(await banner(root, { COLUMNS: '94' })).toBe(PLAIN)
   }))
 
   test('it is the first thing the installer prints, and --help does not print it', () => withSandbox(async ({ root }) => {
@@ -299,7 +299,7 @@ describe.skipIf(!run)('install.sh shows the logo', () => {
     const help = Bun.spawn([BASH as string, SCRIPT, '--help'], { env: { ...process.env, PATH: process.env['PATH'] ?? '', HOME: root, LANG: 'en_US.UTF-8' }, stdout: 'pipe', stderr: 'pipe' })
     const [helpOut, helpCode] = await Promise.all([new Response(help.stdout).text(), help.exited])
     expect(helpCode).toBe(0)
-    expect(helpOut).toContain('Installs Buracle on macOS and Linux')
+    expect(helpOut).toContain('Installs Buracle Stack on macOS and Linux')
     expect(helpOut).not.toContain('██')
   }))
 })

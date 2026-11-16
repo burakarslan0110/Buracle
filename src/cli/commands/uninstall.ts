@@ -16,26 +16,26 @@ import { removeLocalBinFromPath } from '../../engine/update/shell-path'
 import { resultLines, type ResultLines, type ResultState } from '../ui/steps'
 
 export const name = 'uninstall'
-export const summary = 'Remove everything Buracle installed (ledger-proven), undo its commands; never touches the memory'
+export const summary = 'Remove everything Buracle Stack installed (ledger-proven), undo its commands; never touches the memory'
 export const usage = `Usage: buracle uninstall [--purge-state] [--dry-run] [--yes] [--json]
 
-Removes only what the ownership ledger proves Buracle wrote and that still holds
-Buracle's content. Values you changed are kept and reported; values that were
-already yours before Buracle (adopted) are left in place, and so are the keys
+Removes only what the ownership ledger proves Buracle Stack wrote and that still holds
+Buracle Stack's content. Values you changed are kept and reported; values that were
+already yours before Buracle Stack (adopted) are left in place, and so are the keys
 you added to config.yaml. A harness adapter's own uninstall plan
 runs first (e.g. \`omp plugin uninstall buracle-omp\`); commands that a committed
 transaction ran (e.g. \`claude plugin install\`) are then undone with their
 recorded undo command, once. Then each harness's files and keys are removed in
-transactions of their own, Buracle's core (the shim, the PATH link) last: one
+transactions of their own, Buracle Stack's core (the shim, the PATH link) last: one
 harness failing never rolls back the others. A harness that is running (Codex
 rewrites its own config) is left alone and reported. The whole uninstall holds
 the transaction lock. The memory (~/.buracle/brain, the CortexDB files) is never
 touched, not even by --purge-state; neither is the old Obsidian vault
 (~/Documents/Buracle).
 
-Outside the ledger: the Buracle Console is stopped; the PATH lines the install
+Outside the ledger: the Buracle Stack Console is stopped; the PATH lines the install
 added to your shell's startup file are taken out; the system tools the install
-downloaded (node, uv, rg, jq in ~/.buracle/toolchain/system) are removed. Files Buracle
+downloaded (node, uv, rg, jq in ~/.buracle/toolchain/system) are removed. Files Buracle Stack
 wrote into your projects without a ledger entry (the .codegraph/ index, the managed blocks
 of .sembleignore and .git/info/exclude, .claude/skills links to .agents/skills) are
 listed with how to remove them, never deleted. The rest of the toolchain
@@ -50,17 +50,17 @@ Options:
   --purge-state         also delete ~/.buracle state (state/, sessions/, run/, cache/, logs/,
                         backups/, journal/, bin/, toolchain/ with the npm and uv packages,
                         runtime/ with the frozen runtimes the hooks run, and the state folders
-                        an older Buracle release wrote); config.yaml and the memory (brain/)
+                        an older Buracle Stack release wrote); config.yaml and the memory (brain/)
                         are kept.
                         Skipped when anything failed, so the records stay for a retry. When
-                        BURACLE_HOME is not a directory of Buracle's own, only Buracle's files
+                        BURACLE_HOME is not a directory of Buracle Stack's own, only Buracle Stack's files
                         are removed there. System tools installed with Homebrew stay
                         installed.
   --dry-run            show what would be removed and which undo commands would run
   --yes, -y             do not ask for confirmation (required when stdin is not a terminal)
   --json                machine-readable result
 
-Exit codes: 0 ok, 1 error (Buracle's core could not be removed), 2 items kept, an
+Exit codes: 0 ok, 1 error (Buracle Stack's core could not be removed), 2 items kept, an
 undo, a harness or a running harness left out, or confirmation needed;
 130/143 interrupted.`
 
@@ -177,7 +177,7 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
   for (const e of ad.errors) res.warnings.push(`${e.source}: its uninstall plan failed (${e.error}); the generic removal and the recorded undo commands clean up instead`)
   const busy = new Set<string>(ad.busy.map(b => b.harness))
   res.busy = [...busy]
-  for (const b of ad.busy) res.notes.push(`${b.message} Buracle left ${b.harness} as it is; quit it and run \`buracle uninstall\` again (in a terminal it asks whether to change it anyway).`)
+  for (const b of ad.busy) res.notes.push(`${b.message} Buracle Stack left ${b.harness} as it is; quit it and run \`buracle uninstall\` again (in a terminal it asks whether to change it anyway).`)
   res.harnesses = ad.plans.map(a => a.harness)
 
   const preview = composeUninstall(ledger, journals, record, vault, { skipKeys: removedKeys(ad.plans), skipUndos: adapterUndoArgvs(ad.plans), skipOwners: busy })
@@ -227,7 +227,7 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
         return
       }
       if (!json) io.stdout.write(`buracle uninstall: ${what} will be removed.\n`)
-      if (!(await opsDeps.confirm('Uninstall Buracle?'))) {
+      if (!(await opsDeps.confirm('Uninstall Buracle Stack?'))) {
         res.ok = false
         res.code = 2
         res.notes.push('Cancelled; nothing was removed.')
@@ -307,14 +307,14 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
     res.projectLeftovers = projectLeftovers()
     const ui = await stopMemoryUi()
     res.memoryUi = ui.status
-    if (ui.status === 'still-running') res.warnings.push(`the Buracle Console at ${ui.url ?? '?'} did not stop; end its process by hand`)
+    if (ui.status === 'still-running') res.warnings.push(`the Buracle Stack Console at ${ui.url ?? '?'} did not stop; end its process by hand`)
     if (!coreFailed) {
       const shell = removeLocalBinFromPath()
-      if (shell.removed && shell.file !== undefined) res.notes.push(`Removed the PATH lines Buracle added to ${[shell.file, ...(shell.also ?? [])].map(f => tilde(f)).join(', ')}.`)
+      if (shell.removed && shell.file !== undefined) res.notes.push(`Removed the PATH lines Buracle Stack added to ${[shell.file, ...(shell.also ?? [])].map(f => tilde(f)).join(', ')}.`)
       else if (shell.note !== undefined) res.warnings.push(tildeText(shell.note))
       try {
         const tools = await removeDownloadedTools(Date.now())
-        if (tools.length > 0) res.notes.push(`Removed the system tools Buracle downloaded (${tools.join(', ')}) from ${tilde(paths.systemToolsDir())}.`)
+        if (tools.length > 0) res.notes.push(`Removed the system tools Buracle Stack downloaded (${tools.join(', ')}) from ${tilde(paths.systemToolsDir())}.`)
       } catch (e) {
         res.warnings.push(`the downloaded system tools in ${tilde(paths.systemToolsDir())} could not be removed: ${errText(e)}`)
       }
@@ -360,19 +360,19 @@ function render(r: UninstallResult, io: CommandIO, t: ResultLines): void {
       top('ok', `Undid ${r.undone.length} command(s):`)
       for (const c of r.undone) item(tildeText(c))
     }
-    top('ok', r.removed > 0 ? `Removed ${r.removed} change(s)${r.txns.length > 0 ? ` (transaction ${r.txns.join(', ')})` : ''}.` : 'Nothing owned by Buracle needed removing.')
-    if (r.prunedDirs.length > 0) top('ok', `Removed ${r.prunedDirs.length} empty folder(s) Buracle had created.`)
+    top('ok', r.removed > 0 ? `Removed ${r.removed} change(s)${r.txns.length > 0 ? ` (transaction ${r.txns.join(', ')})` : ''}.` : 'Nothing owned by Buracle Stack needed removing.')
+    if (r.prunedDirs.length > 0) top('ok', `Removed ${r.prunedDirs.length} empty folder(s) Buracle Stack had created.`)
   }
   if (r.undoSkipped.length > 0) {
     top('info', `Undo commands not needed${r.dryRun ? '' : ' (recorded as done)'}:`)
     for (const s of r.undoSkipped) item(`${tildeText(s.command)}: ${tildeText(s.detail)}`)
   }
   if (r.kept.length > 0) {
-    top('warn', 'Kept (changed since Buracle wrote them, or not Buracle\'s to change):')
+    top('warn', 'Kept (changed since Buracle Stack wrote them, or not Buracle Stack\'s to change):')
     for (const k of r.kept) item(tildeText(k.detail))
   }
   if (r.adopted.length > 0) {
-    top('info', `Left in place (already yours before Buracle; adopted)${r.dryRun ? ' would be' : ''}:`)
+    top('info', `Left in place (already yours before Buracle Stack; adopted)${r.dryRun ? ' would be' : ''}:`)
     for (const a of r.adopted) item(a)
   }
   if (r.protected.length > 0) {
@@ -383,7 +383,7 @@ function render(r: UninstallResult, io: CommandIO, t: ResultLines): void {
     top('err', 'Undo commands that failed (fix the cause, then run `buracle uninstall` again):')
     for (const f of r.undoFailed) item(`${tildeText(f.command)}: ${tildeText(f.detail)}`)
   }
-  if (r.memoryUi === 'stopped') top('ok', 'Stopped the Buracle Console.')
+  if (r.memoryUi === 'stopped') top('ok', 'Stopped the Buracle Stack Console.')
   if (r.projectLeftovers.length > 0) {
     top('info', `Left in your projects (not in the ownership ledger; remove them by hand if you want)${r.dryRun ? '' : ':'}`)
     for (const l of r.projectLeftovers) item(`${l.path}: ${l.what}; ${l.remove}`)

@@ -274,7 +274,7 @@ export interface ProbeOptions {
   http?: boolean
 }
 
-// The Buracle shim runs through shimArgv; any other server as its catalog command.
+// The Buracle Stack shim runs through shimArgv; any other server as its catalog command.
 export function mcpLaunchArgv(command: string, args: readonly string[], shim: string): string[] {
   if (command === shim) return shimArgv(args, shim) ?? [command, ...args]
   return [command, ...args]

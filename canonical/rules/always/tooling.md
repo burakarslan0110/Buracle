@@ -1,6 +1,6 @@
 # Tool routing (strict)
 
-Use the tool made for the need. Fall back only when it is down or cannot answer, and say which tool failed. Act first on a "Buracle routing for this prompt" note.
+Use the tool made for the need. Fall back only when it is down or cannot answer, and say which tool failed. Act first on a "Buracle Stack routing for this prompt" note.
 
 | Need | Use first | Fallback |
 |---|---|---|

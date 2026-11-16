@@ -47,7 +47,7 @@ describe('G4: what the guard cannot evaluate is refused (fail closed)', () => {
 
 describe('G5: a deleting find across a home folder or the vault is refused', () => {
   test('find -delete, -exec rm and xargs rm starting at the vault, a home folder or the home directory', () => {
-    expect(denied('find ~/Documents/Buracle -type f -delete')).toContain('Buracle memory vault')
+    expect(denied('find ~/Documents/Buracle -type f -delete')).toContain('Buracle Stack memory vault')
     expect(denied('find ~/Documents -type f | xargs rm -f')).toContain('home folder ~/Documents')
     expect(denied('find ~/Documents -type f -print0 | xargs -0 rm')).toContain('home folder ~/Documents')
     expect(denied('find ~/Desktop -name "*.tmp" -exec rm {} +')).toContain('home folder ~/Desktop')
@@ -58,8 +58,8 @@ describe('G5: a deleting find across a home folder or the vault is refused', () 
 
   test('a relocated vault from the guard options is refused as a start point and to rm -r', () => {
     const opts: BashGuardOptions = { ...session, vault: '~/Notes/Brain' }
-    expect(denied('find ~/Notes/Brain -name "*.md" -delete', opts)).toContain('Buracle memory vault')
-    expect(denied('rm -rf ~/Notes', opts)).toContain('Buracle memory vault')
+    expect(denied('find ~/Notes/Brain -name "*.md" -delete', opts)).toContain('Buracle Stack memory vault')
+    expect(denied('rm -rf ~/Notes', opts)).toContain('Buracle Stack memory vault')
     expect(denied('rm -rf ~/Notes/Brain/inbox/tmp', opts)).toBeUndefined()
   })
 

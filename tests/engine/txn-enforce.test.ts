@@ -39,13 +39,13 @@ const bypass = (path: string, extra: Partial<Extract<Op, { kind: 'json-merge' }>
   ({ kind: 'json-merge', path, set: { [MODE]: 'bypassPermissions', [SKIP]: true }, owner: O, enforce: [MODE, SKIP], ...extra })
 
 describe('enforce: JSON keys', () => {
-  test('a value the user set before Buracle is overwritten with a warning, recorded, and put back byte for byte on removal', () => withSandbox(async (sb) => {
+  test('a value the user set before Buracle Stack is overwritten with a warning, recorded, and put back byte for byte on removal', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     const user = '{\n  "permissions": {\n    "defaultMode": "default",\n    "allow": ["Bash(ls)"]\n  },\n  "theme": "dark"\n}\n'
     write(p, user)
     const r = await applyPlans([plan([bypass(p)])])
     expect(r.conflicts).toEqual([])
-    expect(r.warnings).toEqual([`${p} permissions.defaultMode: already set by the user (was "default"); wrote Buracle's value because the key is enforced`])
+    expect(r.warnings).toEqual([`${p} permissions.defaultMode: already set by the user (was "default"); wrote Buracle Stack's value because the key is enforced`])
     expect(json(p)).toEqual({ permissions: { defaultMode: 'bypassPermissions', allow: ['Bash(ls)'] }, theme: 'dark', skipDangerousModePermissionPrompt: true })
     const led = await readLedger()
     expect(led[ledgerKey(p, MODE)]).toMatchObject({ owner: O, displaced: { value: 'default' } })
@@ -60,35 +60,35 @@ describe('enforce: JSON keys', () => {
     expect(await readLedger()).toEqual({})
   }))
 
-  test('a value changed after Buracle wrote it is enforced again; removal restores the value from before Buracle', () => withSandbox(async (sb) => {
+  test('a value changed after Buracle Stack wrote it is enforced again; removal restores the value from before Buracle Stack', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "permissions": {\n    "defaultMode": "default"\n  }\n}\n')
     await applyPlans([plan([bypass(p)])])
     writeFileSync(p, JSON.stringify({ ...json(p), permissions: { defaultMode: 'auto' } }, null, 2) + '\n')
     const flipped = read(p)
     const plain = await applyPlans([plan([{ kind: 'json-merge', path: p, set: { [MODE]: 'bypassPermissions' }, owner: O }])])
-    expect(plain.conflicts.map(c => c.detail)).toEqual([`${p} permissions.defaultMode: modified outside Buracle; keeping the user's value`])
+    expect(plain.conflicts.map(c => c.detail)).toEqual([`${p} permissions.defaultMode: modified outside Buracle Stack; keeping the user's value`])
     expect(plain.warnings).toEqual([])
     expect(read(p)).toBe(flipped)
     const r = await applyPlans([plan([bypass(p)])])
     expect(r.conflicts).toEqual([])
-    expect(r.warnings).toEqual([`${p} permissions.defaultMode: modified outside Buracle (was "auto"); wrote Buracle's value because the key is enforced`])
+    expect(r.warnings).toEqual([`${p} permissions.defaultMode: modified outside Buracle Stack (was "auto"); wrote Buracle Stack's value because the key is enforced`])
     expect((json(p)['permissions'] as Record<string, unknown>)['defaultMode']).toBe('bypassPermissions')
     expect((await readLedger())[ledgerKey(p, MODE)]?.displaced).toEqual({ value: 'default' })
     await applyPlans([plan(removals(await readLedger(), p))])
     expect(json(p)).toEqual({ permissions: { defaultMode: 'default' } })
   }))
 
-  test('a removed enforced key is written again; a key Buracle created is deleted on removal (with the parents it created)', () => withSandbox(async (sb) => {
+  test('a removed enforced key is written again; a key Buracle Stack created is deleted on removal (with the parents it created)', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{}\n')
     expect((await applyPlans([plan([bypass(p)])])).warnings).toEqual([])
     write(p, '{\n  "permissions": {},\n  "skipDangerousModePermissionPrompt": true\n}\n')
     const plain = await applyPlans([plan([{ kind: 'json-merge', path: p, set: { [MODE]: 'bypassPermissions' }, owner: O }])])
-    expect(plain.conflicts[0]?.detail).toContain('removed since Buracle installed it; not re-creating it')
+    expect(plain.conflicts[0]?.detail).toContain('removed since Buracle Stack installed it; not re-creating it')
     const r = await applyPlans([plan([bypass(p)])])
     expect(r.conflicts).toEqual([])
-    expect(r.warnings).toEqual([`${p} permissions.defaultMode: removed since Buracle installed it; wrote Buracle's value because the key is enforced`])
+    expect(r.warnings).toEqual([`${p} permissions.defaultMode: removed since Buracle Stack installed it; wrote Buracle Stack's value because the key is enforced`])
     expect(json(p)).toEqual({ permissions: { defaultMode: 'bypassPermissions' }, skipDangerousModePermissionPrompt: true })
     const led = await readLedger()
     expect(led[ledgerKey(p, MODE)]?.displaced).toBeUndefined()
@@ -97,7 +97,7 @@ describe('enforce: JSON keys', () => {
     expect(json(p)).toEqual({})
   }))
 
-  test('a value that equals Buracle\'s is adopted as before; the user\'s later change to it is taken over and is what removal restores', () => withSandbox(async (sb) => {
+  test('a value that equals Buracle Stack\'s is adopted as before; the user\'s later change to it is taken over and is what removal restores', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "permissions": {\n    "defaultMode": "bypassPermissions"\n  }\n}\n')
     const op: Op = { kind: 'json-merge', path: p, set: { [MODE]: 'bypassPermissions' }, owner: O, enforce: [MODE] }
@@ -105,7 +105,7 @@ describe('enforce: JSON keys', () => {
     expect((await readLedger())[ledgerKey(p, MODE)]?.adopted).toBe(true)
     write(p, '{\n  "permissions": {\n    "defaultMode": "plan"\n  }\n}\n')
     const r = await applyPlans([plan([op])])
-    expect(r.warnings).toEqual([`${p} permissions.defaultMode: set by the user before Buracle (never written by Buracle) (was "plan"); wrote Buracle's value because the key is enforced`])
+    expect(r.warnings).toEqual([`${p} permissions.defaultMode: set by the user before Buracle Stack (never written by Buracle Stack) (was "plan"); wrote Buracle Stack's value because the key is enforced`])
     const e = (await readLedger())[ledgerKey(p, MODE)]
     expect(e?.adopted).toBeUndefined()
     expect(e?.displaced).toEqual({ value: 'plan' })
@@ -134,7 +134,7 @@ describe('enforce: YAML and TOML keys', () => {
     write(p, user)
     const r = await applyPlans([plan([{ kind: 'yaml-merge', path: p, set: { 'tools.approvalMode': 'yolo' }, owner: 'omp', enforce: ['tools.approvalMode'] }])])
     expect(r.conflicts).toEqual([])
-    expect(r.warnings).toEqual([`${p} tools.approvalMode: already set by the user (was "ask"); wrote Buracle's value because the key is enforced`])
+    expect(r.warnings).toEqual([`${p} tools.approvalMode: already set by the user (was "ask"); wrote Buracle Stack's value because the key is enforced`])
     expect(read(p)).toBe('# omp settings\ntools:\n  approvalMode: yolo # my choice\n  bash:\n    timeout: 120\n')
     await applyPlans([plan(removals(await readLedger(), p, 'omp'))])
     expect(read(p)).toBe(user)
@@ -148,8 +148,8 @@ describe('enforce: YAML and TOML keys', () => {
     const r = await applyPlans([plan([op])])
     expect(r.conflicts).toEqual([])
     expect(r.warnings).toEqual([
-      `${p} approval_policy: already defined by the user (was "on-request"); wrote Buracle's value because the key is enforced`,
-      `${p} sandbox_mode: already defined by the user (was "workspace-write"); wrote Buracle's value because the key is enforced`,
+      `${p} approval_policy: already defined by the user (was "on-request"); wrote Buracle Stack's value because the key is enforced`,
+      `${p} sandbox_mode: already defined by the user (was "workspace-write"); wrote Buracle Stack's value because the key is enforced`,
     ])
     expect(tomlParse(read(p))).toMatchObject({ approval_policy: 'never', sandbox_mode: 'danger-full-access', model: 'gpt-6.1-sol', mcp_servers: { mine: { command: 'x' } } })
     expect(read(p)).toContain('approval_policy = "never" # careful')
@@ -164,7 +164,7 @@ describe('enforce: YAML and TOML keys', () => {
     write(p, 'top = 1\n\n[t]\na = 1\n')
     const r = await applyPlans([plan([{ kind: 'toml-tables', path: p, tables: { t: { b: 2 } }, owner: 'codex', enforce: ['t'] }])])
     expect(r.conflicts).toEqual([])
-    expect(r.warnings).toEqual([`${p} [t]: already defined by the user (was {"a":1}); wrote Buracle's value because the key is enforced`])
+    expect(r.warnings).toEqual([`${p} [t]: already defined by the user (was {"a":1}); wrote Buracle Stack's value because the key is enforced`])
     expect(tomlParse(read(p))).toEqual({ top: 1, t: { b: 2 } })
     expect((await readLedger())[ledgerKey(p, '[t]')]?.displaced).toEqual({ value: { a: 1 } })
     await applyPlans([plan(removals(await readLedger(), p, 'codex'))])
@@ -198,7 +198,7 @@ describe('enforce never crosses', () => {
     expect(details[0]).toMatch(/is read-only \(mode 444\); not touching it/)
     expect(details[1]).toContain('is not valid JSON')
     expect(details[2]).toContain('tools.approvalMode is inherited through a YAML merge key')
-    expect(details[3]).toBe(`${aliased} tools.approvalMode: the value is a YAML alias (*m); Buracle does not override it, even for an enforced key; keeping the user's value`)
+    expect(details[3]).toBe(`${aliased} tools.approvalMode: the value is a YAML alias (*m); Buracle Stack does not override it, even for an enforced key; keeping the user's value`)
     expect(details[4]).toContain('cannot be recorded exactly')
     expect(r.warnings).toEqual([])
     expect(r.applied).toBe(0)
@@ -209,7 +209,7 @@ describe('enforce never crosses', () => {
 })
 
 describe('enforce and the transaction safety nets', () => {
-  test('a rollback gives the user\'s value and the ledger back; after a later edit only Buracle\'s key is undone', () => withSandbox(async (sb) => {
+  test('a rollback gives the user\'s value and the ledger back; after a later edit only Buracle Stack\'s key is undone', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     const user = '{\n  "permissions": {\n    "defaultMode": "default"\n  },\n  "theme": "dark"\n}\n'
     write(p, user)
@@ -244,7 +244,7 @@ describe('enforce and the transaction safety nets', () => {
     expect((await readLedger())[ledgerKey(p, MODE)]?.displaced).toEqual({ value: 'default' })
   }))
 
-  test('a rollback of the removal that restored the user\'s value gives Buracle\'s value and record back, also after a later edit', () => withSandbox(async (sb) => {
+  test('a rollback of the removal that restored the user\'s value gives Buracle Stack\'s value and record back, also after a later edit', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "permissions": {\n    "defaultMode": "default"\n  }\n}\n')
     await applyPlans([plan([{ kind: 'json-merge', path: p, set: { [MODE]: 'bypassPermissions' }, owner: O, enforce: [MODE] }])])
@@ -318,7 +318,7 @@ describe('enforce and the transaction safety nets', () => {
       { kind: 'exec', argv: jsonEdit(p, '({...s, enabledPlugins: {}})'), owner: O },
     ])])
     expect(u.conflicts).toEqual([])
-    expect(u.skipped.map(s => s.reason)).toContain('kept in place: it holds the value it had before Buracle')
+    expect(u.skipped.map(s => s.reason)).toContain('kept in place: it holds the value it had before Buracle Stack')
     expect(json(p)).toEqual({ permissions: { defaultMode: 'default' }, enabledPlugins: {} })
     expect(await readLedger()).toEqual({})
   }))
@@ -328,7 +328,7 @@ describe('enforce and the transaction safety nets', () => {
     write(p, '{\n  "permissions": {\n    "defaultMode": "default"\n  }\n}\n')
     const before = world(sb)
     const dry = await applyPlans([plan([bypass(p)])], { dryRun: true })
-    expect(dry.warnings).toEqual([`${p} permissions.defaultMode: already set by the user (was "default"); wrote Buracle's value because the key is enforced`])
+    expect(dry.warnings).toEqual([`${p} permissions.defaultMode: already set by the user (was "default"); wrote Buracle Stack's value because the key is enforced`])
     const d = await diffPlan(plan([bypass(p)]))
     expect(d).toContain('-    "defaultMode": "default"')
     expect(d).toContain('+    "defaultMode": "bypassPermissions"')
@@ -345,7 +345,7 @@ describe('soft keys', () => {
     return soft ? { kind: 'json-merge', path, set, owner: O, soft: Object.keys(EFFORT) } : { kind: 'json-merge', path, set, owner: O }
   }
 
-  test('a value the user changed or removed is kept and skipped (never a conflict); Buracle\'s own value still updates', () => withSandbox(async (sb) => {
+  test('a value the user changed or removed is kept and skipped (never a conflict); Buracle Stack\'s own value still updates', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.claude', 'settings.json')
     write(p, '{\n  "theme": "dark"\n}\n')
     expect((await applyPlans([plan([effortOp(p)])])).conflicts).toEqual([])
@@ -374,7 +374,7 @@ describe('soft keys', () => {
     expect(await readLedger()).toEqual({})
   }))
 
-  test('a value the user had before Buracle is kept and not recorded (YAML, TOML, a YAML merge key)', () => withSandbox(async (sb) => {
+  test('a value the user had before Buracle Stack is kept and not recorded (YAML, TOML, a YAML merge key)', () => withSandbox(async (sb) => {
     const yml = join(sb.home, '.omp', 'agent', 'config.yml')
     const toml = join(sb.home, '.codex', 'config.toml')
     const merged = join(sb.home, 'merged.yml')
@@ -398,7 +398,7 @@ describe('soft keys', () => {
     expect(await readLedger()).toEqual({})
   }))
 
-  test('TOML: a soft key Buracle wrote and the user changed is kept on removal (skipped, not a conflict)', () => withSandbox(async (sb) => {
+  test('TOML: a soft key Buracle Stack wrote and the user changed is kept on removal (skipped, not a conflict)', () => withSandbox(async (sb) => {
     const p = join(sb.home, '.codex', 'config.toml')
     write(p, 'model = "gpt-6.1-sol"\n')
     await applyPlans([plan([{ kind: 'toml-tables', path: p, tables: {}, keys: { model_reasoning_effort: 'xhigh' }, owner: 'codex', soft: ['model_reasoning_effort'] }])])

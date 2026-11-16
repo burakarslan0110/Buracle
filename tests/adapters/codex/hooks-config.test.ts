@@ -73,7 +73,7 @@ describe('trust identity (matches Codex 0.161.0)', () => {
     expect(hookTrustKey('/h/.codex/hooks.json', 'SubagentStop', 0, 1)).toBe('/h/.codex/hooks.json:subagent_stop:0:1')
   })
 
-  test('findBuracleHandlers locates Buracle handlers with keys and hashes', () => {
+  test('findBuracleHandlers locates Buracle Stack handlers with keys and hashes', () => {
     const file = { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'mine.sh' }] }, ...(buracleHooksFile().hooks.PreToolUse ?? [])] } }
     const found = findBuracleHandlers(file, '/h/hooks.json')
     expect(found).toHaveLength(1)
@@ -82,7 +82,7 @@ describe('trust identity (matches Codex 0.161.0)', () => {
   })
 })
 
-describe('Buracle command detection, list identity and duplicates', () => {
+describe('Buracle Stack command detection, list identity and duplicates', () => {
   test('I8: the command honours BURACLE_HOME through shell default syntax; older spellings stay recognised', () => {
     expect(NOW_CMD).toBe('"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" hook codex ')
     expect(hookCommand('Stop')).toBe(`${NOW_CMD}Stop`)
@@ -90,7 +90,7 @@ describe('Buracle command detection, list identity and duplicates', () => {
     for (const prefix of [NOW_CMD, ...LEGACY_HOOK_COMMAND_PREFIXES]) expect(isBuracleCommand(`${prefix}PreToolUse`)).toBe(true)
   })
 
-  test('recognises every spelling of the Buracle hook command', () => {
+  test('recognises every spelling of the Buracle Stack hook command', () => {
     expect(isBuracleCommand(`${CMD}Stop`)).toBe(true)
     expect(isBuracleCommand('/Users/x/.buracle/bin/buracle hook codex Stop')).toBe(true)
     expect(isBuracleCommand('buracle hook codex PreToolUse')).toBe(true)
@@ -99,7 +99,7 @@ describe('Buracle command detection, list identity and duplicates', () => {
     expect(isBuracleCommand('python3 ~/hooks/guard.py')).toBe(false)
   })
 
-  test('every Buracle group has a json-list-merge identity, unique within its event', () => {
+  test('every Buracle Stack group has a json-list-merge identity, unique within its event', () => {
     const idOf = listIdentity(HOOK_GROUP_IDENTITY)
     for (const e of CODEX_HOOK_EVENTS) {
       const ids = (buracleHooksFile().hooks[e] ?? []).map(g => idOf(g))
@@ -113,7 +113,7 @@ describe('Buracle command detection, list identity and duplicates', () => {
     expect(idOf({ hooks: [{ type: 'command', command: `${NOW_CMD}Stop` }] })).toBe(JSON.stringify([null, `${NOW_CMD}Stop`]))
   })
 
-  test('duplicate Buracle handlers per event and matcher are reported', () => {
+  test('duplicate Buracle Stack handlers per event and matcher are reported', () => {
     const ours = buracleHooksFile().hooks
     const handWritten = { hooks: [{ type: 'command', command: '/Users/x/.buracle/bin/buracle hook codex Stop', timeout: 5 }] }
     const file = { hooks: { ...ours, Stop: [handWritten, ...(ours.Stop ?? [])] } }
@@ -174,8 +174,8 @@ describe('consistency with canonical/hooks.yaml', () => {
   })
 })
 
-describe('F03: trust state when Buracle groups are removed (trustMigration)', () => {
-  test('user handlers after a removed Buracle group move their approval; Buracle\'s own entries are dropped', async () => {
+describe('F03: trust state when Buracle Stack groups are removed (trustMigration)', () => {
+  test('user handlers after a removed Buracle Stack group move their approval; Buracle Stack\'s own entries are dropped', async () => {
     const { trustMigration } = await import('../../../src/adapters/codex/hooks-config')
     const P = '/h/.codex/hooks.json'
     const user1 = { hooks: [{ type: 'command', command: 'echo user-audit-1', timeout: 5 }] }

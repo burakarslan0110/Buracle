@@ -44,11 +44,11 @@ describe('pi extension: registration', () => {
 })
 
 describe('pi extension: tool_call (H01, H02, H20)', () => {
-  test('H01 blocks a denied shell command with a Buracle reason and lets an ordinary one through', () => withSandbox(async sb => {
+  test('H01 blocks a denied shell command with a Buracle Stack reason and lets an ordinary one through', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, realGuards())
     const r = await fp.emit('tool_call', call('bash', { command: 'rm -rf ~' }), ctx) as Verdict
     expect(r?.block).toBe(true)
-    expect(r?.reason).toStartWith('Buracle H01: ')
+    expect(r?.reason).toStartWith('Buracle Stack H01: ')
     expect(await fp.emit('tool_call', call('bash', { command: 'ls -la' }, '2'), ctx)).toBeUndefined()
   }))
 
@@ -56,7 +56,7 @@ describe('pi extension: tool_call (H01, H02, H20)', () => {
     const { fp, ctx } = setup(sb, { policy: { ...testDeps().deps.policy!, checkBash: () => { throw new Error('boom') } } })
     const r = await fp.emit('tool_call', call('bash', { command: 'ls' }), ctx) as Verdict
     expect(r?.block).toBe(true)
-    expect(r?.reason).toStartWith('Buracle H01: ')
+    expect(r?.reason).toStartWith('Buracle Stack H01: ')
     await expect(fp.emit('tool_call', call('bash', null, '2'), ctx)).resolves.toBeUndefined()
     expect(await fp.emit('tool_call', call('read', { path: 'a.ts' }, '3'), ctx)).toBeUndefined()
   }))
@@ -69,7 +69,7 @@ describe('pi extension: tool_call (H01, H02, H20)', () => {
     const edit = (newText: string) => fp.emit('tool_call', call('edit', { path: file, edits: [{ oldText: '"allow": []', newText }] }), ctx) as Promise<Verdict>
     expect(await edit('"allow": ["Bash(npm test:*)"]')).toBeUndefined()
     const off = await edit('"allow": [] }, "disableAllHooks": true, "x": {')
-    expect(off?.reason).toStartWith('Buracle H02: ')
+    expect(off?.reason).toStartWith('Buracle Stack H02: ')
     expect(off?.reason).toContain('disableAllHooks')
     expect((await fp.emit('write', null, ctx))).toBeUndefined()
     expect(((await fp.emit('tool_call', call('write', { path: '.claude/settings.local.json', content: '{ "disableAllHooks": true }' }, '2'), ctx)) as Verdict)?.reason).toContain('disableAllHooks')
@@ -78,7 +78,7 @@ describe('pi extension: tool_call (H01, H02, H20)', () => {
   test('H02 protects Pi\'s own extension folder', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, realGuards())
     const r = await fp.emit('tool_call', call('write', { path: join(sb.home, '.pi', 'agent', 'extensions', 'x.ts'), content: 'export {}' }), ctx) as Verdict
-    expect(r?.reason).toStartWith('Buracle H02: ')
+    expect(r?.reason).toStartWith('Buracle Stack H02: ')
   }))
 
   test.skipIf(defaultDeps().evalGuard === undefined)('H01 judges the script of the codemode tool (its `code`), and fails closed when the check cannot run', () => withSandbox(async sb => {
@@ -88,12 +88,12 @@ describe('pi extension: tool_call (H01, H02, H20)', () => {
     })
     const r = await denied.fp.emit('tool_call', call('codemode', { code: "require('child_process').execSync('kubectl delete ns prod')" }), denied.ctx) as Verdict
     expect(r?.block).toBe(true)
-    expect(r?.reason).toContain('Buracle H01: Blocked by the guards.bash.extraDeny pattern')
+    expect(r?.reason).toContain('Buracle Stack H01: Blocked by the guards.bash.extraDeny pattern')
     expect(await denied.fp.emit('tool_call', call('codemode', { code: 'return 1 + 1' }, '2'), denied.ctx)).toBeUndefined()
     const failed = setup(sb, { evalGuard: () => { throw new Error('boom') } })
     const f = await failed.fp.emit('tool_call', call('codemode', { code: '1' }), failed.ctx) as Verdict
     expect(f?.block).toBe(true)
-    expect(f?.reason).toStartWith('Buracle H01: ')
+    expect(f?.reason).toStartWith('Buracle Stack H01: ')
   }))
 
   test('H20 holds a push; the TUI question lets it through once the user agrees, and a refusal is final', () => withSandbox(async sb => {
@@ -104,14 +104,14 @@ describe('pi extension: tool_call (H01, H02, H20)', () => {
     expect(ok).toBeUndefined()
     const refused = setup(sb, base, { sid: '0197a118-8d01-740c-9360-f4f796699f4c', answer: 'Refuse' })
     const no = await refused.fp.emit('tool_call', call('bash', { command: 'git push origin main' }), refused.ctx) as Verdict
-    expect(no?.reason).toStartWith('Buracle H20: ')
+    expect(no?.reason).toStartWith('Buracle Stack H20: ')
   }))
 
   test('H20 holds a push without a TUI (print mode), with the denial text', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, realGuards(), { mode: 'print' })
     const held = await fp.emit('tool_call', call('bash', { command: 'git push origin main' }), ctx) as Verdict
     expect(held?.block).toBe(true)
-    expect(held?.reason).toStartWith('Buracle H20: ')
+    expect(held?.reason).toStartWith('Buracle Stack H20: ')
   }))
 })
 
@@ -185,7 +185,7 @@ describe('pi extension: input (H10, H22)', () => {
     const r = await fp.emit('before_agent_start', { messageType: 'user', prompt: 'EXPANDED PROMPT', systemPrompt: 'BASE' }, ctx) as { message?: { customType: string, content: string, display: boolean } }
     expect(r.message?.customType).toBe('buracle.prompt')
     expect(r.message?.display).toBe(false)
-    expect(r.message?.content).toContain('Buracle routing for this prompt')
+    expect(r.message?.content).toContain('Buracle Stack routing for this prompt')
   }))
 
   test('an input from an extension is not a user prompt', () => withSandbox(async sb => {

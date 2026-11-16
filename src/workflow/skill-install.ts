@@ -235,7 +235,7 @@ function linkState(link: string, target: string): 'absent' | 'ours' | 'foreign' 
 }
 
 function destinationState(id: string, installed: InstalledSkill[]): 'free' | 'installed' | 'buracle' | 'foreign' {
-  // Buracle's own skills are installed into this folder under their ids, so a third-party skill
+  // Buracle Stack's own skills are installed into this folder under their ids, so a third-party skill
   // cannot take one of them.
   // (canonical/skills is the source of harness/agents-skills, which a dev checkout does not carry)
   if (existsSync(join(paths.repoRoot(), 'canonical', 'skills', id, 'SKILL.md'))) return 'buracle'
@@ -272,7 +272,7 @@ function ensureClaudeLink(id: string, warnings: string[]): boolean {
   const target = installedSkillDir(id)
   const state = linkState(link, target)
   if (state === 'ours') return true
-  if (state === 'foreign') { warnings.push(`${link} exists already (not Buracle's link); Claude Code keeps what is there`); return false }
+  if (state === 'foreign') { warnings.push(`${link} exists already (not Buracle Stack's link); Claude Code keeps what is there`); return false }
   try {
     mkdirSync(dirname(link), { recursive: true })
     symlinkSync(target, link)
@@ -320,8 +320,8 @@ export async function skillsAdd(spec: string, opts: AddOptions, ctx: WorkflowCtx
     const audit = auditSkillDir(f.dir)
     const state = destinationState(id, installed)
     const entry: Record<string, unknown> = { id, source: parsed.display, path: f.rel, lint: { errors: report.errors, warnings: report.warnings }, audit: { scripts: audit.scripts, warnings: audit.warnings }, destination: installedSkillDir(id), state }
-    if (state === 'buracle') { errors.push(`${id}: a Buracle skill has this id; choose another with --id`); results.push({ ...entry, installed: false }); continue }
-    if (state === 'foreign' && opts.force !== true) { errors.push(`${id}: ~/.agents/skills/${id} exists and was not installed by Buracle; --force replaces it`); results.push({ ...entry, installed: false }); continue }
+    if (state === 'buracle') { errors.push(`${id}: a Buracle Stack skill has this id; choose another with --id`); results.push({ ...entry, installed: false }); continue }
+    if (state === 'foreign' && opts.force !== true) { errors.push(`${id}: ~/.agents/skills/${id} exists and was not installed by Buracle Stack; --force replaces it`); results.push({ ...entry, installed: false }); continue }
     if (report.errors > 0 && opts.force !== true) {
       errors.push(`${id}: ${report.errors} lint error(s); fix the source or pass --force:`, ...report.findings.filter(x => x.level === 'error').map(formatFinding))
       results.push({ ...entry, installed: false })

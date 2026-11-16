@@ -164,7 +164,7 @@ describe('lsp mcp bridge: the MCP surface', () => {
     const b = bridge(root)
     const md = await b.callTool('diagnostics', { file: 'notes.md' })
     expect(md['isError']).toBe(true)
-    expect(text(md)).toContain('no Buracle language server handles .md files; covered: .py .ts (stub)')
+    expect(text(md)).toContain('no Buracle Stack language server handles .md files; covered: .py .ts (stub)')
     expect(text(await b.callTool('hover', { file: 'gone.ts', line: 1, symbol: 'x' }))).toContain('gone.ts does not exist or is not a file')
     const missing = createLspBridge({ cwd: root, servers: [stubServer()], launch: () => ({ error: 'stub: stub-ls is not installed (run `buracle install`)' }) })
     const r = await missing.callTool('diagnostics', { file: 'a.ts' })

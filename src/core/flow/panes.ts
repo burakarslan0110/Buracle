@@ -38,7 +38,7 @@ export interface ModStatusInfo {
   uiUrl?: string
 }
 
-/** How long an entry of Buracle's harness version cache ($BURACLE_HOME/cache/harness-versions.json) counts. */
+/** How long an entry of Buracle Stack's harness version cache ($BURACLE_HOME/cache/harness-versions.json) counts. */
 export const HARNESS_VERSION_TTL_MS = 12 * 60 * 60_000
 
 /** The cached version of a harness from the cache file's text, or undefined when it is missing, malformed or stale. */
@@ -56,9 +56,9 @@ export function cachedHarnessVersionOf(text: string | undefined, harness: string
 
 export function modStatusLines(i: ModStatusInfo): string[] {
   const lines = [
-    `Buracle ${i.version} · Claude Code${i.claude !== undefined && i.claude !== '' ? ` ${i.claude}` : ''}`,
+    `Buracle Stack ${i.version} · Claude Code${i.claude !== undefined && i.claude !== '' ? ` ${i.claude}` : ''}`,
     `session: ${i.sid !== '' ? i.sid : '-'} · ${i.interactive ? 'interactive' : 'non-interactive'}`,
-    `permissions: ${i.bypass ? "bypass (no approval prompts; Buracle's guards and consent gate protect)" : 'the harness setting'}`,
+    `permissions: ${i.bypass ? "bypass (no approval prompts; Buracle Stack's guards and consent gate protect)" : 'the harness setting'}`,
     `routing: ${i.strictness} · secret masking: ${i.redact ? 'on' : 'off'} · workflow band: ${i.band ? 'on' : 'off'}`,
     `commands: ${i.commands.map(c => `/${c}`).join(' ')}`,
   ]

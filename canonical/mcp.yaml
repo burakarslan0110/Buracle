@@ -79,7 +79,7 @@ servers:
     backend: lazy
 
   buracle-memory:
-    description: Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)
+    description: Buracle Stack memory, the CortexDB brains of the project and the person (search, get, write, update, status)
     transport: stdio
     command: "{buracle}"
     args: ["mcp", "memory"]

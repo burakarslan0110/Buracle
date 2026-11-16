@@ -60,7 +60,7 @@ describe('codex doctor', () => {
       expect(old?.level).toBe('error')
       expect(old?.detail).toContain('update Codex with the installer that installed it')
       expect(old?.detail).not.toContain('`codex update`')
-      // A Codex far newer than any Buracle knows is fine: only the minimum gates it.
+      // A Codex far newer than any Buracle Stack knows is fine: only the minimum gates it.
       for (const v of [MIN_CODEX, '0.999.0', '1.0.0']) {
         expect(by(await codexDoctor(ctx(), fake({ version: v })), 'codex.version')[0]).toMatchObject({ level: 'ok', detail: `codex ${v} (minimum ${MIN_CODEX})` })
       }
@@ -112,7 +112,7 @@ describe('codex doctor', () => {
     const state = found.map(h => `[hooks.state.${JSON.stringify(h.key)}]\ntrusted_hash = ${JSON.stringify(h.hash)}\n`).join('\n')
     writeFileSync(join(home, '.codex', 'config.toml'), readFileSync(join(home, '.codex', 'config.toml'), 'utf8') + '\n' + state)
     const after = by(await codexDoctor(ctx(), fake()), 'codex.hooks.trust')
-    expect(after).toEqual([{ level: 'ok', check: 'codex.hooks.trust', detail: `${found.length} Buracle hook(s) trusted` }])
+    expect(after).toEqual([{ level: 'ok', check: 'codex.hooks.trust', detail: `${found.length} Buracle Stack hook(s) trusted` }])
   }))
 
   test('guard probe: the PreToolUse hook command, run through a shell, must deny a destructive command', () => withSandbox(async ({ home }) => {
@@ -157,7 +157,7 @@ describe('codex doctor', () => {
     expect(by(await codexDoctor(ctx(), fake()), 'codex.path_rules')).toEqual([{ level: 'ok', check: 'codex.path_rules', detail: 'path rules present' }])
   }))
 
-  test('a Buracle handler registered twice is a warning (it would run twice)', () => withSandbox(async ({ home }) => {
+  test('a Buracle Stack handler registered twice is a warning (it would run twice)', () => withSandbox(async ({ home }) => {
     mkdirSync(join(home, '.codex'), { recursive: true })
     const ours = buracleHooksFile().hooks
     const copy = { hooks: [{ type: 'command', command: '/Users/x/.buracle/bin/buracle hook codex Stop', timeout: 20 }] }
@@ -245,11 +245,11 @@ describe('codex doctor', () => {
     // A Codex older than the minimum: the cause and the way out replace Codex's generic advice.
     const tooOld = configLoadCheck(r(doctorJson({ status: 'fail', summary: 'config could not be loaded', details: { error: 'invalid type: string "xhigh", expected struct AgentRoleToml' }, remediation: 'Fix the reported config error, then rerun codex doctor.' })), '0.154.0')
     expect(tooOld.level).toBe('error')
-    expect(tooOld.detail).toContain('older than 0.154.0 and cannot read the keys Buracle writes: update Codex with the installer that installed it, then run `buracle install codex`')
+    expect(tooOld.detail).toContain('older than 0.154.0 and cannot read the keys Buracle Stack writes: update Codex with the installer that installed it, then run `buracle install codex`')
     expect(tooOld.detail).not.toContain('Fix the reported config error')
   })
 
-  test('I8: Buracle MCP commands must resolve (the shim is an error, a missing package runner a warning)', () => {
+  test('I8: Buracle Stack MCP commands must resolve (the shim is an error, a missing package runner a warning)', () => {
     const cfg = '[mcp_servers.buracle-memory]\ncommand = "/nope/bin/buracle"\nargs = ["mcp", "memory"]\n[mcp_servers.context7]\ncommand = "definitely-not-a-runner-x"\n[mcp_servers.grep]\nurl = "https://mcp.grep.app"\n[mcp_servers.sh]\ncommand = "/bin/sh"\nargs = ["-c", "exec \\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\\" mcp memory"]\n'
     const r = mcpCommandProblems(cfg, ['buracle-memory', 'context7', 'grep', 'sh'], { HOME: '/nonexistent-home', PATH: process.env['PATH'] })
     expect(r.errors).toEqual(['buracle-memory: `/nope/bin/buracle` does not exist or is not executable', 'sh: `/nonexistent-home/.buracle/bin/buracle` does not exist or is not executable'])

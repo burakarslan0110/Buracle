@@ -39,10 +39,10 @@ describe('project roots and the folders that are never a project', () => {
     expect(memLookupProject(cache, '/Users/me/notes/x')).toBeUndefined()
   })
 
-  test('the root, the home folder, the vault, Buracle\'s state, job, scratchpad and temp folders are refused', () => {
+  test('the root, the home folder, the vault, Buracle Stack\'s state, job, scratchpad and temp folders are refused', () => {
     const cases: Array<[string, string]> = [
       ['/', 'the filesystem root'], ['/Users/me', 'your home folder'], ['/Users/me/Documents/Buracle/x', 'inside the memory vault'],
-      ['/Users/me/.buracle/brain', "inside Buracle's state folder"], ['/Users/me/.claude/jobs/j1', 'a Claude Code job folder'],
+      ['/Users/me/.buracle/brain', "inside Buracle Stack's state folder"], ['/Users/me/.claude/jobs/j1', 'a Claude Code job folder'],
       ['/x/Scratchpad/y', 'a scratchpad folder'], ['/private/tmp/buracle-x', 'a temporary folder'],
     ]
     for (const [dir, why] of cases) expect({ dir, why: memNonProjectReason(dir, env) }).toEqual({ dir, why })

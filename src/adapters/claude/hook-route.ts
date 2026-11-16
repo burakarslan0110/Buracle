@@ -89,8 +89,8 @@ export function permissionNotice(sid: string, mode: unknown, cfg: BuracleConfig,
   if (!cfg.permissions.bypass || mode === 'bypassPermissions' || mode === 'plan') return undefined
   const restore = cfg.permissions.enforce
     ? 'run `buracle install` to write bypassPermissions back (permissions.enforce), then start a new session'
-    : 'permissions.enforce is off, so Buracle keeps that value; set it back yourself or run `buracle config set permissions.enforce true` and `buracle install`'
-  return `Buracle: this session runs in the "${mode}" permission mode, not bypassPermissions (permissions.bypass is on). Claude Code's one-time "make auto mode your default" prompt, /config or its /doctor skill can change ~/.claude/settings.json; ${restore}.`
+    : 'permissions.enforce is off, so Buracle Stack keeps that value; set it back yourself or run `buracle config set permissions.enforce true` and `buracle install`'
+  return `Buracle Stack: this session runs in the "${mode}" permission mode, not bypassPermissions (permissions.bypass is on). Claude Code's one-time "make auto mode your default" prompt, /config or its /doctor skill can change ~/.claude/settings.json; ${restore}.`
 }
 
 export function lastSessionMode(): { mode: string, at: number, sid: string } | undefined {

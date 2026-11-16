@@ -116,7 +116,7 @@ export function saveWorkspace(ctx: Paths, h: Harness, sid: string, info: Workspa
 
 /** The one shape of a denial on every harness. */
 export function denyReason(hook: HookId, reason: string): string {
-  return `Buracle ${hook}: ${reason.replace(/^Buracle:\s*/, '')}`
+  return `Buracle Stack ${hook}: ${reason.replace(/^Buracle Stack:\s*/, '')}`
 }
 
 export function errText(e: unknown): string {
@@ -126,7 +126,7 @@ export function errText(e: unknown): string {
 /** The denial of a guard that could not run: guards fail closed. */
 export function guardFailed(hook: 'H01' | 'H02', e: unknown): string {
   const what = hook === 'H01' ? 'bash guard could not check this command' : 'write guard could not check the files of this edit'
-  return denyReason(hook, `the ${what} (${errText(e)}), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check \`buracle doctor\`.`)
+  return denyReason(hook, `the ${what} (${errText(e)}), so the call is blocked: Buracle Stack's guards fail closed. Ask the user to run it themselves, or have them check \`buracle doctor\`.`)
 }
 
 /** The denial of a second-opinion fence that could not run; it fails closed like the guards. */

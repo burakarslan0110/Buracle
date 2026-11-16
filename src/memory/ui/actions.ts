@@ -121,8 +121,8 @@ async function target(body: Record<string, unknown>, opts: { editing?: boolean }
   if (got === undefined) throw new UiApiError(404, 'not_found', `there is no memory ${id} in this brain`)
   if (opts.editing !== true && PROTECTED_KINDS.has(got.item.kind)) {
     throw new UiApiError(400, 'protected_kind', got.item.kind === 'core'
-      ? 'core pages are kept by Buracle; edit them instead of deleting them'
-      : 'profile lines come from an older Buracle and are no longer maintained; write a preference memory instead')
+      ? 'core pages are kept by Buracle Stack; edit them instead of deleting them'
+      : 'profile lines come from an older Buracle Stack and are no longer maintained; write a preference memory instead')
   }
   return { scope, id }
 }

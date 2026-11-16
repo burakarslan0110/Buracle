@@ -47,7 +47,7 @@ describe('flow catalog', () => {
     expect(flowPhaseLabel('my-skill', 'draft')).toBe('draft')
   })
 
-  test("a slash command or Skill tool call names a workflow only with Buracle's prefix", () => {
+  test("a slash command or Skill tool call names a workflow only with Buracle Stack's prefix", () => {
     expect(workflowOfSkill('buracle:plan-build')).toBe('plan-build')
     expect(workflowOfSkill('/buracle:project-rules')).toBe('project-rules')
     expect(workflowOfSkill('plan-build')).toBeUndefined()

@@ -13,7 +13,7 @@ export function mcpShimArgv(args: readonly string[]): { command: string, args: s
 }
 
 /**
- * `viaShim` entries (Buracle's own MCP launcher) also get `launcherEnv`: Pi and Oh My Pi both call themselves `pi` in
+ * `viaShim` entries (Buracle Stack's own MCP launcher) also get `launcherEnv`: Pi and Oh My Pi both call themselves `pi` in
  * the MCP handshake, so the harness a server runs for is told by this marker instead (`BURACLE_HARNESS`).
  */
 export function familyMcpEntry(id: string, spec: McpServerSpec, harness: Harness, timeoutPerSecond: number, launcherEnv: Readonly<Record<string, string>> = {}): Record<string, unknown> {

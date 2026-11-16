@@ -121,12 +121,12 @@ export function opencodeAgentFile(agent: AgentDoc, repo: string): string {
   ]
   return [
     '---',
-    `description: ${q('Buracle second-opinion reviewer: one read-only review, then a JSON report.')}`,
+    `description: ${q('Buracle Stack second-opinion reviewer: one read-only review, then a JSON report.')}`,
     'mode: "primary"',
     'permissions:',
     ...rules.map(r => `  - { action: ${q(r.action)}, resource: ${q(r.resource)}, effect: ${q(r.effect)} }`),
     '---',
-    'You are Buracle\'s second-opinion reviewer. Follow the review instructions in the message. You are read-only: never edit, create or delete a file.',
+    'You are Buracle Stack\'s second-opinion reviewer. Follow the review instructions in the message. You are read-only: never edit, create or delete a file.',
     '',
   ].join('\n')
 }
@@ -152,7 +152,7 @@ const opencode: CompanionHost = {
     writeFileSync(join(scratch, '.opencode', 'agents', `${OPENCODE_COMPANION_AGENT}.md`), opencodeAgentFile(o.agent, o.repo))
     writeFileSync(join(scratch, '.opencode', 'opencode.json'), JSON.stringify({ policies: opencodePolicies(o.repo) }, null, 2) + '\n')
     return {
-      argv: ['opencode', 'run', '--standalone', '--agent', OPENCODE_COMPANION_AGENT, '--title', 'Buracle second opinion'],
+      argv: ['opencode', 'run', '--standalone', '--agent', OPENCODE_COMPANION_AGENT, '--title', 'Buracle Stack second opinion'],
       cwd: scratch,
       stdin: o.prompt,
       read: plain,

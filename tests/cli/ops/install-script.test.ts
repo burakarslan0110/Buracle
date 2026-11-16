@@ -118,7 +118,7 @@ describe('buracle install --script', () => {
 
   test('a harness older than the oldest supported version is left out without a question: Harnesses says why, Result names the update', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
-    const tooOld = () => { throw Object.assign(new Error('Codex 0.142.0 is older than 0.154.0, the oldest Codex Buracle supports'), { code: 'HARNESS_TOO_OLD', exitCode: 2, harness: 'codex', version: '0.142.0', min: '0.154.0', update: 'buracle update codex' }) }
+    const tooOld = () => { throw Object.assign(new Error('Codex 0.142.0 is older than 0.154.0, the oldest Codex Buracle Stack supports'), { code: 'HARNESS_TOO_OLD', exitCode: 2, harness: 'codex', version: '0.142.0', min: '0.154.0', update: 'buracle update codex' }) }
     const adapters = [fakeAdapter('claude', { plan: () => filePlan('claude', home, '.claude/x.json') }), fakeAdapter('codex', { version: '0.142.0', plan: tooOld })]
     let asked = 0
     await withDeps({ repoRoot: () => repo, adapters: async () => adapters, runCli: fakeCli().runCli, confirm: async () => { asked++; return true } }, () => withScript({}, async () => {
@@ -143,7 +143,7 @@ describe('buracle install --script', () => {
       unlinkSync(target)
       const removed = memoryIO()
       await installRun(args(join(root, 'r.log'), ['--yes']), removed)
-      expect(lines(removed.out()).filter(l => l.includes('buracle install'))).toEqual(['    ▲ removed      1 Buracle item you removed · buracle install (in a terminal)'])
+      expect(lines(removed.out()).filter(l => l.includes('buracle install'))).toEqual(['    ▲ removed      1 Buracle Stack item you removed · buracle install (in a terminal)'])
 
       const outside = join(root, 'elsewhere.json')
       writeFileSync(outside, '{}\n')
@@ -182,12 +182,12 @@ describe('buracle install --script', () => {
         { section: 'mcp', level: 'error', check: 'context7', detail: 'no answer' },
         { section: 'tools', level: 'warn', check: 'gopls', detail: 'optional, not found' },
         { section: 'hooks', level: 'error', check: 'claude hooks', detail: `the hook command ${join(home, '.buracle', 'bin', 'buracle')} does not start\nrun \`buracle install\` again` },
-        { section: 'tools', level: 'error', check: 'codegraph', detail: 'not found on PATH or in the Buracle toolchain (required); suggestion: `buracle install` (into ~/.buracle/toolchain) (Code graph CLI)' },
+        { section: 'tools', level: 'error', check: 'codegraph', detail: 'not found on PATH or in the Buracle Stack toolchain (required); suggestion: `buracle install` (into ~/.buracle/toolchain) (Code graph CLI)' },
         { section: 'mcp', level: 'error', check: 'cortexdb', detail: 'cortexdb-mcp is not in the toolchain (buracle install)' },
         // The other forms doctor's errors give the advice in (engine/update/runtime.ts, adapters/codex/doctor.ts).
         { section: 'runtime', level: 'error', check: 'runtime', detail: 'the live runtime R is missing: hooks deny every tool call (fail closed) until `buracle install` (or `bun src/cli/main.ts install` in the checkout) restores it' },
         { section: 'runtime', level: 'error', check: 'fingerprint', detail: 'the files of R changed after it was checked (damaged or edited by hand); run `buracle install` to replace it' },
-        { section: 'codex', level: 'error', check: 'codex.hooks', detail: 'Codex cannot start the hooks: P. BURACLE_HOME is H here; install Buracle again (`buracle install codex`) and make sure Codex starts with it.' },
+        { section: 'codex', level: 'error', check: 'codex.hooks', detail: 'Codex cannot start the hooks: P. BURACLE_HOME is H here; install Buracle Stack again (`buracle install codex`) and make sure Codex starts with it.' },
         // A server's raw stderr: colours and a carriage return must not reach the terminal.
         { section: 'mcp', level: 'error', check: 'web-fetch', detail: 'down: \u001b[31mboom\u001b[0m\rX' },
       ],
@@ -201,7 +201,7 @@ describe('buracle install --script', () => {
       expect(out.slice(4, 12)).toEqual([
         '    ✖ context7     mcp · no answer',
         '    ✖ claude hooks hooks · the hook command ~/.buracle/bin/buracle does not start',
-        '    ✖ codegraph    tools · not found on PATH or in the Buracle toolchain (required)',
+        '    ✖ codegraph    tools · not found on PATH or in the Buracle Stack toolchain (required)',
         '    ✖ cortexdb     mcp · cortexdb-mcp is not in the toolchain',
         '    ✖ runtime      runtime · the live runtime R is missing: hooks deny every tool call (fail closed)',
         '    ✖ fingerprint  runtime · the files of R changed after it was checked (damaged or edited by hand)',
@@ -209,7 +209,7 @@ describe('buracle install --script', () => {
         '    ✖ web-fetch    mcp · down: boom X',
       ])
       expect(io.out()).not.toContain('gopls')
-      expect(io.out()).not.toMatch(/buracle install|install Buracle|main\.ts install/)
+      expect(io.out()).not.toMatch(/buracle install|install Buracle Stack|main\.ts install/)
       expect(io.out()).not.toMatch(/[\u001b\r]/)
       expect(out[12]).toBe('    ℹ PATH         ~/.local/bin added in ~/.zshrc · open a new terminal')
       const note = memoryIO()
@@ -270,7 +270,7 @@ describe('buracle install --script', () => {
       session.steps.list.start('tool:codegraph', 'codegraph  npm @colbymchenry/codegraph')
       session.steps.list.finish('tool:codegraph', 'ok', 'codegraph installed')
       session.steps.start('plan', 'Finding the harnesses and planning the changes')
-      expect(await session.ask?.('Put back 1 Buracle item(s) you removed?')).toBe(true)
+      expect(await session.ask?.('Put back 1 Buracle Stack item(s) you removed?')).toBe(true)
       session.steps.start('txn:claude', "Writing Claude Code's configuration")
       session.steps.start('memory', 'Checking the memory')
       session.steps.stop()

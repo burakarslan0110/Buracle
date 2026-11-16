@@ -162,7 +162,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     for (const check of ['codex.permissions', 'codex.routing', 'codex.config']) expect({ check, level: doctor.find(i => i.check === check)?.level }).toEqual({ check, level: 'ok' })
   }), 120_000)
 
-  test('next to the user\'s own hooks: their groups keep their keys, Buracle\'s are appended and Codex hashes them like Buracle', () => withSandbox(async ({ root, home }) => {
+  test('next to the user\'s own hooks: their groups keep their keys, Buracle Stack\'s are appended and Codex hashes them like Buracle Stack', () => withSandbox(async ({ root, home }) => {
     const ctx: AdapterContext = { repoRoot: REPO, config: defaultConfig(), canonical, paths, buracleBin: paths.shimPath() }
     const hooksPath = join(home, '.codex', 'hooks.json')
     mkdirSync(join(home, '.codex'), { recursive: true })
@@ -430,10 +430,10 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       expect(specs.some(s => s['name'] === 'mcp__chrome_devtools')).toBe(false)
       expect(specs.some(s => s['type'] === 'web_search')).toBe(false)
       const texts = developerTexts(first)
-      expect(texts).toContain('Buracle capabilities (Codex)')
+      expect(texts).toContain('Buracle Stack capabilities (Codex)')
       expect(texts).not.toContain('Earlier work: search memory first')
       expect(model.requests.length).toBe(2)
-      expect(model.requests.some(b => JSON.stringify(b).includes('Buracle routing check:'))).toBe(false)
+      expect(model.requests.some(b => JSON.stringify(b).includes('Buracle Stack routing check:'))).toBe(false)
       const [sid] = codexSessions(buracleHome)
       expect(sid).toBeDefined()
       const ledger = loadLedger('codex', sid as string)
@@ -525,7 +525,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       expect({ code: r.code, timedOut: r.timedOut }).toEqual({ code: 0, timedOut: false })
       expect(readFileSync(join(work, 'main.go'), 'utf8')).toContain('ERROR: declared and not used')
       const after = JSON.stringify(model.requests.slice(1))
-      expect(after).toContain('Buracle language server diagnostics after apply_patch:')
+      expect(after).toContain('Buracle Stack language server diagnostics after apply_patch:')
       expect(after).toContain('main.go (gopls): 1 error')
       expect(after).toContain('2:14  error E1  declared and not used: x [stub]')
     } catch (e) {
@@ -540,7 +540,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       const r = await codexExec(env, work, model, ['-c', 'model="gpt-5.5"'], 'clean up')
       expect(r.code).toBe(0)
       const outputs = JSON.stringify(model.requests.flatMap(b => (Array.isArray(b['input']) ? b['input'] : []).filter((i: Record<string, unknown>) => i['type'] === 'function_call_output')))
-      expect(outputs).toContain('Buracle H01')
+      expect(outputs).toContain('Buracle Stack H01')
       expect(existsSync(buracleHome)).toBe(true)
     } finally { model.stop() }
   }), 120_000)
@@ -667,7 +667,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       expect(r.code).toBe(0)
       expect(developerTexts(model.requests[0] as Record<string, any>)).toContain('read ~/.agents/skills/research/SKILL.md')
       expect(model.requests.length).toBe(2)
-      expect(JSON.stringify(model.requests[1])).toContain('Buracle routing check: the user asked for research')
+      expect(JSON.stringify(model.requests[1])).toContain('Buracle Stack routing check: the user asked for research')
     } finally { model.stop() }
   }), 120_000)
 })

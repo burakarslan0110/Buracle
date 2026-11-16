@@ -431,12 +431,12 @@ export async function write(ctx: MemoryCtx, input: WriteInput, trusted: TrustedW
   const kindRaw = input.kind ?? input.type
   if (!isMemKind(kindRaw)) throw new MemoryError('invalid_input', `type must be one of: ${WRITABLE_KINDS.join(', ')}`)
   const kind: MemKind = kindRaw
-  // Nobody writes a convention or a profile memory any more, Buracle itself included; the stored ones stay readable.
-  if (READ_ONLY_KINDS.includes(kind)) throw new MemoryError('invalid_input', `${kind} memories come from an older Buracle and are no longer written; write a preference memory instead`)
+  // Nobody writes a convention or a profile memory any more, Buracle Stack itself included; the stored ones stay readable.
+  if (READ_ONLY_KINDS.includes(kind)) throw new MemoryError('invalid_input', `${kind} memories come from an older Buracle Stack and are no longer written; write a preference memory instead`)
   if (trusted.internal !== true && !WRITABLE_KINDS.includes(kind)) {
     throw new MemoryError('invalid_input', kind === 'core'
       ? 'core pages exist already (core-brief, core-architecture, …): change one with memory_update'
-      : `${kind} memories are written by Buracle itself; agents write ${WRITABLE_KINDS.join(', ')}`)
+      : `${kind} memories are written by Buracle Stack itself; agents write ${WRITABLE_KINDS.join(', ')}`)
   }
   const title = cleanText(str(input.title), LIMITS.title, true)
   if (title.text === '') throw new MemoryError('invalid_input', 'title is required: one line that states the claim')
@@ -573,8 +573,8 @@ export async function update(ctx: MemoryCtx, input: UpdateInput): Promise<Update
     const info = KIND_INFO[cur.kind]
     if (info.generated && ctx.agent) {
       throw new MemoryError('not_editable', cur.kind === 'profile'
-        ? 'profile memories come from an older Buracle and are no longer maintained; write a preference memory instead'
-        : `${cur.kind} memories are written by Buracle and expire by themselves; write a new memory instead`)
+        ? 'profile memories come from an older Buracle Stack and are no longer maintained; write a preference memory instead'
+        : `${cur.kind} memories are written by Buracle Stack and expire by themselves; write a new memory instead`)
     }
     const actor: MemOrigin = originArg(input.origin) ?? (ctx.agent ? 'inferred' : 'explicit')
     const replacedBy = str(patch.merge_into) ?? str(patch.superseded_by)

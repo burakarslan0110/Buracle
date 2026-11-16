@@ -17,14 +17,14 @@ const hook = (event: string, stdin: string, config = defaultConfig()) => handleQ
 const context = (out: { stdout: string }) => String((json(out.stdout)['hookSpecificOutput'] as Record<string, unknown>)['additionalContext'])
 
 describe('PreToolUse: the guards', () => {
-  test('H01 denies a catastrophic shell command in Buracle\'s denial shape; the monitor tool is a shell too', async () => {
+  test('H01 denies a catastrophic shell command in Buracle Stack\'s denial shape; the monitor tool is a shell too', async () => {
     await withSandbox(async () => {
       for (const tool of ['run_shell_command', 'monitor']) {
         const out = await hook('PreToolUse', payload('PreToolUse', { tool_name: tool, tool_input: { command: 'rm -rf ~' } }))
         expect(out.exitCode).toBe(0)
         const o = json(out.stdout)['hookSpecificOutput'] as Record<string, unknown>
         expect(o).toMatchObject({ hookEventName: 'PreToolUse', permissionDecision: 'deny' })
-        expect(String(o['permissionDecisionReason'])).toStartWith('Buracle H01: ')
+        expect(String(o['permissionDecisionReason'])).toStartWith('Buracle Stack H01: ')
       }
     })
   })
@@ -34,7 +34,7 @@ describe('PreToolUse: the guards', () => {
       const secret = join(home, '.ssh', 'id_rsa')
       for (const [tool, input] of [['write_file', { file_path: secret, content: 'x' }], ['edit', { file_path: secret, old_string: 'a', new_string: 'b' }]] as const) {
         const o = json((await hook('PreToolUse', payload('PreToolUse', { tool_name: tool, tool_input: input }))).stdout)['hookSpecificOutput'] as Record<string, unknown>
-        expect({ tool, decision: o['permissionDecision'], reason: String(o['permissionDecisionReason']).slice(0, 13) }).toEqual({ tool, decision: 'deny', reason: 'Buracle H02: ' })
+        expect({ tool, decision: o['permissionDecision'], reason: String(o['permissionDecisionReason']).slice(0, 19) }).toEqual({ tool, decision: 'deny', reason: 'Buracle Stack H02: ' })
       }
       const fine = await hook('PreToolUse', payload('PreToolUse', { tool_name: 'write_file', tool_input: { file_path: '/work/app/a.ts', content: 'x' } }))
       expect(fine.stdout.includes('"deny"')).toBe(false)
@@ -54,7 +54,7 @@ describe('PreToolUse: the guards', () => {
       const out = await hook('PreToolUse', payload('PreToolUse', { tool_name: 'run_shell_command', tool_input: { command: 'git push --force origin main' } }))
       const o = json(out.stdout)['hookSpecificOutput'] as Record<string, unknown>
       expect(o['permissionDecision']).toBe('deny')
-      expect(String(o['permissionDecisionReason'])).toMatch(/^Buracle H0?1|^Buracle H20/)
+      expect(String(o['permissionDecisionReason'])).toMatch(/^Buracle Stack H0?1|^Buracle Stack H20/)
     })
   })
 
@@ -63,7 +63,7 @@ describe('PreToolUse: the guards', () => {
       const out = await hook('PreToolUse', payload('PreToolUse', { tool_name: 'web_search', tool_input: { query: 'bun test' } }))
       const o = json(out.stdout)['hookSpecificOutput'] as Record<string, unknown>
       expect(o['permissionDecision']).toBe('deny')
-      expect(String(o['permissionDecisionReason'])).toStartWith('Buracle H03: ')
+      expect(String(o['permissionDecisionReason'])).toStartWith('Buracle Stack H03: ')
     })
   })
 
@@ -148,7 +148,7 @@ describe('Stop: the stop guard and the routing audit', () => {
       await hook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build add rate limiting', submitted_prompt: '$plan-build add rate limiting' }, process.cwd()))
       const first = json((await hook('Stop', stop)).stdout)
       expect(first['decision']).toBe('block')
-      expect(String(first['reason'])).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
+      expect(String(first['reason'])).toStartWith('Buracle Stack routing check: the user asked for plan-build and it was not loaded.')
       expect(await hook('Stop', stop)).toEqual(QUIET)
     })
   })
@@ -171,7 +171,7 @@ describe('PostToolUse, PostToolUseFailure and the compaction and end events', ()
     })
   })
 
-  test('a successful call of a Buracle server clears nothing it should not, and an edit runs no checker that is not installed', async () => {
+  test('a successful call of a Buracle Stack server clears nothing it should not, and an edit runs no checker that is not installed', async () => {
     await withSandbox(async () => {
       expect((await hook('PostToolUse', payload('PostToolUse', { tool_name: 'mcp__web-search__search', tool_input: {}, tool_response: {} }))).exitCode).toBe(0)
       expect((await hook('PostToolUse', payload('PostToolUse', { tool_name: 'edit', tool_input: { file_path: '/nope/a.txt', old_string: 'a', new_string: 'b' }, tool_response: {} }))).exitCode).toBe(0)

@@ -35,7 +35,7 @@ describe('project memory setup', () => {
     expect(await listAll(projectRef('repo'))).toEqual([])
   }), 30_000)
 
-  test('the redirect an older Buracle wrote is taken back; a value the user set is not touched', () => withMemory(async ({ root }) => {
+  test('the redirect an older Buracle Stack wrote is taken back; a value the user set is not touched', () => withMemory(async ({ root }) => {
     const repo = await makeRepo(root)
     write(join(repo, 'AGENTS.md'), '# Demo\n')
     await applyPlans([{ id: 'memory-project-repo', harness: 'claude', ops: [{ kind: 'json-merge', path: settingsOf(repo), set: { autoMemoryDirectory: join(root, 'vault', 'projects', 'repo', 'claude') }, owner: 'memory' }] }])

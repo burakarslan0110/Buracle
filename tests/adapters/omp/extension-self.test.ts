@@ -22,7 +22,7 @@ function setup(_sb: Sandbox, cwd: string): (toolName: string, input: Record<stri
   return async (toolName, input) => await fp.emit('tool_call', { type: 'tool_call', toolCallId: 'x', toolName, input }, ctx) as Verdict
 }
 
-describe("omp extension with the real guards: Buracle's own setup (SEC-1)", () => {
+describe("omp extension with the real guards: Buracle Stack's own setup (SEC-1)", () => {
   test('a relocated PI_CODING_AGENT_DIR is refused to the write tools, the shell and eval cells', () => withSandbox(async sb => {
     const agent = join(sb.root, 'relocated-omp')
     await withEnv({ PI_CODING_AGENT_DIR: agent }, async () => {
@@ -38,9 +38,9 @@ describe("omp extension with the real guards: Buracle's own setup (SEC-1)", () =
     const repo = paths.repoRoot()
     const target = join(repo, 'harness', 'omp', 'extensions', 'buracle.js')
     const outside = setup(sb, join(sb.root, 'work'))
-    expect((await outside('write', { path: target, content: 'x' }))?.reason).toContain("Buracle's own source code")
-    expect((await outside('bash', { command: `echo x > '${target}'` }))?.reason).toContain("Buracle's own source code")
-    expect((await outside('eval', { language: 'js', code: `require('fs').writeFileSync(${JSON.stringify(target)}, 'x')` }))?.reason).toContain("Buracle's own source code")
+    expect((await outside('write', { path: target, content: 'x' }))?.reason).toContain("Buracle Stack's own source code")
+    expect((await outside('bash', { command: `echo x > '${target}'` }))?.reason).toContain("Buracle Stack's own source code")
+    expect((await outside('eval', { language: 'js', code: `require('fs').writeFileSync(${JSON.stringify(target)}, 'x')` }))?.reason).toContain("Buracle Stack's own source code")
     const inside = setup(sb, join(repo, 'src'))
     expect(await inside('write', { path: join(repo, 'src', 'cli', 'never-written.ts'), content: 'x' })).toBeUndefined()
   }))

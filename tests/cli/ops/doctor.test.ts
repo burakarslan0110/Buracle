@@ -211,13 +211,13 @@ describe('buracle doctor', () => {
 
   test('in a terminal the report starts with one header line; a pipe and --json get none; NO_COLOR writes no escape code', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root)
-    const header = `  buracle v${cliVersion()} · doctor config`
+    const header = `  buracle stack v${cliVersion()} · doctor config`
     const first = (s: string) => stripAnsi(s).split('\n').find(l => l.trim() !== '')
-    const count = (s: string) => stripAnsi(s).split('\n').filter(l => /^ {2}(◉ )?buracle v\S+ · doctor config$/.test(l)).length
+    const count = (s: string) => stripAnsi(s).split('\n').filter(l => /^ {2}(◉ )?buracle stack v\S+ · doctor config$/.test(l)).length
     await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => Date.parse('2026-10-08T00:00:00Z') }, () => withEnv({ TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined }, async () => {
       const live = memoryIO({ liveErr: true, ttyOut: true })
       await doctorRun(['config'], live)
-      expect(first(live.err())).toBe(header.replace('  buracle', '  ◉ buracle'))
+      expect(first(live.err())).toBe(header.replace('  buracle stack', '  ◉ buracle stack'))
       expect(count(live.err()) + count(live.out())).toBe(1)
       const piped = memoryIO()
       await doctorRun(['config'], piped)
@@ -277,7 +277,7 @@ describe('buracle doctor', () => {
     })
   }))
 
-  test('a harness found in a folder PATH does not reach (omp under ~/.bun/bin) is reported: it runs for Buracle and is "command not found" for the user', () => withSandbox(async ({ root, home }) => {
+  test('a harness found in a folder PATH does not reach (omp under ~/.bun/bin) is reported: it runs for Buracle Stack and is "command not found" for the user', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const bunBin = join(home, '.bun', 'bin', 'omp')
     mkdirSync(join(home, '.bun', 'bin'), { recursive: true })
@@ -377,8 +377,8 @@ describe('buracle doctor', () => {
       const checks = (JSON.parse(io.out()) as { checks: Array<{ section: string, level: string, check: string, detail: string }> }).checks
       expect(checks.find(c => c.check === 'toolchain.autoInstall')).toBeUndefined()
       expect(checks.filter(c => c.check.includes(':'))).toEqual([
-        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle's toolchain" },
-        { section: 'tools', level: 'ok', check: 'pypi:probe', detail: "0.3.0 in Buracle's toolchain; 0.4.0 was rolled back" },
+        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle Stack's toolchain" },
+        { section: 'tools', level: 'ok', check: 'pypi:probe', detail: "0.3.0 in Buracle Stack's toolchain; 0.4.0 was rolled back" },
       ])
     })
     writeFileSync(join(buracleHome, 'config.yaml'), 'toolchain:\n  autoInstall: false\n')
@@ -422,7 +422,7 @@ describe('buracle doctor', () => {
     })
   }))
 
-  test('a tool missing from PATH that Buracle\'s toolchain provides counts through its toolchain copy', () => withSandbox(async ({ root }) => {
+  test('a tool missing from PATH that Buracle Stack\'s toolchain provides counts through its toolchain copy', () => withSandbox(async ({ root }) => {
     const bin = fakeExe(join(root, 'tc', 'codegraph'), "console.log('1.6.2')")
     const state = emptyToolchainState()
     state.packages['npm:@colbymchenry/codegraph'] = { registry: 'npm', name: '@colbymchenry/codegraph', version: '1.6.2', dir: join(root, 'tc'), bins: { codegraph: bin }, installed_at: 'x' }
@@ -430,19 +430,19 @@ describe('buracle doctor', () => {
     const absent: ToolSpec = { name: 'semble', check: ['semble', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: true, pypi: 'semble[mcp]' }
     await withDeps({ run: async (argv, opts) => (argv[0] === 'codegraph' || argv[0] === 'semble' ? { code: 127, stdout: '', stderr: '', timedOut: false } : runProcess(argv, opts ?? {})) }, async () => {
       const [cg, sb] = await checkTools([tool, absent], 5000, state)
-      expect(cg).toEqual({ name: 'codegraph', status: 'ok', version: '1.6.2', detail: '1.6.2 (Buracle toolchain)' })
+      expect(cg).toEqual({ name: 'codegraph', status: 'ok', version: '1.6.2', detail: '1.6.2 (Buracle Stack toolchain)' })
       expect(sb).toMatchObject({ status: 'missing' })
     })
   }))
 
-  test('a tool the toolchain provides is reported as that copy, which Buracle runs, though PATH has another version', () => withSandbox(async ({ root }) => {
+  test('a tool the toolchain provides is reported as that copy, which Buracle Stack runs, though PATH has another version', () => withSandbox(async ({ root }) => {
     const bin = fakeExe(join(root, 'tc', 'codegraph'), "console.log('1.6.2')")
     const state = emptyToolchainState()
     state.packages['npm:@colbymchenry/codegraph'] = { registry: 'npm', name: '@colbymchenry/codegraph', version: '1.6.2', dir: join(root, 'tc'), bins: { codegraph: bin }, installed_at: 'x' }
     const tool: ToolSpec = { name: 'codegraph', check: ['codegraph', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: true, npm: '@colbymchenry/codegraph' }
     // A global `npm i -g @colbymchenry/codegraph` of an older release, first on PATH (the Windows report showed 1.6.0).
     await withDeps({ run: async (argv, opts) => (argv[0] === 'codegraph' ? { code: 0, stdout: '1.6.0\n', stderr: '', timedOut: false } : runProcess(argv, opts ?? {})) }, async () => {
-      expect((await checkTools([tool], 5000, state))[0]).toEqual({ name: 'codegraph', status: 'ok', version: '1.6.2', detail: '1.6.2 (Buracle toolchain)' })
+      expect((await checkTools([tool], 5000, state))[0]).toEqual({ name: 'codegraph', status: 'ok', version: '1.6.2', detail: '1.6.2 (Buracle Stack toolchain)' })
     })
   }))
 
@@ -463,7 +463,7 @@ describe('buracle doctor', () => {
     const slow = { code: 124, stdout: '', stderr: '', timedOut: true }
     let runs = 0
     await withDeps({ run: async (argv, opts) => (runs++ === 0 ? slow : runProcess(argv, opts ?? {})) }, async () => {
-      expect((await checkTools([tool], 5000, state))[0]).toEqual({ name: 'semble', status: 'ok', version: '0.7.2', detail: '0.7.2 (Buracle toolchain)' })
+      expect((await checkTools([tool], 5000, state))[0]).toEqual({ name: 'semble', status: 'ok', version: '0.7.2', detail: '0.7.2 (Buracle Stack toolchain)' })
     })
     expect(runs).toBe(2)
     await withDeps({ run: async () => slow }, async () => {
@@ -485,13 +485,13 @@ describe('buracle doctor', () => {
     const pathOnly = new Set(['golangci-lint', 'csharp-ls', 'gopls'])
     await withDeps({ run: async (argv, opts) => (pathOnly.has(argv[0] ?? '') ? { code: 127, stdout: '', stderr: '', timedOut: false } : runProcess(argv, opts ?? {})) }, async () => {
       const [lint, cs, gopls] = await checkTools([golangci, csharp, broken], 5000, emptyToolchainState())
-      expect(lint).toEqual({ name: 'golangci-lint', status: 'ok', version: '2.5.0', detail: '2.5.0 (Buracle toolchain, ~/.buracle/toolchain/go/bin/golangci-lint)' })
+      expect(lint).toEqual({ name: 'golangci-lint', status: 'ok', version: '2.5.0', detail: '2.5.0 (Buracle Stack toolchain, ~/.buracle/toolchain/go/bin/golangci-lint)' })
       expect(cs).toMatchObject({ status: 'ok', version: '0.20.0' })
       expect(gopls).toMatchObject({ status: 'error', detail: expect.stringContaining('does not run: exit 2; run `buracle install`') })
     })
     rmSync(join(goBin, 'golangci-lint'))
     await withDeps({ run: async () => ({ code: 127, stdout: '', stderr: '', timedOut: false }) }, async () => {
-      expect((await checkTools([golangci], 5000, emptyToolchainState()))[0]).toEqual({ name: 'golangci-lint', status: 'missing', detail: 'not found on PATH or in the Buracle toolchain' })
+      expect((await checkTools([golangci], 5000, emptyToolchainState()))[0]).toEqual({ name: 'golangci-lint', status: 'missing', detail: 'not found on PATH or in the Buracle Stack toolchain' })
     })
   }))
 
@@ -579,7 +579,7 @@ describe('buracle doctor', () => {
   })
 
   test('a long fix wraps at the width, its next lines 6 columns in, and is never cut; 14 sections and 5 such problems fit in 40 rows at 80 columns', () => {
-    const fix = 'codex 0.150.0 is older than 0.154.0, the oldest Codex Buracle supports: run `buracle update codex` (it uses the installer that installed Codex, also while this Codex does not start), then `buracle install codex`'
+    const fix = 'codex 0.150.0 is older than 0.154.0, the oldest Codex Buracle Stack supports: run `buracle update codex` (it uses the installer that installed Codex, also while this Codex does not start), then `buracle install codex`'
     const sections = ['config', 'runtime', 'tools', 'skills', 'claude', 'codex', 'opencode', 'omp', 'mcp', 'lsp', 'memory', 'index', 'updates', 'harness']
     const checks: DoctorCheck[] = sections.flatMap(section => Array.from({ length: 6 }, (_, i) => ({ section, level: 'ok' as const, check: `${section}.ok${i}`, detail: 'fine, and a long ok detail that only --all would show at all' })))
     for (const section of ['codex', 'opencode', 'omp', 'mcp', 'memory']) checks.push({ section, level: 'error', check: 'codex.version', detail: fix })
@@ -666,7 +666,7 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       expect(checks.find(c => c.check === 'locks')).toMatchObject({ level: 'warn', detail: expect.stringContaining('is stale: its process 4194303 is gone') })
       const hooks = checks.find(c => c.check === 'hooks')
       expect(hooks?.level).toBe('warn')
-      expect(hooks?.detail).toContain('1 Buracle hook failure(s) in the last 24 h, 1 of them denied the tool call (fail closed)')
+      expect(hooks?.detail).toContain('1 Buracle Stack hook failure(s) in the last 24 h, 1 of them denied the tool call (fail closed)')
       expect(hooks?.detail).toContain('Unexpected <<')
     })
   }))

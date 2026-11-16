@@ -30,7 +30,7 @@ export interface McpDialect {
   /** What stands between the server and the tool. */
   separator: string
   token: McpTokenRule
-  /** Where a plugin's servers carry `<marker><plugin>_` before the server: the marker, and the plugin Buracle's servers come from. */
+  /** Where a plugin's servers carry `<marker><plugin>_` before the server: the marker, and the plugin Buracle Stack's servers come from. */
   plugin?: { marker: string, name: string }
   /** The separator also occurs inside a server token, so with a list of known servers only those are recognised. */
   ambiguous?: boolean
@@ -42,7 +42,7 @@ export interface McpDialect {
   hiddenNote: string
 }
 
-/** A folder of the host that holds Buracle's guards: writes to its `entries` are denied (`''` is the whole folder). */
+/** A folder of the host that holds Buracle Stack's guards: writes to its `entries` are denied (`''` is the whole folder). */
 export interface ProtectedDir { key: string, under: string, entries: readonly string[] }
 
 export interface HarnessProfile {
@@ -61,7 +61,7 @@ export interface HarnessProfile {
   runtime: 'command' | 'inprocess'
   /** The suffix of the command hooks' spool file, where an in-process writer of the same host has the plain one. */
   spoolSuffix?: string
-  /** Buracle knows the host (this profile) but has no adapter for it yet: its hook handlers and installer are stubs. The harness's own task removes this. */
+  /** Buracle Stack knows the host (this profile) but has no adapter for it yet: its hook handlers and installer are stubs. The harness's own task removes this. */
   adapterPending?: true
   /** The host has an adapter but no second-opinion run yet, so it is not offered as a second opinion. The task that adds the run removes this. */
   companionPending?: true
@@ -88,7 +88,7 @@ export interface HarnessProfile {
   /** The denial text for a write into `protectedDirs`. */
   selfText: { what: string, remedy: string }
   skills: {
-    /** Lists the user's `~/.agents/skills` (where Buracle installs the one copy of its skills), the user's `~/.claude/skills` and a project's `.claude/skills` itself. */
+    /** Lists the user's `~/.agents/skills` (where Buracle Stack installs the one copy of its skills), the user's `~/.claude/skills` and a project's `.claude/skills` itself. */
     readsAgentsDir: boolean
     /** For a host that does not read `~/.agents/skills` and gets the skills no other way: the folder of its config dir that holds one link per skill to the installed copy. */
     linkDir?: string
@@ -98,7 +98,7 @@ export interface HarnessProfile {
     invoke: { slash: boolean, namespace?: string, dollar: boolean, at: boolean, commandTag: boolean }
     /** How a user-invocable skill and a protocol are written in rendered prose. */
     mention(id: string, invocable: boolean): string
-    /** The prefix of a Buracle agent's name. */
+    /** The prefix of a Buracle Stack agent's name. */
     agentPrefix: string
     /** The capability card's line on starting and loading skills. */
     howto: string
@@ -163,7 +163,7 @@ function mcpHead(d: McpDialect, server: string): string {
   return `${d.prefix}${d.plugin !== undefined ? `${d.plugin.marker}${d.plugin.name}_` : ''}${mcpToken(d, server)}${d.separator}`
 }
 
-/** The name the host gives a tool of one of Buracle's MCP servers. */
+/** The name the host gives a tool of one of Buracle Stack's MCP servers. */
 export function mcpToolName(d: McpDialect, server: string, tool: string): string {
   const s = mcpToken(d, server)
   let t = d.token(tool, 'tool')
@@ -171,7 +171,7 @@ export function mcpToolName(d: McpDialect, server: string, tool: string): string
   return `${mcpHead(d, server)}${t}`
 }
 
-/** A pattern matching every tool of one of Buracle's MCP servers. */
+/** A pattern matching every tool of one of Buracle Stack's MCP servers. */
 export function mcpToolPattern(d: McpDialect, server: string): string {
   return `${mcpHead(d, server)}*`
 }
