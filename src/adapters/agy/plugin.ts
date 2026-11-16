@@ -21,9 +21,9 @@ const asString = (v: unknown): string | undefined => (typeof v === 'string' && v
 export function pluginManifest(version: string): PluginFile {
   const manifest = {
     name: 'buracle',
-    displayName: 'Buracle',
+    displayName: 'Buracle Stack',
     version,
-    description: 'Buracle: always-on rules, path rules and review agents. Written by `buracle install`; edits are overwritten.',
+    description: 'Buracle Stack: always-on rules, path rules and review agents. Written by `buracle install`; edits are overwritten.',
   }
   return { path: 'plugin.json', content: JSON.stringify(manifest, null, 2) + '\n' }
 }
@@ -49,7 +49,7 @@ function slashForms(skills: readonly SkillDoc[]): string[] {
 export function agyCommandsSection(skills: readonly SkillDoc[]): string {
   const forms = slashForms(skills)
   return [
-    '# Buracle commands in AGY CLI',
+    '# Buracle Stack commands in AGY CLI',
     '',
     `A workflow or a skill starts with \`/<id>\`${forms.length > 0 ? ` (${forms.join(', ')})` : ''}. AGY has no custom command that runs without a model turn, so when the user asks for one of these, run it yourself:`,
     '- `/remember <text>`: `buracle mem remember -- "<text>"`; a typed memory follows the `memory` skill.',
@@ -63,7 +63,7 @@ export function agyCommandsSection(skills: readonly SkillDoc[]): string {
 export function agyAlwaysRules(c: Pick<CanonicalBundle, 'rules' | 'skills' | 'agents'>, warnings: string[] = []): PluginFile {
   const refs = { skills: c.skills.map(s => s.id), agents: c.agents.map(a => a.id) }
   const always = c.rules.filter(r => r.scope === 'always').sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-  const parts = ['_Managed by Buracle (`buracle install`). The source is `canonical/rules/` in the Buracle repo; edits here are overwritten._']
+  const parts = ['_Managed by Buracle Stack (`buracle install`). The source is `canonical/rules/` in the Buracle Stack repo; edits here are overwritten._']
   for (const r of always) parts.push(renderMarkdown(r.body, 'agy', { ...refs, file: r.file }, warnings).trim())
   parts.push(agyCommandsSection(c.skills))
   return { path: 'rules/AGENTS.md', content: parts.join('\n\n') + '\n' }
@@ -71,13 +71,13 @@ export function agyAlwaysRules(c: Pick<CanonicalBundle, 'rules' | 'skills' | 'ag
 
 /**
  * A path rule is a rule file with `trigger: glob`; `globs` is one comma-separated string matched against file paths
- * (the format the program's own migration guide writes). AGY applies it when a matching file is in play, so Buracle's
+ * (the format the program's own migration guide writes). AGY applies it when a matching file is in play, so Buracle Stack's
  * first-edit hint is not needed here.
  */
 export function agyPathRule(rule: RuleDoc, refs: { skills?: readonly string[], agents?: readonly string[] }, warnings: string[] = []): PluginFile {
   const globs = pathGlobs(rule)
   const title = /^#\s+(.+)$/m.exec(rule.body)?.[1]?.trim() ?? rule.id
-  const fm = ['---', 'trigger: glob', `globs: ${JSON.stringify(globs.join(', '))}`, `description: ${JSON.stringify(`Buracle path rule: ${title}`)}`, '---', ''].join('\n')
+  const fm = ['---', 'trigger: glob', `globs: ${JSON.stringify(globs.join(', '))}`, `description: ${JSON.stringify(`Buracle Stack path rule: ${title}`)}`, '---', ''].join('\n')
   const body = renderMarkdown(rule.body, 'agy', { ...refs, file: rule.file }, warnings).trim()
   return { path: `rules/buracle-${rule.id}.md`, content: fm + body + '\n' }
 }
@@ -143,7 +143,7 @@ export function agyCompanionAgent(): PluginFile {
   const fm = [
     '---',
     `name: ${JSON.stringify(AGY_COMPANION_AGENT)}`,
-    `description: ${JSON.stringify("Buracle's read-only second-opinion reviewer: reads the repository and answers with one review report.")}`,
+    `description: ${JSON.stringify("Buracle Stack's read-only second-opinion reviewer: reads the repository and answers with one review report.")}`,
     'subagent: false',
     'mainAgent: true',
     'tools: [read_file]',
@@ -151,7 +151,7 @@ export function agyCompanionAgent(): PluginFile {
     '---',
     '',
   ].join('\n')
-  const body = "You are Buracle's second-opinion reviewer. Follow the review instructions in the message. You are read-only: never edit, create or delete a file, and run no command."
+  const body = "You are Buracle Stack's second-opinion reviewer. Follow the review instructions in the message. You are read-only: never edit, create or delete a file, and run no command."
   return { path: `agents/${AGY_COMPANION_AGENT}.md`, content: fm + body + '\n' }
 }
 

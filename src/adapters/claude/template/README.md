@@ -1,6 +1,6 @@
-# Buracle · Claude Code plugin
+# Buracle Stack · Claude Code plugin
 
-This folder is Buracle's Claude Code side. `buracle build` generates it from `canonical/` and
+This folder is Buracle Stack's Claude Code side. `buracle build` generates it from `canonical/` and
 `src/`; do not edit it by hand. The plugin has two layers:
 
 - **Command hooks** (`hooks/hooks.json`) are the backbone: guards, the consent gate, the plan stop
@@ -36,13 +36,13 @@ For a single session while developing: `claude --plugin-dir harness/claude`.
 | UserPromptSubmit | H10 pause/continue when the whole message is such a word, H20 consent the user gives as a yes to a held command, H05 context warning |
 | PreToolUse | Bash/Monitor/PowerShell: H01 destructive-command guard (denies when it fails), H20 consent gate; write tools: H02 write guard (denies when it fails); WebSearch/WebFetch: H03 routing; AskUserQuestion: H09; SubagentHandback: H19 checks a review agent's handed-back report (auto mode) and denies an invalid one once; every answer that does not deny a main-agent call carries the H05 context warning once per band |
 | PostToolUse | Write tools: H04 file checks; ExitPlanMode: H12 saves the plan under `docs/plan-build/`; TodoWrite and the task tools: open work for the handoff note; shell, web and MCP tools: H14 spool (in the background) |
-| PostToolUseFailure | Buracle's MCP tools: H24 (two failures in a row and the server is down for the session) |
+| PostToolUseFailure | Buracle Stack's MCP tools: H24 (two failures in a row and the server is down for the session) |
 | PreCompact / PostCompact | H06 handoff note (without one, the open todos stay in the session's record for H07) / H14 compaction summary |
 | Stop | H08 + H11 stop guard (until the plan is VERIFIED), H14 answer excerpt |
 | SubagentStop | H19 validates the review agents' JSON report (skipped for a reviewer that already handed back through SubagentHandback) |
 | SessionEnd | H14 memory finalizer, H16 upkeep |
 
-In Buracle's review agents (`buracle:*-review`) the shell is read-only (rg, git diff/log/show,
+In Buracle Stack's review agents (`buracle:*-review`) the shell is read-only (rg, git diff/log/show,
 `buracle review-scope` …); commands that change anything are denied.
 
 **Consent gate (H20).** Every harness runs without approval prompts (`permissions.bypass`);
@@ -65,11 +65,11 @@ the reply to the question the denial told the agent to ask, or in the consent di
 | `session.start` | Registers the commands; in a session that holds an unfinished run, suggests continuing it. |
 | `session.measure` | One toast per context threshold (85%, 95%). |
 | `session.compact` | The summary keeps the active plan, the running workflow, decisions with their reasons, rejected approaches, verification commands and results, touched files and background work (the hook writes the handoff note). |
-| `tool.describe` | Critical Buracle MCP tools (memory, codegraph, semble, context7 …) are listed up front, never deferred. |
+| `tool.describe` | Critical Buracle Stack MCP tools (memory, codegraph, semble, context7 …) are listed up front, never deferred. |
 
 **Commands:** `/buracle-ping` (`pong` without a model call), `/buracle-status [status|memory|plan|flow]`
 (the plugin's `buracle` skill holds the name `/buracle`), `/remember <text>` (a memory capture
-the next harness files), `/brain` (opens the Buracle Console in the browser), `/aside <question>` (a read-only side
+the next harness files), `/brain` (opens the Buracle Stack Console in the browser), `/aside <question>` (a read-only side
 question that leaves the session untouched). When Claude Code refuses a name, the command is
 registered as `/buracle-<name>` instead (`/buracle-remember`, `/buracle-brain`, `/buracle-aside`).
 The mod answers only the names Claude Code accepted; a refused name goes to its owner unchanged.
@@ -77,7 +77,7 @@ The mod answers only the names Claude Code accepted; a refused name goes to its 
 **Panes:** memory (`buracle-memory`) and plan (`buracle-plan`, also the band's "details").
 
 The status line is not the mod's: `buracle statusline claude` draws it (two lines: model, context
-bar, 5-hour and 7-day usage; Buracle and Claude Code versions and, while it runs, the Buracle Console link).
+bar, 5-hour and 7-day usage; Buracle Stack and Claude Code versions and, while it runs, the Buracle Stack Console link).
 
 ## Files it reads and writes
 
@@ -91,7 +91,7 @@ The command hooks also write `sessions/claude/<session>/{state.json,telemetry.js
 `state/memory/spool/`, handoff memories in the project's brain (`~/.buracle/brain`) and
 `docs/plan-build/` in the project; `buracle flow` and `buracle plan` keep `flow.json` current.
 `BURACLE_HOME` moves these paths. `BURACLE_NO_CAPTURE=1` turns memory capture off,
-`BURACLE_NO_AUTOSTART=1` the background indexes and the Buracle Console's start. With `memory.ui.autostart` (the default) a session start opens the web UI when it is not running, and it stops when the last harness session ends; otherwise it runs after `buracle mem ui`.
+`BURACLE_NO_AUTOSTART=1` the background indexes and the Buracle Stack Console's start. With `memory.ui.autostart` (the default) a session start opens the web UI when it is not running, and it stops when the last harness session ends; otherwise it runs after `buracle mem ui`.
 
 ## Known limits
 
@@ -100,7 +100,7 @@ The command hooks also write `sessions/claude/<session>/{state.json,telemetry.js
   everywhere.
 - On machines with managed settings, Claude Code's built-in `cc-plugin-sec-default` mod may skip
   some events of user mods (`skill.prompt` among them, which is why the band does not depend on
-  it); Buracle's guards and memory live in the command hooks and are not affected.
+  it); Buracle Stack's guards and memory live in the command hooks and are not affected.
 
 ## Verify
 

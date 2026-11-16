@@ -1,6 +1,6 @@
 {
   "harness": "opencode",
-  "status": "Flags checked against `opencode run --help` (opencode v2.0.24); event patterns are an UNVERIFIED starting point. The shape of `opencode run --format json` events is not documented in Buracle's research; these patterns only assume that tool names appear as JSON strings (MCP tools are named <server>_<tool> in OpenCode). Inspect the smoke-run stdout and rewrite the patterns before trusting any result.",
+  "status": "Flags checked against `opencode run --help` (opencode v2.0.24); event patterns are an UNVERIFIED starting point. The shape of `opencode run --format json` events is not documented in Buracle Stack's research; these patterns only assume that tool names appear as JSON strings (MCP tools are named <server>_<tool> in OpenCode). Inspect the smoke-run stdout and rewrite the patterns before trusting any result.",
   "usage": "Per arm: --env HOME=<arm>/home --env XDG_CONFIG_HOME=<arm>/home/.config --env XDG_DATA_HOME=<arm>/home/.local/share plus provider credentials. Keep --standalone: without it the run attaches to the background service, which carries the user's real configuration. Add --append-arg --auto only for edit cases, with the user's consent.",
   "argv": ["opencode", "run", "--standalone", "--format", "json", "{prompt}"],
   "cwd": "{work}",

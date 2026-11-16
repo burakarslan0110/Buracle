@@ -44,7 +44,7 @@ Lanes follow the *Parallel agents* rule; each is a read-only agent you launch wi
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start: `buracle flow start bugfix --title "<symptom>"` in Setup (harmless when a hook already started it).
 - Each phase: `buracle flow phase <id>` as its section begins, with `investigate`, `red`, `fix`, `prove`, `gate`, `finish`.

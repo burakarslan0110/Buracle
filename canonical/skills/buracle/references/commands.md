@@ -14,7 +14,7 @@ buracle build [--check] [--harness <h>[,<h>…]] [--json]
 
 ## install
 
-Set up or repair Buracle in every detected harness (first setup included)
+Set up or repair Buracle Stack in every detected harness (first setup included)
 
 ```text
 buracle install [<harness>…] [--dry-run] [--yes] [--json]
@@ -23,7 +23,7 @@ buracle install --script --log <file> [--started <epoch ms>] [--yes]
 
 ## uninstall
 
-Remove everything Buracle installed (ledger-proven), undo its commands; never touches the memory
+Remove everything Buracle Stack installed (ledger-proven), undo its commands; never touches the memory
 
 ```text
 buracle uninstall [--purge-state] [--dry-run] [--yes] [--json]
@@ -49,7 +49,7 @@ buracle index rebuild [--cwd <dir>] [--force] [--json]
 
 ## update
 
-Update everything Buracle connects, each part from its own source
+Update everything Buracle Stack connects, each part from its own source
 
 ```text
 buracle update [<kind>|<name>…] [--check] [--yes] [--json]
@@ -101,7 +101,7 @@ buracle mem <subcommand> [args…] [--json]
 
 ## mcp
 
-Run, share, turn off and inspect Buracle's MCP servers and set their API keys (buracle mcp run <id>, disable, status, key)
+Run, share, turn off and inspect Buracle Stack's MCP servers and set their API keys (buracle mcp run <id>, disable, status, key)
 
 ```text
 buracle mcp memory
@@ -118,7 +118,7 @@ buracle mcp backend <id> [--package-version=<v>] [--api-key-env=<name>]
 
 ## lsp
 
-Run, bridge or check Buracle's language servers (buracle lsp run <id>, buracle lsp mcp)
+Run, bridge or check Buracle Stack's language servers (buracle lsp run <id>, buracle lsp mcp)
 
 ```text
 buracle lsp run <id>

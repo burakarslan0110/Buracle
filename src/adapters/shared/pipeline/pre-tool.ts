@@ -34,7 +34,7 @@ export interface PreToolInput {
 export interface UsageVerdict { deny?: string, context?: string }
 
 export type PreToolDecision =
-  /** `reason` is the finished text, `Buracle Hxx: …`. */
+  /** `reason` is the finished text, `Buracle Stack Hxx: …`. */
   | { action: 'deny', reason: string, hook: HookId }
   | { action: 'allow', context: string[], held?: { command: string, reason: string } }
 

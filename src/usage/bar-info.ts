@@ -109,7 +109,7 @@ export function buracleArgv(): string[] | undefined {
 }
 
 export async function barInfo(h: Harness, o: { nowMs: number, version?: string, lines?: { added: number, removed: number } }): Promise<BarInfo> {
-  const info: BarInfo = { product: { name: 'Buracle', version: buracleVersion() } }
+  const info: BarInfo = { product: { name: 'Buracle Stack', version: buracleVersion() } }
   const version = o.version ?? await harnessVersion(h, o.nowMs).catch(() => undefined)
   const harness: NonNullable<BarInfo['harness']> = { label: HARNESS_LABEL[h] }
   if (version !== undefined) harness.version = version

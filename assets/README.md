@@ -1,24 +1,24 @@
-# The Buracle logo
+# The Buracle Stack logo
 
-The logo is a wordmark only: lowercase "buracle" drawn for Buracle on a square pixel grid. The name joins Burak and *oracle*, so the square bowl of the "b" holds the oracle's slit eye, and that "b" alone is the icon. The terminal draws it with half blocks:
+The logo is a wordmark only: lowercase "buracle stack" on a square pixel grid. Buracle is the name of the product family and Stack the product, so "stack" is drawn in the same pixels after a wider gap. The name Buracle joins Burak and *oracle*, so the square bowl of the "b" holds the oracle's slit eye, and that "b" alone is the icon, the mark of the whole family. The terminal draws it with half blocks:
 
 ```
-██                                       ██
-██                                       ██
-██▀▀▀▀█▄  ██  ██  ██▄█▀   ▀▀▀█▄  ▄█▀▀▀▀  ██  ▄█▀▀█▄
-██ ██ ██  ██  ██  ██      ▄▄▄██  ██      ██  ██▄▄██
-██ ██ ██  ██  ██  ██     ██  ██  ██      ██  ██
-██▄▄▄▄█▀  ▀█▄▄██  ██     ▀█▄▄██  ▀█▄▄▄▄  ██  ▀█▄▄▄▄
+██                                       ██                                           ██
+██                                       ██                     ██                    ██
+██▀▀▀▀█▄  ██  ██  ██▄█▀   ▀▀▀█▄  ▄█▀▀▀▀  ██  ▄█▀▀█▄    ▄█▀▀▀▀  ▀██▀▀   ▀▀▀█▄  ▄█▀▀▀▀  ██ ▄█▀
+██ ██ ██  ██  ██  ██      ▄▄▄██  ██      ██  ██▄▄██    ▀█▄▄▄    ██     ▄▄▄██  ██      ███▀
+██ ██ ██  ██  ██  ██     ██  ██  ██      ██  ██            ██   ██    ██  ██  ██      ██▀█▄
+██▄▄▄▄█▀  ▀█▄▄██  ██     ▀█▄▄██  ▀█▄▄▄▄  ██  ▀█▄▄▄▄    ▄▄▄▄█▀   ▀█▄▄  ▀█▄▄██  ▀█▄▄▄▄  ██  ██
 ```
 
 | Where | What you see |
 |---|---|
-| `buracle` menu, 55 columns or wider | the wordmark in a violet-to-fuchsia gradient with an amber eye, then the version and the tagline |
-| `buracle` menu, 43 to 54 columns | the icon, the "b" with its eye, with the name, the version and the tagline beside it |
-| `buracle` menu when narrower or without color, `buracle install` | one line: `◉ buracle` |
-| Install script | the wordmark in the 16-color brand codes from 54 columns, one line below that |
-| Buracle Console | the wordmark and "Console" in the top bar, the wordmark alone while the first brain loads; on the person brain the eye turns rose |
-| Browser tab | the icon on a dark tile: <img src="../src/memory/ui/favicon.svg" alt="the Buracle icon" width="24" align="top"> |
+| `buracle` menu, 96 columns or wider | the wordmark in a violet-to-fuchsia gradient with an amber eye, then the version and the tagline |
+| `buracle` menu, 43 to 95 columns | the icon, the "b" with its eye, with the name (`buracle stack`), the version and the tagline beside it |
+| `buracle` menu when narrower or without color, `buracle install` | one line: `◉ buracle stack` |
+| Install script | the wordmark in the 16-color brand codes from 94 columns, one line (`buracle stack`) below that |
+| Buracle Stack Console | the wordmark and "Console" in the top bar, the wordmark alone while the first brain loads; on the person brain the eye turns rose |
+| Browser tab | the icon on a dark tile: <img src="../src/memory/ui/favicon.svg" alt="the Buracle Stack icon" width="24" align="top"> |
 
 The tagline is "One engineering setup, one memory, every coding agent", the same on every surface.
 

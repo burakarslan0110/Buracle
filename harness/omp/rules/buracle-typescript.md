@@ -1,5 +1,5 @@
 ---
-description: "Buracle path rule: TypeScript and JavaScript (injected when editing or writing matching files)"
+description: "Buracle Stack path rule: TypeScript and JavaScript (injected when editing or writing matching files)"
 condition:
   - "**/*.ts"
   - "**/*.tsx"

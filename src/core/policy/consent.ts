@@ -526,7 +526,7 @@ function consentReason(needs: readonly ConsentNeed[]): string {
   const shown = command.length > 80 ? `${command.slice(0, 77)}...` : command
   const summary = needs.map(n => n.summary).join(' and ')
   const label = needs.map(n => CONSENT_LABEL[n.kind]).join(' and ')
-  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Buracle records the answer only when the user's reply starts with yes, ok, go ahead (or evet, tamam) or is the held verb ("delete it"), so if they answered in another language, ask them to reply "yes". Do not look for another way to do the same thing.`
+  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Buracle Stack records the answer only when the user's reply starts with yes, ok, go ahead (or evet, tamam) or is the held verb ("delete it"), so if they answered in another language, ask them to reply "yes". Do not look for another way to do the same thing.`
 }
 
 export function consentVerdictAll(commands: readonly string[], s: ConsentState, now: number): ConsentVerdict & { need?: ConsentNeed } {

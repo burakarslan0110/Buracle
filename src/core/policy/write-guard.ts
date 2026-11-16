@@ -47,9 +47,9 @@ const HOME_PREFIX = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i
 
 const SELF_TEXT: Readonly<Record<SelfArea, { what: string, remedy: string }>> = {
   ...harnessTable(p => p.selfText),
-  buracle: { what: "Buracle's own installation, which runs every guard hook", remedy: 'change Buracle through the buracle CLI (`buracle config set …`, `buracle install`) instead' },
+  buracle: { what: "Buracle Stack's own installation, which runs every guard hook", remedy: 'change Buracle Stack through the buracle CLI (`buracle config set …`, `buracle install`) instead' },
   shim: { what: 'the `buracle` command on PATH, a link to the shim that runs every guard hook', remedy: '`buracle install` manages it, so ask the user to run that instead' },
-  repo: { what: "Buracle's own source code, which every Buracle hook runs", remedy: 'change it from a session opened in the Buracle repository, or ask the user to make the change' },
+  repo: { what: "Buracle Stack's own source code, which every Buracle Stack hook runs", remedy: 'change it from a session opened in the Buracle Stack repository, or ask the user to make the change' },
 }
 
 export function selfProtectionText(area: SelfArea): { what: string, remedy: string } {
@@ -301,23 +301,23 @@ function denyFor(abs: string, ctx: ResolvedContext, content?: WriteContent): str
   const self = selfHit(abs, home, ctx.selfPaths, false, ctx.cwd ? normalizePath(ctx.cwd) : '', ctx.selfResolved)
   if (self !== undefined) {
     if (self.area === 'buracle' && within(abs, `${self.root}/state`)) {
-      return `${code(show)} is Buracle's own state; change it through the buracle CLI (for example ${code('buracle plan set …')} or ${code('buracle plan pause')}) instead of editing the file.`
+      return `${code(show)} is Buracle Stack's own state; change it through the buracle CLI (for example ${code('buracle plan set …')} or ${code('buracle plan pause')}) instead of editing the file.`
     }
     return `${code(show)} belongs to ${SELF_TEXT[self.area].what}; ${SELF_TEXT[self.area].remedy}.`
   }
   const guarded = guardedFile(abs, home)
   if (guarded !== undefined) {
     if (content === undefined || typeof content.after !== 'string') {
-      return `${code(show)} is ${guarded.what}, and Buracle cannot see what this write puts there; make the change with a file edit or whole-file write tool (apply_patch on Codex) so Buracle can check it, or ask the user to make it themselves.`
+      return `${code(show)} is ${guarded.what}, and Buracle Stack cannot see what this write puts there; make the change with a file edit or whole-file write tool (apply_patch on Codex) so Buracle Stack can check it, or ask the user to make it themselves.`
     }
     const change = switchOffChange(guarded, abs, content, ctx.parsers)
-    if (change !== undefined) return `${code(show)} is ${guarded.what}, and this change ${change}; that would switch Buracle's guards off, so ask the user to make this change themselves.`
+    if (change !== undefined) return `${code(show)} is ${guarded.what}, and this change ${change}; that would switch Buracle Stack's guards off, so ask the user to make this change themselves.`
   }
   const vault = ctx.vault ? normalizePath(expandHome(ctx.vault, home)) : ''
   if (vault !== '' && !isRootPath(vault)) {
     if (within(abs, `${vault}/.obsidian`)) return `${code(show)} holds Obsidian's own settings for the vault; leave it to Obsidian and the user.`
-    if (within(abs, `${vault}/.git`)) return `${code(show)} is inside the vault's git internals; use git commands (Buracle commits the vault itself) instead of writing there.`
-    if (within(abs, `${vault}/.buracle`)) return `${code(show)} is Buracle's internal data inside the vault; change it through the buracle CLI instead of editing it.`
+    if (within(abs, `${vault}/.git`)) return `${code(show)} is inside the vault's git internals; use git commands (Buracle Stack commits the vault itself) instead of writing there.`
+    if (within(abs, `${vault}/.buracle`)) return `${code(show)} is Buracle Stack's internal data inside the vault; change it through the buracle CLI instead of editing it.`
   }
   const repo = buracleRepoOf(abs, ctx)
   if (repo !== undefined && within(abs, `${repo}/harness`)) {

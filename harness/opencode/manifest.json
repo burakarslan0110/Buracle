@@ -1,7 +1,7 @@
 {
   "harness": "opencode",
   "minVersion": "2.0.20",
-  "contentHash": "f579d20700a9e660689259328b7c3aca8ec381f483e4e2c18bbd416053fd98de",
+  "contentHash": "de4d8ce55c3221d53d96a48d77776f16e4f8117169f6954ab0bd49aaef15b8f8",
   "commands": {
     "workflow": [
       "ab-test",
@@ -26,14 +26,14 @@
     ]
   },
   "files": {
-    "AGENTS.block.md": "a876526b191f60d03cca46481f7f07b48efe3b8d93f3cbb630fc4e67448e21f1",
-    "README.md": "28b5156da58beaa7aa33e1cfe8324222c2f9f6570e6eacc8925a334a4c3b41ed",
-    "agents/changes-review.md": "447d78fec4fccfab190e414efb0ed3ca29c31697a8a7e4b59cd485f589f2238b",
-    "agents/goal-build-review.md": "bb60c56ca78c99876417c92dac19b08fc78d9019ef3a6fac7823149d956fdd98",
-    "agents/plan-build-review.md": "5e0eb152879364316b9f585145f2c4ce9d40a533f4443c66718c630ba8a9cd9c",
-    "config/cli.fragment.jsonc": "7abce0d2fbf834485923e1b7361d33717d5df4ef7638a001f7b0310f3b565629",
-    "config/opencode.fragment.jsonc": "2761acc8725983db74d111a31110cbecedd61654515d37c832b63f471ee51fdf",
-    "plugins/buracle/index.js": "2d35a458df8a219cda76ff03163a9ed27569ecd4be4b37bbde7356d3b2b817c3",
-    "plugins/buracle/tui.js": "6eb11bc9aae393f3cf95dd4a4f45f48d6a12e950ee80da1cacc05b0b90d400ae"
+    "AGENTS.block.md": "1a312d83675661418d63ffdab8d33e4f936840db52472ec72299ff2fb4078c3e",
+    "README.md": "ce26a8600ffc1a1996ec45b6050cf783df0e2fa6fb3aaad959d328d73d1ca3c4",
+    "agents/changes-review.md": "41699f7e21fa0bff4fa4732db1483b9e8513ce1b9e3cfefd598d38d0c1a19fe8",
+    "agents/goal-build-review.md": "4e0a527434f6688cb44aa64fe506b83a2ea2fe96faf283dee5b13f6271cc29e8",
+    "agents/plan-build-review.md": "c56b4be7074357e197dcb0bedc996c3eacab0cc5f7b979a2091bdf49321c70a6",
+    "config/cli.fragment.jsonc": "8b6addae15ea78d5ee53bb45802cf1fa389906a20e1a44610accbc8640bf79b3",
+    "config/opencode.fragment.jsonc": "5e8263702f38f19683f791501335218b96f536ce90b01757857c9541f2bf9a8a",
+    "plugins/buracle/index.js": "9641459adcfe223c7f9884fba3ccfa5ee8d02c92c6d0f92c24cf49aa1a30b598",
+    "plugins/buracle/tui.js": "331eed8dbdb30d6f2480d8dd2a7380d6bcde3854cd1812ecef1a05f28f03508e"
   }
 }

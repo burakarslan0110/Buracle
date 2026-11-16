@@ -129,12 +129,12 @@ type Finding = { level: DoctorItem['level'], detail: string }
 export function permissionFinding(cfg: { bypass: boolean, enforce: boolean }, mode: unknown): Finding {
   const shown = mode === undefined ? 'unset' : JSON.stringify(mode)
   if (!cfg.bypass) return { level: 'ok', detail: `permissions.bypass is off: OpenCode asks as you configured it (cli.json session.permissions: ${shown})` }
-  if (mode === 'autoaccept') return { level: 'ok', detail: 'cli.json session.permissions is autoaccept: no approval prompts; Buracle\'s guards and consent gate still deny' }
+  if (mode === 'autoaccept') return { level: 'ok', detail: 'cli.json session.permissions is autoaccept: no approval prompts; Buracle Stack\'s guards and consent gate still deny' }
   return {
     level: 'warn',
     detail: `cli.json session.permissions is ${shown}, not autoaccept, so OpenCode asks before tool calls; ${cfg.enforce
       ? 'run `buracle install opencode` to restore it (permissions.enforce writes it again)'
-      : 'permissions.enforce is off, so Buracle keeps your value'}`,
+      : 'permissions.enforce is off, so Buracle Stack keeps your value'}`,
   }
 }
 
@@ -144,7 +144,7 @@ export function commandFindings(ctx: AdapterContext, configDir: string, config: 
   const keys = workflow.filter(id => obj(obj(config)?.['commands'])?.[id] !== undefined).map(id => `commands.${id} in the config`)
   const shadow = [...files, ...keys]
   if (shadow.length === 0) return [{ level: 'ok', detail: `the ${workflow.length} workflow commands come from the plugin: ${workflow.map(id => `/${id}`).join(' ')}` }]
-  return [{ level: 'warn', detail: `${shadow.join(', ')} ${shadow.length > 1 ? 'shadow' : 'shadows'} Buracle's workflow command of the same name (a command file or config entry wins over a plugin command, so the skill is not attached and the band does not start). Run \`buracle install opencode\` (it removes the files an earlier Buracle wrote) or remove your own.` }]
+  return [{ level: 'warn', detail: `${shadow.join(', ')} ${shadow.length > 1 ? 'shadow' : 'shadows'} Buracle Stack's workflow command of the same name (a command file or config entry wins over a plugin command, so the skill is not attached and the band does not start). Run \`buracle install opencode\` (it removes the files an earlier Buracle Stack wrote) or remove your own.` }]
 }
 
 export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Promise<DoctorItem[]> {
@@ -159,7 +159,7 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
   } else if (bin.version === undefined) {
     add('error', 'opencode.version', `${bin.path}: could not read \`opencode --version\``)
   } else if (compareVersions(bin.version, '2.0.0') < 0) {
-    add('error', 'opencode.version', `OpenCode ${bin.version} is v1; Buracle targets v2 (≥ ${MIN_VERSION}). Move to v2: ${v2Advice(bin.path)}, then \`buracle install opencode\` (${MIGRATE_V1_URL})`)
+    add('error', 'opencode.version', `OpenCode ${bin.version} is v1; Buracle Stack targets v2 (≥ ${MIN_VERSION}). Move to v2: ${v2Advice(bin.path)}, then \`buracle install opencode\` (${MIGRATE_V1_URL})`)
   } else if (compareVersions(bin.version, MIN_VERSION) < 0) {
     add('error', 'opencode.version', `OpenCode ${bin.version} is older than ${MIN_VERSION}; run \`opencode upgrade\``)
   } else {
@@ -188,8 +188,8 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
     const listOf = (doc: unknown) => { const v = getIn(doc, ['permissions']).value; return Array.isArray(v) ? v : [] }
     const perms = [...(lower !== undefined ? listOf(lower) : []), ...listOf(cfg)]
     const lost = configPermissions().filter(r => !perms.some(p => sameRule(p, r)))
-    if (lost.length > 0) missing.push(`${lost.length} Buracle permission rule(s)`)
-    if (missing.length === 0) add('ok', 'opencode.config', `${target} has the Buracle keys${both ? ' (opencode.json is loaded too; opencode.jsonc wins)' : ''}`)
+    if (lost.length > 0) missing.push(`${lost.length} Buracle Stack permission rule(s)`)
+    if (missing.length === 0) add('ok', 'opencode.config', `${target} has the Buracle Stack keys${both ? ' (opencode.json is loaded too; opencode.jsonc wins)' : ''}`)
     else add('warn', 'opencode.config', `${target} lacks: ${missing.join(', ')} (user values are kept; see \`buracle install --dry-run\`)`)
     const servers: Record<string, unknown> = {}
     for (const [id] of opencodeServers(ctx.canonical, ctx.buracleBin)) servers[id] = look(['mcp', 'servers', id]).value
@@ -200,8 +200,8 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
   if (cli?.ok === false) add('error', 'opencode.cli', `cli.json does not parse (${cli.error}); OpenCode falls back to defaults`)
   else {
     const off = disablesPlugin(obj(cli?.ok === true ? cli.value : undefined)?.['plugins'])
-    if (off !== undefined) add('warn', 'opencode.cli', `cli.json disables the Buracle status line and workflow band ("${off}")`)
-    else add('ok', 'opencode.cli', 'cli.json does not disable the Buracle TUI plugin (built-in footer kept)')
+    if (off !== undefined) add('warn', 'opencode.cli', `cli.json disables the Buracle Stack status line and workflow band ("${off}")`)
+    else add('ok', 'opencode.cli', 'cli.json does not disable the Buracle Stack TUI plugin (built-in footer kept)')
   }
   const permission = permissionFinding(ctx.config.permissions, cli?.ok === true ? getIn(cli.value, ['session', 'permissions']).value : undefined)
   add(permission.level, 'opencode.permissions', permission.detail)
@@ -239,7 +239,7 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
   const agentsMd = readTextSync(join(configDir, 'AGENTS.md'))
   let block: string | undefined
   try { block = agentsMd.ok ? mdBlockGet(agentsMd.value, AGENTS_BLOCK_ID) : undefined } catch { block = undefined }
-  add(block !== undefined ? 'ok' : 'warn', 'opencode.agents-md', block !== undefined ? `managed block "${AGENTS_BLOCK_ID}" present in AGENTS.md` : `no managed Buracle block in ${join(configDir, 'AGENTS.md')}`)
+  add(block !== undefined ? 'ok' : 'warn', 'opencode.agents-md', block !== undefined ? `managed block "${AGENTS_BLOCK_ID}" present in AGENTS.md` : `no managed Buracle Stack block in ${join(configDir, 'AGENTS.md')}`)
 
   if (bin.installed && bin.path !== undefined && bin.version !== undefined && compareVersions(bin.version, MIN_VERSION) >= 0) {
     const env = await exec([bin.path, 'service', 'get', 'env', 'BURACLE_HOME'], { timeoutMs: CMD_TIMEOUT_MS })
@@ -261,7 +261,7 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
           const docs = JSON.parse(dbg.stdout) as unknown
           mcpSeen = Array.isArray(docs) && docs.some(d => getIn(obj(d)?.['info'], ['mcp', 'servers', 'buracle-memory']).found)
         } catch { mcpSeen = false }
-        add(mcpSeen ? 'ok' : 'warn', 'opencode.live.config', mcpSeen ? 'the service sees the Buracle MCP servers (`opencode debug config`)' : '`opencode debug config` does not show mcp.servers.buracle-memory')
+        add(mcpSeen ? 'ok' : 'warn', 'opencode.live.config', mcpSeen ? 'the service sees the Buracle Stack MCP servers (`opencode debug config`)' : '`opencode debug config` does not show mcp.servers.buracle-memory')
       }
     }
   }

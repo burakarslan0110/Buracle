@@ -131,7 +131,7 @@ export function hostDeps(harness: Harness): Omit<HostDeps, 'memory'> {
   }
 }
 
-/** The command that runs Buracle's CLI, for the memory bridge. */
+/** The command that runs Buracle Stack's CLI, for the memory bridge. */
 export function hostCli(): string[] | undefined {
   return buracleCli(paths.shimPath(), paths.repoRoot())
 }

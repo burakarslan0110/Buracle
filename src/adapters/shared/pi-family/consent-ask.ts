@@ -24,7 +24,7 @@ export async function judgeWithConsent<R extends BlockResult>(ctx: ConsentContex
     if (need === undefined || r?.block !== true || !canAskConsent(ctx)) break
     const answer = await askConsent(ctx, need)
     if (answer === undefined) break
-    if (answer === 'refuse') return { block: true, reason: `Buracle H20: ${consentRefusal(need)}` } as R
+    if (answer === 'refuse') return { block: true, reason: `Buracle Stack H20: ${consentRefusal(need)}` } as R
     if (!host.record(need, answer)) break
     host.cleared()
     r = await host.judge()
@@ -41,7 +41,7 @@ export function canAskConsent(ctx: ConsentContext): boolean {
 export async function askConsent(ctx: ConsentContext, need: ConsentNeed): Promise<ConsentAnswer | undefined> {
   try {
     if (typeof ctx.ui.select === 'function') return consentAnswerOf(await ctx.ui.select(consentQuestion(need), [...CONSENT_OPTIONS]))
-    if (typeof ctx.ui.confirm === 'function') return (await ctx.ui.confirm('Buracle consent', consentQuestion(need))) ? 'once' : 'refuse'
+    if (typeof ctx.ui.confirm === 'function') return (await ctx.ui.confirm('Buracle Stack consent', consentQuestion(need))) ? 'once' : 'refuse'
   } catch {
     return undefined
   }

@@ -40,7 +40,7 @@ export interface ComposeResult {
   errors: Array<{ source: string, error: string }>
   warnings: string[]
   busy: Array<{ harness: Harness, message: string }>
-  /** Harnesses older than the oldest version Buracle supports: left as they are (the adapter's HARNESS_TOO_OLD). */
+  /** Harnesses older than the oldest version Buracle Stack supports: left as they are (the adapter's HARNESS_TOO_OLD). */
   tooOld: TooOldHarness[]
 }
 
@@ -135,7 +135,7 @@ export async function composeInstall(opts: ComposeOptions): Promise<ComposeResul
     // The skills are one copy for every harness. While a harness that uses it was not looked at (not selected, or
     // its detection failed), everything an earlier run recorded stays: `buracle install claude` must not take the
     // skills away from Codex. Otherwise what no plan produces any more is pruned, such as the per-harness links
-    // of an earlier Buracle.
+    // of an earlier Buracle Stack.
     const unseenConsumer = res.harnesses.some(h => AGENTS_SKILLS_CONSUMERS.includes(h.harness) && (!h.inScope || (h.reason ?? '').startsWith('detect failed')))
     const skillCarried = unseenConsumer ? record.plans['agents-skills']?.keys ?? [] : []
     if (included.some(h => AGENTS_SKILLS_CONSUMERS.includes(h)) || record.plans['agents-skills'] !== undefined) {

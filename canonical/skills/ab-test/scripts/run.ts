@@ -11,7 +11,7 @@ import {
 } from './lib'
 import { summarizeCommand } from './summarize'
 
-const HELP = `Buracle benchmark runner
+const HELP = `Buracle Stack benchmark runner
 
 Commands
   run        Run every case N times for one arm and append results to <out>/results.jsonl

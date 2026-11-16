@@ -1,5 +1,5 @@
 ---
-description: "Buracle path rule: Go (injected when editing or writing matching files)"
+description: "Buracle Stack path rule: Go (injected when editing or writing matching files)"
 condition:
   - "**/*.go"
   - "**/go.mod"

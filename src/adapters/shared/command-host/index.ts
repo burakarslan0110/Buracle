@@ -34,7 +34,7 @@ export const workspaceReaders: Required<WorkspaceReaders> = {
 
 /** What the model hears, once, at the start of its next reply, when the profile check found something wrong. */
 export const profileNote = (finding: string): string =>
-  `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`
+  `Buracle Stack setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`
 
 const MEMORY: Readonly<Record<keyof MemoryFns, () => Promise<unknown>>> = {
   appendSpool: () => import('../../../memory/spool'), spawnFinalizer: () => import('../../../memory/finalize'), sessionStart: () => import('../../../memory/finalize'),

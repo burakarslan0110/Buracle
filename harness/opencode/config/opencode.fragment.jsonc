@@ -1,4 +1,4 @@
-// Buracle keys for ~/.config/opencode/opencode.jsonc (OpenCode v2). `buracle install` merges them key by key
+// Buracle Stack keys for ~/.config/opencode/opencode.jsonc (OpenCode v2). `buracle install` merges them key by key
 // (mcp.servers.<id>, permissions, share, experimental.todo from OpenCode 2.1.2 on, $schema) and keeps every
 // other key and comment of the user.
 // {env:HOME}/.buracle/bin/buracle is replaced with the absolute shim path at install time.

@@ -137,12 +137,12 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const flowView = (): BandView | undefined => (sid !== undefined ? guarded('flow view', () => deps.flow.view(sid, now, FOLD_AFTER_SEC)) : undefined)
     if (view === 'flow') {
       const v = flowView()
-      return v !== undefined ? bandText(v) : ['No session: Buracle has no workflow to show.']
+      return v !== undefined ? bandText(v) : ['No session: Buracle Stack has no workflow to show.']
     }
     if (view === 'plan') {
       const state = sid !== undefined ? guarded('state', () => deps.state.load(sid)) : undefined
       const v = flowView()
-      if (state === undefined || v === undefined) return ['No session: Buracle has no plan to show.']
+      if (state === undefined || v === undefined) return ['No session: Buracle Stack has no plan to show.']
       return planPaneLines(v, state).map(l => l.text)
     }
     if (view === 'memory') {
@@ -153,9 +153,9 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
       return out
     }
     const omp = guarded('version cache', () => cachedHarnessVersionOf(deps.readText(join(buracleHome(), 'cache', 'harness-versions.json')), 'omp', now))
-    const out = [`Buracle ${data.buracleVersion} · Oh My Pi${omp !== undefined ? ` ${omp}` : ''}`]
+    const out = [`Buracle Stack ${data.buracleVersion} · Oh My Pi${omp !== undefined ? ` ${omp}` : ''}`]
     out.push(`session ${sid ?? '-'} · ${ctx.mode} · config ${lc.source}`)
-    out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : 'the harness setting'}`)
+    out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle Stack's guards and consent gate protect)" : 'the harness setting'}`)
     out.push(`routing: ${lc.config.routing.strictness} · workflow band: ${lc.config.workflow.band ? 'on' : 'off'}`)
     if (sid !== undefined) {
       const state = guarded('state', () => deps.state.load(sid))

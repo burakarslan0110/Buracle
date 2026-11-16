@@ -350,7 +350,7 @@ export const RUNTIME_SNAPSHOT_VERSION = 1
 export function runtimeSnapshotConfig(raw: unknown, defaults: BuracleConfig): { config: BuracleConfig, errors: string[], warnings: string[] } {
   if (!isPlainObject(raw)) return { config: clone(defaults), errors: [], warnings: ['runtime-config.json is not an object: the defaults apply'] }
   if (raw['v'] !== RUNTIME_SNAPSHOT_VERSION) {
-    return { config: clone(defaults), errors: [], warnings: [`runtime-config.json has version ${describeVersion(raw['v'])}, this Buracle reads version ${RUNTIME_SNAPSHOT_VERSION}: the defaults apply until \`buracle install\` writes it again`] }
+    return { config: clone(defaults), errors: [], warnings: [`runtime-config.json has version ${describeVersion(raw['v'])}, this Buracle Stack reads version ${RUNTIME_SNAPSHOT_VERSION}: the defaults apply until \`buracle install\` writes it again`] }
   }
   return mergeConfigLenient(defaults, raw['config'])
 }

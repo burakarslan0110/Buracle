@@ -25,7 +25,7 @@ export function maskOutcome(p: Payload, ctx: AdapterContext): HookOutcome {
     const r = maskToolOutput(p['tool_response'])
     if (r.count === 0) return NOTHING
     const what = r.count === 1 ? '1 secret value' : `${r.count} secret values`
-    const reason = `Buracle (guards.redact): ${what} in this tool output were masked before you read it. The call itself ran and was not blocked; this is its output with the secrets replaced:\n\n${responseText(r.value)}`
+    const reason = `Buracle Stack (guards.redact): ${what} in this tool output were masked before you read it. The call itself ran and was not blocked; this is its output with the secrets replaced:\n\n${responseText(r.value)}`
     return json({ decision: 'block', reason, systemMessage: maskNotice(r.count) })
   } catch {
     return NOTHING

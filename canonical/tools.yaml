@@ -5,7 +5,7 @@ tools:
     version_regex: '^(\d+\.\d+\.\d+)'
     brew: oven-sh/bun/bun
     required: true
-    purpose: Buracle runtime
+    purpose: Buracle Stack runtime
 
   - name: git
     kind: runtime

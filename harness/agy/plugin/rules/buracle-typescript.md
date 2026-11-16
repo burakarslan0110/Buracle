@@ -1,7 +1,7 @@
 ---
 trigger: glob
 globs: "**/*.ts, **/*.tsx, **/*.mts, **/*.cts, **/*.js, **/*.jsx, **/*.mjs, **/*.cjs, **/package.json, **/tsconfig*.json"
-description: "Buracle path rule: TypeScript and JavaScript"
+description: "Buracle Stack path rule: TypeScript and JavaScript"
 ---
 # TypeScript and JavaScript
 

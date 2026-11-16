@@ -28,15 +28,15 @@ export const RELOCATION_VARS: readonly string[] = [
 ]
 
 const WHAT: Readonly<Record<Exclude<GuardedKind, 'plugin-code'>, string>> = {
-  'claude-settings': 'a Claude Code settings file (omp reads it too), which can switch off plugins and hooks, Buracle\'s among them',
-  'codex-config': 'a Codex config file, which can switch off Codex hooks, Buracle\'s among them',
-  'opencode-config': 'an OpenCode config file, which can switch off OpenCode plugins, Buracle\'s among them',
-  'omp-settings': 'an omp settings file, which can switch off omp extensions, Buracle\'s among them',
-  'shell-startup': 'a shell startup file, which sets the environment every harness and every Buracle hook starts with',
+  'claude-settings': 'a Claude Code settings file (omp reads it too), which can switch off plugins and hooks, Buracle Stack\'s among them',
+  'codex-config': 'a Codex config file, which can switch off Codex hooks, Buracle Stack\'s among them',
+  'opencode-config': 'an OpenCode config file, which can switch off OpenCode plugins, Buracle Stack\'s among them',
+  'omp-settings': 'an omp settings file, which can switch off omp extensions, Buracle Stack\'s among them',
+  'shell-startup': 'a shell startup file, which sets the environment every harness and every Buracle Stack hook starts with',
   'launchd-agent': 'a launchd agent, which can set the environment of every app the user starts',
 }
-const OPENCODE_CODE = 'OpenCode plugin code, which OpenCode loads next to Buracle\'s guard plugin'
-const OMP_CODE = 'omp extension code, which omp loads next to Buracle\'s guard extension'
+const OPENCODE_CODE = 'OpenCode plugin code, which OpenCode loads next to Buracle Stack\'s guard plugin'
+const OMP_CODE = 'omp extension code, which omp loads next to Buracle Stack\'s guard extension'
 
 function lower(s: string): string { return s.toLowerCase() }
 
@@ -120,8 +120,8 @@ function envFindings(env: unknown, where: string): Finding[] {
   const out: Finding[] = []
   for (const [k, v] of Object.entries(e)) {
     const name = k.toUpperCase()
-    if (name === 'BURACLE_HOOK_TIMEOUT_MS') out.push({ key: `${where}:${name}=${show(v)}`, text: `sets ${code(`${where}.${k}`)}, which cuts every Buracle hook short` })
-    else if (RELOCATION_VARS.includes(name)) out.push({ key: `${where}:${name}=${show(v)}`, text: `sets ${code(`${where}.${k}`)}, which moves where Buracle or the harness loads from` })
+    if (name === 'BURACLE_HOOK_TIMEOUT_MS') out.push({ key: `${where}:${name}=${show(v)}`, text: `sets ${code(`${where}.${k}`)}, which cuts every Buracle Stack hook short` })
+    else if (RELOCATION_VARS.includes(name)) out.push({ key: `${where}:${name}=${show(v)}`, text: `sets ${code(`${where}.${k}`)}, which moves where Buracle Stack or the harness loads from` })
   }
   return out
 }
@@ -133,7 +133,7 @@ function ompFindings(v: unknown): Finding[] {
       if (/^disabled/i.test(k)) {
         const all = /extension|plugin/i.test(k)
         for (const item of Array.isArray(val) ? val : [val]) {
-          if (typeof item === 'string' && (/buracle/i.test(item) || (all && /^\s*\*\s*$/.test(item)))) out.push({ key: `omp:${prefix}${k}:${lower(item)}`, text: `lists ${code(item)} in ${code(prefix + k)}, which keeps Buracle's guard extension from loading` })
+          if (typeof item === 'string' && (/buracle/i.test(item) || (all && /^\s*\*\s*$/.test(item)))) out.push({ key: `omp:${prefix}${k}:${lower(item)}`, text: `lists ${code(item)} in ${code(prefix + k)}, which keeps Buracle Stack's guard extension from loading` })
         }
       } else if (depth === 0) {
         const inner = obj(val)
@@ -150,12 +150,12 @@ function claudeFindings(v: unknown): Finding[] {
   const s = obj(v)
   if (s === undefined) return []
   const out: Finding[] = []
-  if (truthy(s['disableAllHooks'])) out.push({ key: 'disableAllHooks', text: `sets ${code('disableAllHooks')}, which stops every hook, Buracle's guards included` })
+  if (truthy(s['disableAllHooks'])) out.push({ key: 'disableAllHooks', text: `sets ${code('disableAllHooks')}, which stops every hook, Buracle Stack's guards included` })
   if (truthy(s['allowManagedHooksOnly'])) out.push({ key: 'allowManagedHooksOnly', text: `sets ${code('allowManagedHooksOnly')}, which stops every hook but the managed ones` })
   const plugins = obj(s['enabledPlugins'])
   if (plugins !== undefined) {
     for (const [k, val] of Object.entries(plugins)) {
-      if (/^buracle@/i.test(k) && val !== true) out.push({ key: `enabledPlugins:${lower(k)}:${show(val)}`, text: `turns Buracle's plugin off (${code(`enabledPlugins["${k}"]: ${show(val)}`)})` })
+      if (/^buracle@/i.test(k) && val !== true) out.push({ key: `enabledPlugins:${lower(k)}:${show(val)}`, text: `turns Buracle Stack's plugin off (${code(`enabledPlugins["${k}"]: ${show(val)}`)})` })
     }
   }
   out.push(...envFindings(s['env'], 'env'), ...ompFindings(s))
@@ -168,7 +168,7 @@ function codexFeatureFindings(f: unknown, where: string): Finding[] {
   const out: Finding[] = []
   for (const k of ['hooks', 'codex_hooks']) {
     const v = o[k]
-    if (v !== undefined && v !== true) out.push({ key: `${where}.${k}=${show(v)}`, text: `sets ${code(`${where}.${k} = ${show(v)}`)}, which stops every Codex hook, Buracle's guards included` })
+    if (v !== undefined && v !== true) out.push({ key: `${where}.${k}=${show(v)}`, text: `sets ${code(`${where}.${k} = ${show(v)}`)}, which stops every Codex hook, Buracle Stack's guards included` })
   }
   return out
 }
@@ -181,7 +181,7 @@ function codexFindings(v: unknown): Finding[] {
   if (truthy(c['allow_managed_hooks_only'])) out.push({ key: 'allow_managed_hooks_only', text: `sets ${code('allow_managed_hooks_only')}, which stops every hook but the managed ones` })
   for (const [k, val] of Object.entries(obj(c['plugins']) ?? {})) {
     const enabled = obj(val)?.['enabled']
-    if (/^buracle@/i.test(k) && enabled !== undefined && enabled !== true) out.push({ key: `plugins.${lower(k)}.enabled=${show(enabled)}`, text: `turns Buracle's plugin off (${code(`plugins."${k}".enabled = ${show(enabled)}`)})` })
+    if (/^buracle@/i.test(k) && enabled !== undefined && enabled !== true) out.push({ key: `plugins.${lower(k)}.enabled=${show(enabled)}`, text: `turns Buracle Stack's plugin off (${code(`plugins."${k}".enabled = ${show(enabled)}`)})` })
   }
   for (const [k, val] of Object.entries(obj(obj(c['hooks'])?.['state']) ?? {})) {
     out.push({ key: `hooks.state.${k}=${show(val)}`, text: `changes the trust state of a Codex hook (${code(`hooks.state."${k}"`)}), which can switch it off` })
@@ -206,13 +206,13 @@ function opencodeFindings(v: unknown): Finding[] {
       const o = obj(entry)
       const name = typeof entry === 'string' ? entry : Array.isArray(entry) && typeof entry[0] === 'string' ? entry[0] : typeof o?.['package'] === 'string' ? o['package'] : typeof o?.['id'] === 'string' ? o['id'] : undefined
       if (name === undefined) continue
-      if (name.startsWith('-') && namesBuracle(name.slice(1))) out.push({ key: `${key}:${lower(name)}`, text: `removes Buracle's plugin (${code(`${key}: "${name}"`)})` })
-      else if (o !== undefined && /buracle/i.test(name) && (o['enabled'] === false || o['disabled'] === true)) out.push({ key: `${key}:${lower(name)}:off`, text: `turns Buracle's plugin off (${code(`${key}: ${show(entry)}`)})` })
+      if (name.startsWith('-') && namesBuracle(name.slice(1))) out.push({ key: `${key}:${lower(name)}`, text: `removes Buracle Stack's plugin (${code(`${key}: "${name}"`)})` })
+      else if (o !== undefined && /buracle/i.test(name) && (o['enabled'] === false || o['disabled'] === true)) out.push({ key: `${key}:${lower(name)}:off`, text: `turns Buracle Stack's plugin off (${code(`${key}: ${show(entry)}`)})` })
     }
   }
   for (const key of ['plugin_enabled', 'plugins_enabled']) {
     for (const [k, val] of Object.entries(obj(c[key]) ?? {})) {
-      if (/buracle/i.test(k) && val !== true) out.push({ key: `${key}:${lower(k)}=${show(val)}`, text: `turns Buracle's plugin off (${code(`${key}.${k}: ${show(val)}`)})` })
+      if (/buracle/i.test(k) && val !== true) out.push({ key: `${key}:${lower(k)}=${show(val)}`, text: `turns Buracle Stack's plugin off (${code(`${key}.${k}: ${show(val)}`)})` })
     }
   }
   return out
@@ -281,14 +281,14 @@ function findings(file: GuardedFile, abs: string, text: string, parsers: ConfigP
       const r = parse(kind, abs, text, parsers)
       if (r.ok) return settingsFindings(kind, r.value)
       const words = SETTINGS_WORDS[kind]
-      return lineFindings(text, l => words.test(l), l => `adds ${code(l)}, which Buracle cannot read as valid settings and which may switch it off`)
+      return lineFindings(text, l => words.test(l), l => `adds ${code(l)}, which Buracle Stack cannot read as valid settings and which may switch it off`)
     }
     case 'plugin-code':
-      return lineFindings(text, l => /buracle/i.test(l), l => `names Buracle (${code(l)}), so it could replace or tamper with Buracle's own guards`)
+      return lineFindings(text, l => /buracle/i.test(l), l => `names Buracle Stack (${code(l)}), so it could replace or tamper with Buracle Stack's own guards`)
     case 'shell-startup':
-      return lineFindings(text, l => SHELL_ASSIGN.test(l) || POWERSHELL_ASSIGN.test(l), l => `sets a variable that moves Buracle or a harness (${code(l)}), so every later hook could run something else`, /^#/)
+      return lineFindings(text, l => SHELL_ASSIGN.test(l) || POWERSHELL_ASSIGN.test(l), l => `sets a variable that moves Buracle Stack or a harness (${code(l)}), so every later hook could run something else`, /^#/)
     case 'launchd-agent':
-      return lineFindings(text, l => PLIST_NAMES.test(l), l => `sets a variable that moves Buracle or a harness (${code(l)}), so every later hook could run something else`, /^<!--/)
+      return lineFindings(text, l => PLIST_NAMES.test(l), l => `sets a variable that moves Buracle Stack or a harness (${code(l)}), so every later hook could run something else`, /^<!--/)
   }
 }
 
@@ -303,7 +303,7 @@ function belowCodeFolder(abs: string): string {
 export function switchOffChange(file: GuardedFile, abs: string, content: WriteContent, parsers?: ConfigParsers): string | undefined {
   if (file === null || typeof file !== 'object' || content === null || typeof content !== 'object' || typeof content.after !== 'string') return undefined
   if (file.kind === 'plugin-code' && /buracle/i.test(belowCodeFolder(abs))) {
-    return 'puts plugin code in a folder that names Buracle, so it could replace Buracle\'s own guards'
+    return 'puts plugin code in a folder that names Buracle Stack, so it could replace Buracle Stack\'s own guards'
   }
   const after = findings(file, abs, content.after, parsers)
   if (after.length === 0) return undefined

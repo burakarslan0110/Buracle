@@ -97,8 +97,8 @@ export async function pypiVersions(name: string): Promise<RegistryVersions | { e
 
 export async function checkSelf(env: UpdateEnv, res: CheckResult): Promise<void> {
   const st = await gitops.upstreamStatus(env.repoRoot, { fetch: true })
-  if (st.kind === 'no-repo') { res.unchecked.push({ kind: 'self', reason: 'the Buracle checkout is not a git repository' }); return }
-  if (st.kind === 'no-upstream') { res.unchecked.push({ kind: 'self', reason: 'the current branch of the Buracle checkout has no upstream' }); return }
+  if (st.kind === 'no-repo') { res.unchecked.push({ kind: 'self', reason: 'the Buracle Stack checkout is not a git repository' }); return }
+  if (st.kind === 'no-upstream') { res.unchecked.push({ kind: 'self', reason: 'the current branch of the Buracle Stack checkout has no upstream' }); return }
   if (st.kind === 'error') { res.errors.push({ kind: 'self', id: 'buracle', error: st.error }); return }
   if (st.behind === 0) return
   const diverged = st.ahead > 0
@@ -190,7 +190,7 @@ export async function checkMcp(env: UpdateEnv, res: CheckResult): Promise<void> 
         risk: current !== undefined ? bumpRisk(current, pick.candidate) : 'low',
       }
       const notes: string[] = [`${pkg.registry} ${pkg.name}`]
-      if (fromToolchain) notes.push(current === undefined ? 'not in the Buracle toolchain yet' : 'Buracle toolchain (newest release)')
+      if (fromToolchain) notes.push(current === undefined ? 'not in the Buracle Stack toolchain yet' : 'Buracle Stack toolchain (newest release)')
       if (spec.pin === 'soft') notes.push(`soft pin kept on purpose: ${spec.pin_reason ?? 'no reason given'}`)
       if (spec.pin === 'monitor') notes.push('monitored only; not bumped automatically')
       item.note = notes.join('; ')
@@ -254,7 +254,7 @@ async function checkToolchainTools(env: UpdateEnv, tools: readonly ToolSpec[], r
     if (found.latestTag !== undefined) opts.latestTag = found.latestTag
     const pick = pickUpdate(have.version, found.versions, opts)
     if (pick.candidate !== undefined && pick.candidate !== have.rolled_back) {
-      const item: UpdateItem = { kind: 'tools', id: t.name, current: have.version, latest: pick.candidate, action: 'toolchain-upgrade', risk: bumpRisk(have.version, pick.candidate), source: `${req.registry} ${req.name} (Buracle toolchain)` }
+      const item: UpdateItem = { kind: 'tools', id: t.name, current: have.version, latest: pick.candidate, action: 'toolchain-upgrade', risk: bumpRisk(have.version, pick.candidate), source: `${req.registry} ${req.name} (Buracle Stack toolchain)` }
       if (pick.candidatePublishedAt !== undefined) item.publishedAt = pick.candidatePublishedAt
       res.items.push(item)
     }
@@ -341,7 +341,7 @@ function firstLine(s: string): string {
 }
 
 export function partName(kind: UpdateKind, id: string): string {
-  if (kind === 'self') return 'Buracle'
+  if (kind === 'self') return 'Buracle Stack'
   if (kind === 'skills') return `Skill ${id}`
   return id
 }
@@ -397,7 +397,7 @@ async function applyToolchain(items: readonly UpdateItem[], env: UpdateEnv, out:
     return
   }
   if (r === undefined) {
-    for (const i of items) out.failed.push({ kind: i.kind, id: i.id, error: 'another Buracle process is installing the toolchain; try again in a moment' })
+    for (const i of items) out.failed.push({ kind: i.kind, id: i.id, error: 'another Buracle Stack process is installing the toolchain; try again in a moment' })
     return
   }
   for (const i of items) {
@@ -416,7 +416,7 @@ export async function applyUpdates(items: readonly UpdateItem[], env: UpdateEnv)
   const of = (k: UpdateKind) => items.filter(i => i.kind === k)
 
   for (const i of of('self')) {
-    await tracked(env, out, { id: `self:${i.id}`, label: 'Buracle: updating the checkout (git fast-forward)', idle: 'Buracle' }, async () => {
+    await tracked(env, out, { id: `self:${i.id}`, label: 'Buracle Stack: updating the checkout (git fast-forward)', idle: 'Buracle Stack' }, async () => {
       if (i.action !== 'ff-merge') { out.skipped.push({ kind: 'self', id: i.id, reason: 'diverged from upstream; merge by hand' }); return }
       const prev = await gitops.headCommit(env.repoRoot)
       const r = await gitops.fastForward(env.repoRoot)

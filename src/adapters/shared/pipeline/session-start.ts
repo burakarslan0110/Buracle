@@ -21,7 +21,7 @@ export interface SessionStartPorts {
   /** The profile warning (H17) in words for the model to pass on; absent where the harness shows it to the user itself. */
   profileNote?(finding: string): string
   sessionMaint?(now: number, keep: string[]): void
-  /** The running Buracle's version, where the harness runs a built copy of it; the checkout's by default. */
+  /** The running Buracle Stack's version, where the harness runs a built copy of it; the checkout's by default. */
   version?(): string | undefined
 }
 

@@ -47,7 +47,7 @@ and keep the old results next to the new ones in the report.
 
 For each improved, regressed or unclear case, open one passing and one failing transcript and
 quote the deciding event: the first tool call, the skill load, the denied call, the missing file.
-If the deciding event is a routing denial (a Buracle hook refused a built-in tool), say which rule
+If the deciding event is a routing denial (a Buracle Stack hook refused a built-in tool), say which rule
 fired. A difference without a transcript line behind it goes under Caveats, not into the table.
 
 ## Record the outcome
@@ -57,4 +57,4 @@ fired. A difference without a transcript line behind it goes under Caveats, not 
   numbers as sources. Search first, and update the earlier memory when the same target was
   benchmarked before.
 - If you fixed an unverified profile during the smoke run, tell the user which file and pattern
-  changed so the fix can be committed to the Buracle repo.
+  changed so the fix can be committed to the Buracle Stack repo.

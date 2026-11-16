@@ -132,7 +132,7 @@ jobs:
           echo "$RUNNER_TEMP/home/.bun/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/home/.local/bin" >> "$GITHUB_PATH"
 
-      # The latest release of each harness: a release that breaks Buracle shows here before it reaches users.
+      # The latest release of each harness: a release that breaks Buracle Stack shows here before it reaches users.
       - name: Harnesses to install into
         run: |
           npm install -g @anthropic-ai/claude-code @openai/codex @opencode/cli
@@ -244,11 +244,11 @@ jobs:
             export GIT_AUTHOR_NAME="$(git log -1 --format=%an "$GITHUB_SHA")" GIT_AUTHOR_EMAIL="$(git log -1 --format=%ae "$GITHUB_SHA")"
             export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
             if [ -n "$parent" ]; then
-              commit=$(git commit-tree "$tree" -p "$parent" -m "Buracle $version")
+              commit=$(git commit-tree "$tree" -p "$parent" -m "Buracle Stack $version")
             else
-              commit=$(git commit-tree "$tree" -m "Initial release: Buracle $version")
+              commit=$(git commit-tree "$tree" -m "Initial release: Buracle Stack $version")
             fi
             git push origin "$commit:refs/heads/main"
           fi
           gh release view "v$version" >/dev/null 2>&1 || gh release create "v$version" scripts/install.sh \
-            --target "$commit" --title "Buracle $version" --generate-notes
+            --target "$commit" --title "Buracle Stack $version" --generate-notes

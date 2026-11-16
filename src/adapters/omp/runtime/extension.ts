@@ -98,7 +98,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       if (deniedCalls.size > 256) deniedCalls.delete(deniedCalls.values().next().value as string)
     }
 
-    pi.setLabel?.('Buracle')
+    pi.setLabel?.('Buracle Stack')
     const receipts = createTurnReceipts({ now: () => deps.now(), view: sid => guarded('flow view', () => deps.flow.view(sid, deps.now(), FOLD_AFTER_SEC)), log: (msg, data) => log('debug', `omp: ${msg}`, data) })
     const pane = new StatusPane({ lines: (view, ctx) => status.lines(view, ctx) })
 

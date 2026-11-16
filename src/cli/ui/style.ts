@@ -138,14 +138,14 @@ export function box(lines: readonly string[], st: Style, opts: { title?: string,
   return [top, ...body, paint('╰' + '─'.repeat(inner) + '╯')].join('\n')
 }
 
-// The wordmark: lowercase "buracle" on a pixel grid, the bowl of the "b" holding the oracle's slit eye (LOGO_EYE).
+// The wordmark: lowercase "buracle stack" on a pixel grid, the bowl of the "b" holding the oracle's slit eye (LOGO_EYE).
 export const LOGO: readonly string[] = [
-  '██                                       ██        ',
-  '██                                       ██        ',
-  '██▀▀▀▀█▄  ██  ██  ██▄█▀   ▀▀▀█▄  ▄█▀▀▀▀  ██  ▄█▀▀█▄',
-  '██ ██ ██  ██  ██  ██      ▄▄▄██  ██      ██  ██▄▄██',
-  '██ ██ ██  ██  ██  ██     ██  ██  ██      ██  ██    ',
-  '██▄▄▄▄█▀  ▀█▄▄██  ██     ▀█▄▄██  ▀█▄▄▄▄  ██  ▀█▄▄▄▄',
+  '██                                       ██                                           ██    ',
+  '██                                       ██                     ██                    ██    ',
+  '██▀▀▀▀█▄  ██  ██  ██▄█▀   ▀▀▀█▄  ▄█▀▀▀▀  ██  ▄█▀▀█▄    ▄█▀▀▀▀  ▀██▀▀   ▀▀▀█▄  ▄█▀▀▀▀  ██ ▄█▀',
+  '██ ██ ██  ██  ██  ██      ▄▄▄██  ██      ██  ██▄▄██    ▀█▄▄▄    ██     ▄▄▄██  ██      ███▀  ',
+  '██ ██ ██  ██  ██  ██     ██  ██  ██      ██  ██            ██   ██    ██  ██  ██      ██▀█▄ ',
+  '██▄▄▄▄█▀  ▀█▄▄██  ██     ▀█▄▄██  ▀█▄▄▄▄  ██  ▀█▄▄▄▄    ▄▄▄▄█▀   ▀█▄▄  ▀█▄▄██  ▀█▄▄▄▄  ██  ██',
 ]
 
 export const LOGO_EYE: ReadonlyArray<readonly [number, number]> = [[3, 3], [3, 4], [4, 3], [4, 4]]
@@ -162,8 +162,11 @@ export function paintLogo(st: Style, rows: readonly string[] = LOGO): string[] {
   }).join(''))
 }
 
+/** The product name in lowercase, as the one-line wordmark and the icon's caption write it. */
+export const PRODUCT_WORD = 'buracle stack'
+
 export function wordmark(st: Style): string {
-  return `${st.accent('◉')} ${st.bold(st.gradient('buracle'))}`
+  return `${st.accent('◉')} ${st.bold(st.gradient(PRODUCT_WORD))}`
 }
 
 export const TAGLINE = 'One engineering setup, one memory, every coding agent'

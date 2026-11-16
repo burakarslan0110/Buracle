@@ -58,5 +58,5 @@ export function companionToolProblem(harness: Harness, tool: string, input: Reco
 export function companionToolDenial(harness: Harness, agent: string, tool: string, input: Record<string, unknown>): string | undefined {
   const problem = companionToolProblem(harness, tool, input)
   if (problem === undefined) return undefined
-  return `Buracle: this run is a read-only second opinion (${agent}) and ${problem}. Read files, search, see the change with git diff, log or show, and use codegraph, semble or context7; change nothing and write no memory.`
+  return `Buracle Stack: this run is a read-only second opinion (${agent}) and ${problem}. Read files, search, see the change with git diff, log or show, and use codegraph, semble or context7; change nothing and write no memory.`
 }

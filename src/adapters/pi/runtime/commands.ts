@@ -8,7 +8,7 @@ export const PI_UTILITY_COMMANDS: readonly string[] = [PI_REMEMBER_COMMAND, PI_B
 
 type Run = { code: number, stdout: string, stderr: string, timedOut: boolean }
 
-/** What the commands take from outside: the Buracle CLI and a way to run it. */
+/** What the commands take from outside: the Buracle Stack CLI and a way to run it. */
 export interface PiCommandHost {
   cli(): string[] | undefined
   run(argv: string[], opts: { cwd?: string, timeoutMs?: number }): Promise<Run>
@@ -58,7 +58,7 @@ async function brain(host: PiCommandHost, args: string, ctx: PiContext): Promise
 }
 
 /**
- * Registers `/remember <text>` (a memory note) and `/brain [review]` (the Buracle Console). They run in the extension
+ * Registers `/remember <text>` (a memory note) and `/brain [review]` (the Buracle Stack Console). They run in the extension
  * without a model turn. A host without `registerCommand` gets none; a handler that throws is reported, never raised.
  */
 export function registerPiCommands(pi: PiExtensionAPI, host: PiCommandHost): boolean {
@@ -66,7 +66,7 @@ export function registerPiCommands(pi: PiExtensionAPI, host: PiCommandHost): boo
   const guard = (what: string, fn: (args: string, ctx: PiContext) => Promise<void>) => async (args: string, ctx: PiContext): Promise<void> => {
     try { await fn(args, ctx) } catch (e) { host.report(what, e) }
   }
-  pi.registerCommand(PI_REMEMBER_COMMAND, { description: 'Save a note to the Buracle memory: /remember <text>', handler: guard('/remember', (a, c) => remember(host, a, c)) })
-  pi.registerCommand(PI_BRAIN_COMMAND, { description: 'Open the Buracle Console: /brain [review]', handler: guard('/brain', (a, c) => brain(host, a, c)) })
+  pi.registerCommand(PI_REMEMBER_COMMAND, { description: 'Save a note to the Buracle Stack memory: /remember <text>', handler: guard('/remember', (a, c) => remember(host, a, c)) })
+  pi.registerCommand(PI_BRAIN_COMMAND, { description: 'Open the Buracle Stack Console: /brain [review]', handler: guard('/brain', (a, c) => brain(host, a, c)) })
   return true
 }

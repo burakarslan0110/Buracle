@@ -190,7 +190,7 @@ export function assetsContextText(o: { harness: Harness; rules: readonly RuleFac
   const parts: string[] = []
   if (o.rules.length > 0) {
     parts.push(block(
-      `Buracle project rules (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list does not name these path rules, so read the matching one before you edit files its globs match:`,
+      `Buracle Stack project rules (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list does not name these path rules, so read the matching one before you edit files its globs match:`,
       o.rules.map(r => `- \`${r.path}\` ${DASH} ${globsText(r.globs)}`),
       ASSETS_CONTEXT_MAX_RULES,
       more => `- and ${more} more: \`buracle project check\` lists them all.`,
@@ -198,7 +198,7 @@ export function assetsContextText(o: { harness: Harness; rules: readonly RuleFac
   }
   if (!harnessProfile(o.harness).skills.readsClaudeProjectDir && o.claudeOnly.length > 0) {
     parts.push(block(
-      'Buracle project skills (H28): these skills live only in .claude/skills, which Codex does not read. When a task matches one, read `.claude/skills/<id>/SKILL.md` and follow it; `buracle project sync --adopt` links them into .agents/skills for Codex.',
+      'Buracle Stack project skills (H28): these skills live only in .claude/skills, which Codex does not read. When a task matches one, read `.claude/skills/<id>/SKILL.md` and follow it; `buracle project sync --adopt` links them into .agents/skills for Codex.',
       o.claudeOnly.map(s => `- \`${s.id}\`${s.description !== undefined && s.description !== '' ? `: ${oneLine(s.description, ASSETS_DESCRIPTION_MAX)}` : ''}`),
       ASSETS_CONTEXT_MAX_SKILLS,
       more => `- and ${more} more in .claude/skills.`,
@@ -210,27 +210,27 @@ export function assetsContextText(o: { harness: Harness; rules: readonly RuleFac
 export function claudeParityText(p: RuleParity): string {
   const paths = new Set([...p.unindexed.map(r => r.path), ...p.mismatched.map(m => m.path), ...p.dangling.map(e => e.path), ...p.invalid.filter(r => r.private !== true).map(r => r.path)])
   if (paths.size === 0) return ''
-  return `Buracle (H28): ${paths.size} path rule(s) in ${RULES_DIR} are out of step with AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list, which is how Codex, OpenCode and omp find them. Run \`buracle project check\` for the fixes before you change those files.`
+  return `Buracle Stack (H28): ${paths.size} path rule(s) in ${RULES_DIR} are out of step with AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list, which is how Codex, OpenCode and omp find them. Run \`buracle project check\` for the fixes before you change those files.`
 }
 
 export function claudeOnlySkillNote(id: string): string {
-  return `Buracle (H28): .claude/skills/${id} exists only in .claude/skills, so Codex cannot see it (Claude Code, OpenCode and omp read that folder). Keep project skills in .agents/skills/${id}, which Buracle links into .claude/skills, or run \`buracle project sync --adopt\` to link this one for Codex.`
+  return `Buracle Stack (H28): .claude/skills/${id} exists only in .claude/skills, so Codex cannot see it (Claude Code, OpenCode and omp read that folder). Keep project skills in .agents/skills/${id}, which Buracle Stack links into .claude/skills, or run \`buracle project sync --adopt\` to link this one for Codex.`
 }
 
 export function claudeImportNote(file: string): string {
   const reader = file === DOT_CLAUDE_MD ? 'Claude Code and omp read it' : 'Claude Code reads it'
-  return `Buracle (H28): ${file} does not import AGENTS.md, so ${reader} instead of the shared rules. Keep the line \`${agentsImportLine(file)}\` in it (Claude-only notes may follow).`
+  return `Buracle Stack (H28): ${file} does not import AGENTS.md, so ${reader} instead of the shared rules. Keep the line \`${agentsImportLine(file)}\` in it (Claude-only notes may follow).`
 }
 
 export function ruleEditNote(rule: RuleFacts, index: ScopedRuleIndex): string | undefined {
   if (rule.private === true) return undefined
-  if (rule.problem !== undefined) return `Buracle (H28): ${rule.path} has ${rule.problem}. Give it quoted globs, for example \`paths: ["src/**/*.ts"]\`.`
+  if (rule.problem !== undefined) return `Buracle Stack (H28): ${rule.path} has ${rule.problem}. Give it quoted globs, for example \`paths: ["src/**/*.ts"]\`.`
   const e = index.entries.find(x => x.path === rule.path)
   if (e === undefined) {
-    return `Buracle (H28): ${rule.path} is not in AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list, and Codex, OpenCode and omp find path rules only there. Add the line ${indexLine(rule)}`
+    return `Buracle Stack (H28): ${rule.path} is not in AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list, and Codex, OpenCode and omp find path rules only there. Add the line ${indexLine(rule)}`
   }
   if (!sameGlobs(rule.globs, e.globs)) {
-    return `Buracle (H28): the \`## ${SCOPED_RULES_HEADING}\` line for ${rule.path} (AGENTS.md:${e.line}) names ${globsText(e.globs)}, but its \`paths:\` are ${globsText(rule.globs)}. Make them the same.`
+    return `Buracle Stack (H28): the \`## ${SCOPED_RULES_HEADING}\` line for ${rule.path} (AGENTS.md:${e.line}) names ${globsText(e.globs)}, but its \`paths:\` are ${globsText(rule.globs)}. Make them the same.`
   }
   return undefined
 }
@@ -244,7 +244,7 @@ export function indexEditNote(p: RuleParity, max = 5): string | undefined {
   if (items.length === 0) return undefined
   const shown = items.slice(0, max)
   return [
-    `Buracle (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list is out of step with ${RULES_DIR}:`,
+    `Buracle Stack (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list is out of step with ${RULES_DIR}:`,
     ...shown.map(s => `- ${s}`),
     ...(items.length > shown.length ? [`- and ${items.length - shown.length} more: run \`buracle project check\`.`] : []),
   ].join('\n')

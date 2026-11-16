@@ -120,9 +120,9 @@ writing a second memory.
 
 ## Core pages (`core`, updated in place)
 
-A project that was set up by an older Buracle has `core-brief`, `core-architecture`, `core-conventions`,
+A project that was set up by an older Buracle Stack has `core-brief`, `core-architecture`, `core-conventions`,
 `core-commands`, `core-glossary` and `core-progress`. Update one with `memory_update`; `memory_write`
-refuses the `core` kind, and Buracle no longer creates these pages, so a project without them keeps the
+refuses the `core` kind, and Buracle Stack no longer creates these pages, so a project without them keeps the
 same facts as ordinary `knowledge` and `decision` memories.
 
 | Page | Holds |
@@ -150,7 +150,7 @@ An update of a core page:
 ```
 
 On `core-commands` and `core-architecture` the part between `<!-- buracle:detected:start -->`
-and `<!-- buracle:detected:end -->` was written by an older Buracle from the repository; nothing
+and `<!-- buracle:detected:end -->` was written by an older Buracle Stack from the repository; nothing
 rewrites it now, so keep it when you replace the `body` and write outside it.
 
 ## Updating instead of duplicating

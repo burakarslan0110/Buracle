@@ -45,18 +45,18 @@ export function installSources(t: ToolSpec, os: OsName = osName(), have: (cmd: s
   // rustup's proxy for a component shadows any other copy on PATH until the component is added, so it comes first.
   if (t.rustup !== undefined && have('rustup')) out.push({ kind: 'rustup', ref: t.rustup, label: `rustup component add ${t.rustup}` })
   if (t.brew !== undefined && have('brew')) out.push({ kind: 'brew', ref: t.brew, label: `brew install ${t.brew}` })
-  // node, uv, rg and jq at the pinned version, sha256-checked, into the Buracle toolchain: no sudo, no package manager.
+  // node, uv, rg and jq at the pinned version, sha256-checked, into the Buracle Stack toolchain: no sudo, no package manager.
   const pinned = pinnedAsset(t.name, os, arch)
-  if (pinned !== undefined) out.push({ kind: 'download', ref: `${t.name}@${pinned.version}`, label: `${t.name} ${pinned.version} download (Buracle toolchain)` })
-  if (t.npm !== undefined) out.push({ kind: 'npm', ref: t.npm, label: `npm ${t.npm} (Buracle toolchain)` })
-  if (t.pypi !== undefined) out.push({ kind: 'pypi', ref: t.pypi, label: `uv tool ${t.pypi} (Buracle toolchain)` })
+  if (pinned !== undefined) out.push({ kind: 'download', ref: `${t.name}@${pinned.version}`, label: `${t.name} ${pinned.version} download (Buracle Stack toolchain)` })
+  if (t.npm !== undefined) out.push({ kind: 'npm', ref: t.npm, label: `npm ${t.npm} (Buracle Stack toolchain)` })
+  if (t.pypi !== undefined) out.push({ kind: 'pypi', ref: t.pypi, label: `uv tool ${t.pypi} (Buracle Stack toolchain)` })
   if (t.go !== undefined && have('go')) out.push({ kind: 'go', ref: t.go, label: `go install ${t.go}@latest` })
-  if (t.dotnet !== undefined && have('dotnet')) out.push({ kind: 'dotnet', ref: t.dotnet, label: `dotnet tool install ${t.dotnet} (Buracle toolchain)` })
+  if (t.dotnet !== undefined && have('dotnet')) out.push({ kind: 'dotnet', ref: t.dotnet, label: `dotnet tool install ${t.dotnet} (Buracle Stack toolchain)` })
   return out
 }
 
 // On Linux Homebrew is optional and usually absent: without it the advice names the distribution's own package
-// manager (linux-packages.ts) and never `brew install`. Buracle prints that command and does not run it.
+// manager (linux-packages.ts) and never `brew install`. Buracle Stack prints that command and does not run it.
 export function installAdvice(t: ToolSpec, os: OsName = osName(), have: (cmd: string) => boolean = c => findExecutable(c) !== undefined, linux?: LinuxEnv): string {
   const needs = missingRequirements(t, have)
   if (needs.length > 0) return `${t.name} needs ${needs.join(' and ')} on PATH; install ${needs.length === 1 ? 'it' : 'them'} first, then run \`buracle install\``
@@ -67,7 +67,7 @@ export function installAdvice(t: ToolSpec, os: OsName = osName(), have: (cmd: st
     if (hint !== undefined) return hint
   }
   if (brewHere && t.brew !== undefined) return `brew install ${t.brew}`
-  if (t.npm !== undefined || t.pypi !== undefined) return 'buracle install (installs it into the Buracle toolchain)'
+  if (t.npm !== undefined || t.pypi !== undefined) return 'buracle install (installs it into the Buracle Stack toolchain)'
   if (t.install !== undefined) return t.install
   return 'install it with your package manager'
 }

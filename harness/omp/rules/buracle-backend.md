@@ -1,5 +1,5 @@
 ---
-description: "Buracle path rule: Backend (injected when editing or writing matching files)"
+description: "Buracle Stack path rule: Backend (injected when editing or writing matching files)"
 condition:
   - "**/api/**"
   - "**/routes/**"

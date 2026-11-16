@@ -4,7 +4,7 @@ import { accessSync, constants, statSync, writeFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { Readable } from 'node:stream'
 
-// Pi runs its extensions on Node.js (its managed install starts `node`), while the code Buracle bundles into the
+// Pi runs its extensions on Node.js (its managed install starts `node`), while the code Buracle Stack bundles into the
 // extension calls the few Bun APIs below. This file stands in for them when no `Bun` exists, so the same engine code
 // runs on both. It is the first import of the extension, and it does nothing under Bun.
 

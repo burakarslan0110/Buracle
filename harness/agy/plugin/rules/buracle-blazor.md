@@ -1,7 +1,7 @@
 ---
 trigger: glob
 globs: "**/*.razor, **/*.razor.cs, **/*.razor.css"
-description: "Buracle path rule: Blazor"
+description: "Buracle Stack path rule: Blazor"
 ---
 # Blazor
 

@@ -58,7 +58,7 @@ export function uvBinDir(): string {
 }
 
 /**
- * `base` with the folders of the system tools Buracle downloaded (src/engine/toolchain/system-download.ts) in front,
+ * `base` with the folders of the system tools Buracle Stack downloaded (src/engine/toolchain/system-download.ts) in front,
  * the ones that exist: npm and npx are `#!/usr/bin/env node` scripts, so the node they need must be on PATH.
  */
 export function withSystemTools(base: string | undefined): string {

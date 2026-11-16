@@ -67,8 +67,8 @@ export function nativeFilledNote(n: NativeFillNote): string {
   const label = PLAN_HARNESS_LABEL[n.harness]
   const validate = `\`buracle plan validate ${n.path} --strict\``
   const head = n.approved
-    ? `Buracle: the plan the user approved in ${label} plan mode was written into the registered plan ${n.path} (H12, plan.nativePlanMode); its frontmatter was kept and it is marked approved.`
-    : `Buracle: the plan from ${label}'s plan agent was written into the registered plan ${n.path} (H12, plan.nativePlanMode); its frontmatter was kept. ${label} has no approval step, so it is not approved yet.`
+    ? `Buracle Stack: the plan the user approved in ${label} plan mode was written into the registered plan ${n.path} (H12, plan.nativePlanMode); its frontmatter was kept and it is marked approved.`
+    : `Buracle Stack: the plan from ${label}'s plan agent was written into the registered plan ${n.path} (H12, plan.nativePlanMode); its frontmatter was kept. ${label} has no approval step, so it is not approved yet.`
   const next = n.approved
     ? `Next, in plan-build's plan phase: run ${validate} until it exits 0, run the plan review on this text, then the on-approval steps. Ask the user again only when the review or a fix changes tasks or behavior (\`buracle plan set approved false\` first).`
     : `Next, in plan-build's plan phase: run ${validate} until it exits 0, run the plan review on this text, then ask the user to approve it (the approval gate).`
@@ -80,5 +80,5 @@ export function nativeFilledNote(n: NativeFillNote): string {
 export function nativeConflictNote(registered: string, saved: string | undefined, harness: Harness): string {
   const label = PLAN_HARNESS_LABEL[harness]
   const kept = saved !== undefined ? `saved the plan from ${label} plan mode to ${saved} instead` : `could not save the plan from ${label} plan mode`
-  return `Buracle: the registered plan ${registered} changed after \`buracle plan prepare-native\`, so Buracle left it as it is and ${kept} (H12, plan.nativePlanMode). Merge the plan into ${registered}, then ask the user to approve the merged plan before implementing.`
+  return `Buracle Stack: the registered plan ${registered} changed after \`buracle plan prepare-native\`, so Buracle Stack left it as it is and ${kept} (H12, plan.nativePlanMode). Merge the plan into ${registered}, then ask the user to approve the merged plan before implementing.`
 }

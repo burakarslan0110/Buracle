@@ -1,6 +1,6 @@
 ---
 name: buracle
-description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going. When to use: Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; checking rate-limit headroom; diagnosing Buracle."
+description: "How to use the `buracle` helper CLI that Buracle Stack workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going. When to use: Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; checking rate-limit headroom; diagnosing Buracle Stack."
 user-invocable: false
 metadata:
   short-description: "When and how to call the buracle helper CLI"
@@ -71,7 +71,7 @@ protecting this run, and suggest `buracle doctor`.
 | Agent guidance drifted (path rules, skill links, CLAUDE.md import)? | `buracle project check --json` (read-only; exit 2 names each fix) |
 | Skills that exist only in `.claude/skills` | `buracle project sync --adopt --dry-run --json`, then without `--dry-run` (`--move` only after the user agrees) |
 | Authoring skills and rules | `buracle skills list\|new\|lint`, `buracle rules lint` |
-| Something in Buracle misbehaves | `buracle doctor` or `buracle doctor <harness>` (read-only) |
+| Something in Buracle Stack misbehaves | `buracle doctor` or `buracle doctor <harness>` (read-only) |
 
 The workflow skill in charge (the `plan-build` skill, the `goal-build` skill, the `bugfix` skill) decides when each
 transition happens. The commands and their flags: [references/commands.md](references/commands.md);
@@ -92,7 +92,7 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   decision, a step only the user can do), record it:
   `buracle plan pause --kind decision --reason "<question>"` (`--kind manual` when the user must do
   something by hand). Then ask with your structured-question tool. After the answer, `buracle plan resume`.
-- **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it. Use it for real waits, never to dodge remaining work.
+- **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle Stack records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it. Use it for real waits, never to dodge remaining work.
 - **No routine questions.** In an approved run, never ask "should I continue?" or "should I keep
   waiting?". No guard rejects them any more, so this is yours to keep: keep working, or wait on the
   job with your todo tool and your harness's background facilities.
@@ -105,7 +105,7 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   and passed. It refuses a plan without a filled `## Evidence` section (Feature: also
   `## DoD Audit`, and `## E2E Results` when the plan has `SC-n` scenarios; Bugfix: also
   `## RED Evidence`), but the content is yours to make true.
-- **Stop words.** "stop", "wait", "hold on", in any language (Buracle's hook acts only on a whole
+- **Stop words.** "stop", "wait", "hold on", in any language (Buracle Stack's hook acts only on a whole
   message in English or Turkish):
   run `buracle plan pause --kind discussion --reason "<their words>"` (harmless if the prompt hook
   already recorded it), give a status of at most five lines, end the turn. "Continue", "go on",
@@ -149,10 +149,10 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
 
 | Symptom | Do |
 |---|---|
-| `buracle: command not found` | Stop and tell the user Buracle is not installed or not on PATH (`buracle install`). Never imitate the CLI with shell or by editing state. |
+| `buracle: command not found` | Stop and tell the user Buracle Stack is not installed or not on PATH (`buracle install`). Never imitate the CLI with shell or by editing state. |
 | Exit 2 with "no session" | See *Session resolution*. |
 | Exit 1 | Read stderr, fix the input, retry at most once, then report the message. |
-| Output is not valid JSON | Re-run with `--json`; if it persists, report it as a Buracle bug. |
+| Output is not valid JSON | Re-run with `--json`; if it persists, report it as a Buracle Stack bug. |
 | `plan complete` or `plan verify` refuses | Read the reason (unticked tasks, a missing evidence section) and fix that; never work around it. |
 | The stop guard repeats the same message | `buracle plan status --json`; do the action it names, or pause with a reason. |
 | An MCP server, hook or memory misbehaves | `buracle doctor` (read-only); report the failing checks. |

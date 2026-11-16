@@ -1,5 +1,5 @@
 ---
-description: "Buracle always-on rule: Core working rules"
+description: "Buracle Stack always-on rule: Core working rules"
 alwaysApply: true
 ---
 # Core working rules
@@ -13,14 +13,14 @@ A workflow skill you run may add stricter steps; for that run the skill wins. Th
 - Ask only what the code, docs, memory or a sensible default cannot decide; otherwise decide and record the assumption.
 - "Stop", "wait" or "hold on", in any language, interrupts at once: finish the current atomic step, stop what this session launched, say where you stopped and wait. "Continue" resumes the work; it answers no open question.
 
-## Buracle's hooks
+## Buracle Stack's hooks
 
 Hooks enforce these. Follow a denial's redirect; never work around one.
 
 - Stop guard: while a registered plan is not VERIFIED, your turn goes on. The way out is `buracle plan pause --kind decision|manual|discussion --reason "<why>"` before a real question or a hand-back.
 - Approvals: the plan, the result, the goal verification and consent to a hard-to-reverse command need the user's clear yes to that question. Never approve for the user.
 - Routing: the built-in web search and fetch are denied; use the tool the denial names.
-- Self-protection: never change or switch off Buracle's files or the harness settings it wrote.
+- Self-protection: never change or switch off Buracle Stack's files or the harness settings it wrote.
 
 ## Parallel agents
 

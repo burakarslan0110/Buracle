@@ -85,7 +85,7 @@ export async function auditAgentFiles(rootIn: string, facts: RepoFacts | undefin
   for (const d of parity.dangling) drift('rules', `AGENTS.md:${d.line} lists ${d.path}, which does not exist`)
   for (const r of parity.invalid) drift('rules', `${r.path} has ${r.problem ?? 'a problem'}`)
   for (const p of parity.privateIndexed) note('rules', `${p} is gitignored but AGENTS.md lists it; teammates do not have that file`)
-  if (parity.privateUnindexed.length > 0) note('rules', `${parity.privateUnindexed.length} gitignored rule(s) stay out of the tracked index; Buracle lists them for Codex, OpenCode and omp at session start (H28): ${parity.privateUnindexed.map(r => r.path).join(', ')}`)
+  if (parity.privateUnindexed.length > 0) note('rules', `${parity.privateUnindexed.length} gitignored rule(s) stay out of the tracked index; Buracle Stack lists them for Codex, OpenCode and omp at session start (H28): ${parity.privateUnindexed.map(r => r.path).join(', ')}`)
 
   for (const b of layout.blocked) drift('layout', b)
   for (const c of plan.create) drift('links', `.claude/skills/${c.id} is missing, so Claude Code does not see .agents/skills/${c.id}`)

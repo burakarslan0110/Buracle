@@ -5,7 +5,7 @@ import type { Triggers } from './skill-router'
 
 export interface RoutingPolicy { strictness: 'enforce'|'nudge'|'off'; categories: RoutingCategory[] }
 export interface RoutingCategory { id: string; intent: string; prefer: string[]; fallback: string[]; deny_builtin: string[]; nudge?: string; reminder?: string; triggers?: Triggers }
-/** `off`: turned off for this harness (Buracle's `mcp.off` or the harness's own setting); never stored in health.json. */
+/** `off`: turned off for this harness (Buracle Stack's `mcp.off` or the harness's own setting); never stored in health.json. */
 export type McpHealth = Record<string, 'ok' | 'down' | 'unknown' | 'off'>
 
 /** Whether routing must not send a call to this server: it is down, or it is off. */
@@ -245,10 +245,10 @@ export function capabilityCard(input: { policy: RoutingPolicy, mcp: CatalogMcp[]
   const strictness = input.policy?.strictness ?? 'enforce'
 
   const head = [
-    `Buracle capabilities (${HARNESS_LABEL[h]}). ` + (strictness === 'enforce'
-      ? 'Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.'
+    `Buracle Stack capabilities (${HARNESS_LABEL[h]}). ` + (strictness === 'enforce'
+      ? 'Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle Stack names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.'
       : strictness === 'nudge'
-        ? 'Tool routing is advisory: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and adds reminders instead of denying calls.'
+        ? 'Tool routing is advisory: follow "Tool routing (strict)" in your rules. Buracle Stack names the skills and MCP servers each prompt calls for and adds reminders instead of denying calls.'
         : 'Tool routing hooks are off; still follow "Tool routing (strict)" in your rules.'),
   ]
   const mcpHeader = `MCP servers (tools are named ${MCP_SYNTAX[h]}${servers.some(s => !s.critical) ? `; ${hiddenNote}` : ''}):`

@@ -17,7 +17,7 @@ import { stripAnsi } from '../ui/style'
 import type { InstallFlowResult } from './install'
 
 // `buracle install --script`: the part of the install scripts/install.sh hands over to (the script prints the
-// logo, Prerequisites and Buracle itself). It prints Harnesses, Tools, Memory and
+// logo, Prerequisites and Buracle Stack itself). It prints Harnesses, Tools, Memory and
 // Result in the layout of src/cli/ui/sections.ts, one line each unless something did not pass, and writes every
 // detail (the toolchain, the steps, the health check) to the install log the scripts started.
 
@@ -60,7 +60,7 @@ export const scriptDeps: ScriptDeps = {
     return r === undefined ? { state: 'failed', why: 'it did not answer within 8 s; `buracle mem ui --serve` shows why' } : { state: r.started ? 'started' : 'running', url: r.url }
   },
   addPath: () => {
-    // Only once the install made the ~/.local/bin/buracle link: before that, the folder holds nothing of Buracle's.
+    // Only once the install made the ~/.local/bin/buracle link: before that, the folder holds nothing of Buracle Stack's.
     if (!existsSync(join(paths.localBinDir(), 'buracle'))) return { changed: false, skipped: 'error', reason: 'the buracle link in ~/.local/bin is missing' }
     const first = addLocalBinToPath()
     // The other of zsh and bash too: a terminal opened in it never reads the first one's file.
@@ -74,14 +74,14 @@ export const scriptDeps: ScriptDeps = {
 /** The texts the install keeps for the next run in a terminal are no step the script's reader has to take. */
 export function withoutInstallHint(text: string): string {
   return text
-    .replace(/buracle install \(installs it into the Buracle toolchain\)/g, 'the toolchain could not install it')
+    .replace(/buracle install \(installs it into the Buracle Stack toolchain\)/g, 'the toolchain could not install it')
     .replace(/[,;]?\s*(?:then\s+)?run `buracle install[^`]*`(?:\s+(?:again|in a terminal))?/g, '')
     .replace(/\s*\(`buracle install[^)]*\)/g, '')
     .trim()
 }
 
 // Doctor's errors give their advice in many phrasings; each starts at one of these.
-const INSTALL_ADVICE = /`?buracle install\b|install Buracle again|main\.ts install\b/i
+const INSTALL_ADVICE = /`?buracle install\b|install Buracle Stack again|main\.ts install\b/i
 // Where a clause starts: the advice is cut from the nearest one before it.
 const CLAUSE = /; |\. | \(| until |, then /g
 
@@ -197,7 +197,7 @@ export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession
     const sections: SectionResult[] = [harnessSection(r, opts.interactive, declined), toolsSection(r.toolchain)]
 
     phase = 'Memory'
-    printer.start('Memory', 'starting the Buracle Console')
+    printer.start('Memory', 'starting the Buracle Stack Console')
     const brain = scriptDeps.brain()
     let ui: UiStartOutcome
     try { ui = await scriptDeps.startUi() } catch (e) { ui = { state: 'failed', why: e instanceof Error ? e.message : String(e) } }
@@ -300,19 +300,19 @@ function resultSection(r: InstallFlowResult, o: { declined: ReadonlySet<Declined
   // Without a terminal nobody answered the install's questions: each case it would have asked is listed with its command.
   if (!o.interactive) {
     for (const h of r.busyHarnesses ?? []) items.push({ status: 'warn', name: h, detail: `later: buracle install ${h}` })
-    if ((r.removedItems ?? 0) > 0) items.push({ status: 'warn', name: 'removed', detail: `${plural(r.removedItems ?? 0, 'Buracle item', 'Buracle items')} you removed · buracle install (in a terminal)` })
+    if ((r.removedItems ?? 0) > 0) items.push({ status: 'warn', name: 'removed', detail: `${plural(r.removedItems ?? 0, 'Buracle Stack item', 'Buracle Stack items')} you removed · buracle install (in a terminal)` })
     if ((r.outsideLinks ?? 0) > 0) items.push({ status: 'warn', name: 'links', detail: `${plural(r.outsideLinks ?? 0, 'link', 'links')} out of your home folder · buracle install (in a terminal)` })
     if (r.ledgerLost === true) items.push({ status: 'warn', name: 'ledger', detail: 'the ownership ledger is gone · buracle install (in a terminal)' })
   } else {
-    if (o.declined.has('removed')) items.push({ status: 'warn', name: 'removed', detail: `${plural(r.removedItems ?? 0, 'Buracle item', 'Buracle items')} you removed stay removed (you said no)` })
+    if (o.declined.has('removed')) items.push({ status: 'warn', name: 'removed', detail: `${plural(r.removedItems ?? 0, 'Buracle Stack item', 'Buracle Stack items')} you removed stay removed (you said no)` })
     if (o.declined.has('links')) items.push({ status: 'warn', name: 'links', detail: `${plural(r.outsideLinks ?? 0, 'link', 'links')} out of your home folder left alone (you said no)` })
-    if (o.declined.has('ledger')) items.push({ status: 'warn', name: 'ledger', detail: 'values equal to Buracle\'s stay yours (you said no)' })
+    if (o.declined.has('ledger')) items.push({ status: 'warn', name: 'ledger', detail: 'values equal to Buracle Stack\'s stay yours (you said no)' })
   }
-  // A harness too old for Buracle needs its own update first, terminal or not.
+  // A harness too old for Buracle Stack needs its own update first, terminal or not.
   for (const o of r.tooOldHarnesses ?? []) items.push({ status: 'warn', name: o.harness, detail: `later: ${o.update}, then buracle install ${o.harness}` })
   for (const e of r.errors) if (!isHarness(e.source)) items.push({ status: 'fail', name: e.source, detail: withoutInstallHint(tildeText(e.error)) })
   // The one next step the user has to take by hand: Codex runs only the hooks it trusts.
-  for (const s of r.steps) if (s.startsWith('Codex: open Codex and trust')) items.push({ status: 'info', name: 'codex', detail: 'open Codex and trust the Buracle hooks once with /hooks' })
+  for (const s of r.steps) if (s.startsWith('Codex: open Codex and trust')) items.push({ status: 'info', name: 'codex', detail: 'open Codex and trust the Buracle Stack hooks once with /hooks' })
   const base: SectionStatus = r.code === 1 ? 'fail' : errors > 0 ? 'warn' : 'ok'
   // The install itself finished: failed health checks keep Result a warning, as the count did before.
   const status = worst(items, base)

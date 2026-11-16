@@ -26,7 +26,7 @@ or a memory id.
 ## Rules
 
 1. **MCP first, always.** Route each need to the tool in the table below. Built-in web tools are only a
-   last fallback: under the default routing policy Buracle rejects them while the matching MCP server
+   last fallback: under the default routing policy Buracle Stack rejects them while the matching MCP server
    is healthy.
 2. **Read before you cite.** A search snippet is a lead, not evidence. Fetch the page or query the docs
    before relying on it for anything load-bearing.
@@ -72,7 +72,7 @@ gave it to a subagent), do not fan out: lanes never start lanes.
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it
 current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start: `buracle flow start research --title "<question>"` (inside the requirements workflow this nests under it).

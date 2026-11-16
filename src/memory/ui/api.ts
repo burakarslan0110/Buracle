@@ -132,7 +132,7 @@ export interface UiBrief {
   author: MemItem['author']
   version: number
   history: MemItem['history']
-  /** Who the claim is from; null for a memory written before Buracle recorded it. */
+  /** Who the claim is from; null for a memory written before Buracle Stack recorded it. */
   origin: MemOrigin | null
   confidence: number | null
   /** True while the memory is marked as contradicting a protected one (see `contradictedNote` in the detail). */

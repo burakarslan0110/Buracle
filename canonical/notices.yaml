@@ -1,12 +1,16 @@
 notices:
+  - id: 0.8.10-buracle-stack
+    since: 0.8.10
+    until: 0.9.0
+    message: "Buracle is now called Buracle Stack; Buracle becomes the name of a product family. Nothing changes for you: the `buracle` command, ~/.buracle, the BURACLE_* variables, the memory and your settings stay the same. The repository moved to github.com/burakarslan0110/Buracle-Stack, and the old address redirects."
   - id: 0.8.1-documents-follow-language
     since: 0.8.1
     until: 0.9.0
-    message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English."
+    message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle Stack reads stay English. `buracle plan validate` no longer warns about prose that is not English."
   - id: 0.8.6-skills-own-folders
     since: 0.8.6
     until: 0.9.0
-    message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills."
+    message: "Buracle Stack's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills."
   - id: 0.8.6-opencode-todos
     since: 0.8.6
     until: 0.9.0

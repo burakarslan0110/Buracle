@@ -61,7 +61,7 @@ function writeTarget(file: string, home: string): { path: string } | { unsafe: s
   return { path: real }
 }
 
-/** The record of the blocks Buracle wrote, or undefined when there is none (or it is unreadable). */
+/** The record of the blocks Buracle Stack wrote, or undefined when there is none (or it is unreadable). */
 function readRecord(): ShellPathRecord | undefined {
   const r = readJsonSafeSync<ShellPathRecord>(paths.shellPathStateFile())
   if (!r.ok || r.value === null || typeof r.value !== 'object' || typeof r.value.file !== 'string') return undefined
@@ -86,14 +86,14 @@ function remember(file: string): void {
 function insertBlock(file: string, home: string): ShellPathResult {
   let homeReal = home
   try { homeReal = realpathSync(home) } catch {  }
-  // ZDOTDIR may name any folder; Buracle writes only inside the home folder.
+  // ZDOTDIR may name any folder; Buracle Stack writes only inside the home folder.
   if (!inside(home, file) && !inside(homeReal, file)) return { changed: false, file, skipped: 'unsafe', reason: `${file} is outside your home folder` }
   const target = writeTarget(file, home)
   if ('unsafe' in target) return { changed: false, file, skipped: 'unsafe', reason: target.unsafe }
   try {
     const text = existsSync(target.path) ? readFileSync(target.path, 'utf8') : ''
     if (text.includes(START)) {
-      // Buracle's own block: its record may be gone (a wiped ~/.buracle), and uninstall needs it to find the block.
+      // Buracle Stack's own block: its record may be gone (a wiped ~/.buracle), and uninstall needs it to find the block.
       if (!isRecorded(file)) remember(file)
       return { changed: false, file, skipped: 'in-file' }
     }
@@ -160,7 +160,7 @@ export function addLocalBinToOtherShells(opts: { env?: Readonly<Record<string, s
   for (const shell of LOGIN_SHELLS) {
     if (shell === mine) continue
     const file = startupFile({ ...env, SHELL: `/bin/${shell}` }, os, home)
-    // A file that already has Buracle's block, or puts the folder on PATH itself, settles it: no shell is started. The probe
+    // A file that already has Buracle Stack's block, or puts the folder on PATH itself, settles it: no shell is started. The probe
     // runs the whole rc file of the user (plugins, version managers), so it runs only when a block would be written.
     if (putsOnPath(file, home)) { out.push(insertBlock(file, home)); continue }
     const loginPath = probe(shell, home)
@@ -171,7 +171,7 @@ export function addLocalBinToOtherShells(opts: { env?: Readonly<Record<string, s
   return out
 }
 
-/** Whether `file` already holds Buracle's block or a line that puts ~/.local/bin on PATH. */
+/** Whether `file` already holds Buracle Stack's block or a line that puts ~/.local/bin on PATH. */
 function putsOnPath(file: string, home: string): boolean {
   const target = writeTarget(file, home)
   if ('unsafe' in target) return false
@@ -193,7 +193,7 @@ function removeBlock(file: string): { removed: boolean, file: string, settled: b
   const start = lines.findIndex(l => l.trimEnd() === START)
   const end = start < 0 ? -1 : lines.findIndex((l, i) => i > start && l.trimEnd() === END)
   if (start < 0) return { removed: false, file, settled: true }
-  if (end < 0) return { removed: false, file, settled: false, note: `${file} has ${START} without ${END}, so it was left as it is; remove Buracle's PATH lines by hand` }
+  if (end < 0) return { removed: false, file, settled: false, note: `${file} has ${START} without ${END}, so it was left as it is; remove Buracle Stack's PATH lines by hand` }
   const next = [...lines.slice(0, start), ...lines.slice(end + 1)].join('\n')
   try {
     atomicWriteSync(target.path, next)

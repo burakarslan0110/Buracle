@@ -1,7 +1,7 @@
 ---
 trigger: glob
 globs: "**/*.go, **/go.mod, **/go.sum, **/go.work"
-description: "Buracle path rule: Go"
+description: "Buracle Stack path rule: Go"
 ---
 # Go
 

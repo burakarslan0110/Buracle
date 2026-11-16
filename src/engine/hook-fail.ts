@@ -19,7 +19,7 @@ export function shortError(e: unknown): string {
 }
 
 export function failClosedReason(detail: string): string {
-  return `Buracle blocked this tool call: its guard hook could not run (${detail}). The guards (H01, H02, H20) must check every call, so calls stay blocked until Buracle works again. Ask the user to run \`! buracle doctor\` and then \`! buracle install\` in this session; the log is ~/.buracle/logs/buracle.log.`
+  return `Buracle Stack blocked this tool call: its guard hook could not run (${detail}). The guards (H01, H02, H20) must check every call, so calls stay blocked until Buracle Stack works again. Ask the user to run \`! buracle doctor\` and then \`! buracle install\` in this session; the log is ~/.buracle/logs/buracle.log.`
 }
 
 export function denyJson(reason: string): string {
@@ -35,5 +35,5 @@ export function failClosedOutcome(harness: string, event: string, detail: string
 }
 
 export function isFailClosedReason(reason: unknown): boolean {
-  return typeof reason === 'string' && reason.startsWith('Buracle blocked this tool call: ')
+  return typeof reason === 'string' && reason.startsWith('Buracle Stack blocked this tool call: ')
 }

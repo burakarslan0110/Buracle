@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Installs Buracle on macOS and Linux.
+# Installs Buracle Stack on macOS and Linux.
 #
-#   curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
+#   curl -fsSL https://github.com/burakarslan0110/Buracle-Stack/releases/latest/download/install.sh | bash
 #   bash scripts/install.sh [--dir <checkout>] [--no-install]
 #
 # What it does: installs Bun when it is missing, clones the main branch (or updates the
@@ -12,7 +12,7 @@
 # BURACLE_HOME (default ~/.buracle). The details go to ~/.buracle/logs/install-<date>.log.
 set -euo pipefail
 
-REPO_URL="${BURACLE_REPO:-https://github.com/burakarslan0110/buracle.git}"
+REPO_URL="${BURACLE_REPO:-https://github.com/burakarslan0110/Buracle-Stack.git}"
 BRANCH="${BURACLE_BRANCH:-main}"
 DIR="${BURACLE_CHECKOUT:-$HOME/buracle}"
 RUN_INSTALL=1
@@ -26,7 +26,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # A terminal gets one live line while a section runs; NO_COLOR, TERM=dumb or a pipe get plain lines only. The icons
 # come from escapes so that this file stays ASCII: block symbols in a UTF-8 locale, + ! x i otherwise.
 # shellcheck disable=SC2034 # the order of every section; this script prints the first two, the test compares it
-SECTION_ORDER=(Prerequisites Buracle Harnesses Tools Memory Result)
+SECTION_ORDER=(Prerequisites "Buracle Stack" Harnesses Tools Memory Result)
 LIVE=0
 I_OK='+' I_WARN='!' I_FAIL='x' I_INFO='i' I_RUN='...' D='-'
 C_OK='' C_WARN='' C_FAIL='' C_INFO='' C_OFF=''
@@ -193,12 +193,12 @@ print_install_help() {
 # The logo of the buracle command (LOGO in src/cli/ui/style.ts), with # for a full block, _ for a lower half and ^ for an
 # upper half, so that this file stays ASCII; tests/engine/install-script.test.ts compares the two.
 LOGO_ROWS=(
-  '##                                       ##'
-  '##                                       ##'
-  '##^^^^#_  ##  ##  ##_#^   ^^^#_  _#^^^^  ##  _#^^#_'
-  '## ## ##  ##  ##  ##      ___##  ##      ##  ##__##'
-  '## ## ##  ##  ##  ##     ##  ##  ##      ##  ##'
-  '##____#^  ^#__##  ##     ^#__##  ^#____  ##  ^#____'
+  '##                                       ##                                           ##'
+  '##                                       ##                     ##                    ##'
+  '##^^^^#_  ##  ##  ##_#^   ^^^#_  _#^^^^  ##  _#^^#_    _#^^^^  ^##^^   ^^^#_  _#^^^^  ## _#^'
+  '## ## ##  ##  ##  ##      ___##  ##      ##  ##__##    ^#___    ##     ___##  ##      ###^'
+  '## ## ##  ##  ##  ##     ##  ##  ##      ##  ##            ##   ##    ##  ##  ##      ##^#_'
+  '##____#^  ^#__##  ##     ^#__##  ^#____  ##  ^#____    ____#^   ^#__  ^#__##  ^#____  ##  ##'
 )
 TAGLINE='One engineering setup, one memory, every coding agent'
 
@@ -226,17 +226,17 @@ banner() {
   cols="${COLUMNS:-}"
   [ -n "$cols" ] || cols=$(tput cols 2>/dev/null) || cols=80
   case "$cols" in ''|*[!0-9]*) cols=80 ;; esac
-  if [ "$cols" -lt 54 ]; then
-    printf '\n  %sburacle%s  %s\n\n' "$brand" "$reset" "$TAGLINE"
+  if [ "$cols" -lt 94 ]; then
+    printf '\n  %sburacle stack%s  %s\n\n' "$brand" "$reset" "$TAGLINE"
     return 0
   fi
   printf '\n'
   for row in "${LOGO_ROWS[@]}"; do
     if [ "$i" -eq 3 ] || [ "$i" -eq 4 ]; then
       # The eye: columns 3 and 4 of rows 3 and 4 (LOGO_EYE).
-      printf '  %s%s%s%s%s%s%s%s%s\n' "$brand" "$(glyphs "${row:0:3}")" "$eye" "$(glyphs "${row:3:2}")" "$brand" "$(glyphs "${row:5:20}")" "$brand_end" "$(glyphs "${row:25}")" "$reset"
+      printf '  %s%s%s%s%s%s%s%s%s\n' "$brand" "$(glyphs "${row:0:3}")" "$eye" "$(glyphs "${row:3:2}")" "$brand" "$(glyphs "${row:5:41}")" "$brand_end" "$(glyphs "${row:46}")" "$reset"
     else
-      printf '  %s%s%s%s%s\n' "$brand" "$(glyphs "${row:0:25}")" "$brand_end" "$(glyphs "${row:25}")" "$reset"
+      printf '  %s%s%s%s%s\n' "$brand" "$(glyphs "${row:0:46}")" "$brand_end" "$(glyphs "${row:46}")" "$reset"
     fi
     i=$((i + 1))
   done
@@ -306,26 +306,26 @@ main() {
     exit 1
   fi
   if ! bun_is_new_enough; then
-    section_done fail Prerequisites "Bun $(bun --version) is too old: Buracle needs 1.4 or newer ${D} bun upgrade"
+    section_done fail Prerequisites "Bun $(bun --version) is too old: Buracle Stack needs 1.4 or newer ${D} bun upgrade"
     exit 1
   fi
   section_done ok Prerequisites "git, curl, Bun $(bun --version)"
 
-  # Buracle: main only receives commits that passed CI on every platform; `buracle update` follows the branch it was cloned from.
+  # Buracle Stack: main only receives commits that passed CI on every platform; `buracle update` follows the branch it was cloned from.
   if [ -d "$DIR/.git" ]; then
-    section_start Buracle "updating $(tilde "$DIR")"
-    logged git -C "$DIR" pull --ff-only || { section_done fail Buracle "git pull in $(tilde "$DIR") failed ${D} log $(tilde "$LOG")"; exit 1; }
+    section_start "Buracle Stack" "updating $(tilde "$DIR")"
+    logged git -C "$DIR" pull --ff-only || { section_done fail "Buracle Stack" "git pull in $(tilde "$DIR") failed ${D} log $(tilde "$LOG")"; exit 1; }
   elif git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1; then
-    section_start Buracle "cloning $BRANCH into $(tilde "$DIR")"
-    logged git clone --branch "$BRANCH" "$REPO_URL" "$DIR" || { section_done fail Buracle "git clone failed ${D} log $(tilde "$LOG")"; exit 1; }
+    section_start "Buracle Stack" "cloning $BRANCH into $(tilde "$DIR")"
+    logged git clone --branch "$BRANCH" "$REPO_URL" "$DIR" || { section_done fail "Buracle Stack" "git clone failed ${D} log $(tilde "$LOG")"; exit 1; }
   else
-    section_start Buracle "cloning the default branch into $(tilde "$DIR")"
-    logged git clone "$REPO_URL" "$DIR" || { section_done fail Buracle "git clone failed ${D} log $(tilde "$LOG")"; exit 1; }
+    section_start "Buracle Stack" "cloning the default branch into $(tilde "$DIR")"
+    logged git clone "$REPO_URL" "$DIR" || { section_done fail "Buracle Stack" "git clone failed ${D} log $(tilde "$LOG")"; exit 1; }
   fi
   cd "$DIR"
-  section_start Buracle "installing the dependencies"
-  logged bun install --frozen-lockfile || { section_done fail Buracle "bun install failed ${D} log $(tilde "$LOG")"; exit 1; }
-  section_done ok Buracle "$(tilde "$DIR") ${D} $(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') @ $(git -C "$DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"
+  section_start "Buracle Stack" "installing the dependencies"
+  logged bun install --frozen-lockfile || { section_done fail "Buracle Stack" "bun install failed ${D} log $(tilde "$LOG")"; exit 1; }
+  section_done ok "Buracle Stack" "$(tilde "$DIR") ${D} $(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') @ $(git -C "$DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"
 
   if [ "$RUN_INSTALL" != 1 ]; then
     section_done warn Result "skipped (--no-install) ${D} log $(tilde "$LOG")"

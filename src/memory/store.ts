@@ -75,7 +75,7 @@ export function rowOwner(raw: unknown): { ref: BrainRef, id: string } | undefine
   return id === '' ? undefined : { ref, id }
 }
 
-/** A stored row as the rest of Buracle reads it: the plain id, and `superseded_by` pointing at a plain id too. Undefined when the row is not in that bucket. */
+/** A stored row as the rest of Buracle Stack reads it: the plain id, and `superseded_by` pointing at a plain id too. Undefined when the row is not in that bucket. */
 export function plainRow(raw: unknown, ref: BrainRef): Record<string, unknown> | undefined {
   const owner = rowOwner(raw)
   if (owner === undefined || refKey(owner.ref) !== refKey(ref)) return undefined
@@ -187,7 +187,7 @@ export async function listAll(ref: BrainRef): Promise<MemItem[]> {
   return [...items]
 }
 
-/** How many rows each bucket holds (retired ones too), and how many rows belong to nobody Buracle knows. */
+/** How many rows each bucket holds (retired ones too), and how many rows belong to nobody Buracle Stack knows. */
 export async function bucketCounts(): Promise<BucketCounts> {
   if (!brainExists()) return { person: 0, projects: new Map(), foreign: 0 }
   const sig = sigOf(brainDbFile())

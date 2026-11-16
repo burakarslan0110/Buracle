@@ -1,6 +1,6 @@
 {
   "name": "buracle",
-  "version": "0.8.18",
+  "version": "0.8.19",
   "private": true,
   "type": "module",
   "description": "One engineering setup, one memory, every coding agent: shared skills, rules, MCP servers, hooks and guards from one source, and workflows that finish with proof",
@@ -8,11 +8,11 @@
   "author": "Burak Arslan",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/burakarslan0110/buracle.git"
+    "url": "git+https://github.com/burakarslan0110/Buracle-Stack.git"
   },
-  "homepage": "https://github.com/burakarslan0110/buracle#readme",
+  "homepage": "https://github.com/burakarslan0110/Buracle-Stack#readme",
   "bugs": {
-    "url": "https://github.com/burakarslan0110/buracle/issues"
+    "url": "https://github.com/burakarslan0110/Buracle-Stack/issues"
   },
   "keywords": [
     "claude-code",

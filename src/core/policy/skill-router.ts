@@ -370,7 +370,7 @@ export function routePrompt(text: string, t: CompiledTriggers, o: RouteOptions):
 
 export const ROUTE_TEXT_MAX_BYTES = 600
 export const PROMPT_CONTEXT_MAX_CHARS = 1_500
-export const ROUTE_HEADER = 'Buracle routing for this prompt:'
+export const ROUTE_HEADER = 'Buracle Stack routing for this prompt:'
 
 export interface RouteTextOptions {
   triggers?: CompiledTriggers

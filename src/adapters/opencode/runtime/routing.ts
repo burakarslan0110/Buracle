@@ -50,7 +50,7 @@ export function commandOfPrompt(metadata: Record<string, unknown> | undefined, t
     const args = metadata?.[COMMAND_ARGS]
     return { command: id, args: typeof args === 'string' ? args : '' }
   }
-  const m = /(?:^|\n\n)\(?Run this with the Buracle ([a-z0-9][a-z0-9-]*) workflow: [^\n]*$/.exec(text)
+  const m = /(?:^|\n\n)\(?Run this with the Buracle Stack ([a-z0-9][a-z0-9-]*) workflow: [^\n]*$/.exec(text)
   if (m?.[1] === undefined) return undefined
   return { command: m[1], args: text.slice(0, m.index).trim() }
 }

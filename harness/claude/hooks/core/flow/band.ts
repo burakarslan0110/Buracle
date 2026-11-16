@@ -384,7 +384,7 @@ export function bandNotice(v: BandView): { key: string, text: string } | undefin
   if (!v.visible || !NOTICE_STATUSES.has(v.status)) return undefined
   const summary = bandSummary(v)
   if (summary === '') return undefined
-  return { key: `${v.workflow ?? v.breadcrumb.join('>')}#${v.startedAt ?? 0}:${v.status}`, text: `Buracle workflow: ${summary}` }
+  return { key: `${v.workflow ?? v.breadcrumb.join('>')}#${v.startedAt ?? 0}:${v.status}`, text: `Buracle Stack workflow: ${summary}` }
 }
 
 export function resumeSuggestion(v: BandView): string | undefined {

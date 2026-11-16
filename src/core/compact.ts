@@ -6,7 +6,7 @@ import { memIsoLocal, memLocalDate, memLocalParts, memNoteHarness } from './memo
 import { slugify } from './memory/text'
 import { reviewLabel, reviewsInFlight } from './plan/reviews'
 
-export const COMPACT_MARKER = 'Buracle — keep through compaction:'
+export const COMPACT_MARKER = 'Buracle Stack — keep through compaction:'
 
 function activePlan(state: SessionState): NonNullable<SessionState['plan']> | undefined {
   const p = state?.plan
@@ -181,7 +181,7 @@ export function restoreContext(state: SessionState, handoffPath?: string, todos?
   const open = hasHandoff ? [] : list(todos, RESTORE_TODOS_MAX)
   const reviews = reviewsLine(state)
   if (!p && !hasHandoff && open.length === 0 && reviews === undefined) return undefined
-  const lines = ['Buracle: the context was compacted.']
+  const lines = ['Buracle Stack: the context was compacted.']
   if (p) {
     lines.push(`Active plan: ${p.path} (type ${p.type}, status ${p.status}, phase ${p.phase}). Re-read the whole plan file and the workflow's phase reference now: the ticked "- [x] Task N done" lines are the real progress.`)
     const paused = interactionLine(state)

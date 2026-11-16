@@ -14,7 +14,7 @@ export const opencodeProfile: HarnessProfile = {
   relocationEnv: ['XDG_CONFIG_HOME', 'OPENCODE_CONFIG_DIR'],
   sessionEnv: ['OPENCODE_SESSION_ID'],
   protectedDirs: [{ key: 'opencodeConfigDir', under: '.config/opencode', entries: [''] }],
-  selfText: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp …`, `opencode plugin …`)" },
+  selfText: { what: "OpenCode's own configuration, which loads Buracle Stack's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp …`, `opencode plugin …`)" },
   skills: {
     readsAgentsDir: true,
     readsClaudeUserDir: true,

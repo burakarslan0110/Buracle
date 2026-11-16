@@ -60,7 +60,7 @@ Independent questions run in parallel per the *Parallel agents* rule; each lane 
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it
 current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start: `buracle flow start requirements --title "<topic>"` in Phase 0 (harmless when a hook already started it).

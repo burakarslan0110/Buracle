@@ -13,7 +13,7 @@ import { errText, isInside, tilde } from './output'
 
 export const CORE_OWNER = 'core'
 export const AGENTS_SKILLS_OWNER = 'agents-skills'
-/** The harnesses that get Buracle's skills from the installed copy: they read `~/.agents/skills`, or a link to it from the folder their profile names. */
+/** The harnesses that get Buracle Stack's skills from the installed copy: they read `~/.agents/skills`, or a link to it from the folder their profile names. */
 export const AGENTS_SKILLS_CONSUMERS: readonly Harness[] = harnessesWhere(p => p.skills.readsAgentsDir || p.skills.linkDir !== undefined)
 
 /** What install and update say when `repairUnsettled()` fails: nothing new is written over a half-restored state. */
@@ -28,14 +28,14 @@ export interface InstallPhase { id: string; title: string; detail: string }
 
 export const INSTALL_PHASES: readonly InstallPhase[] = [
   { id: 'preflight', title: 'Preflight', detail: '`HOME` must be an absolute path other than `/`. `BURACLE_HOME` cannot be the home directory itself, a directory that contains it, or a directory other programs share (such as `~/.local`, `~/.config` or `~/Library`). The configuration is loaded live.' },
-  { id: 'toolchain', title: 'Toolchain', detail: 'Installs everything the harnesses need: missing system tools (git, Node.js, uv, rg, ast-grep, jq, gh) through Homebrew; MCP server packages and the pyright and typescript-language-server language servers under `~/.buracle/toolchain`; the gopls, rust-analyzer, csharp-ls and jdtls language servers through Homebrew, `go install` or `dotnet tool install`. npm and PyPI packages, CortexDB and the system tools take their newest release, and packages that are already installed move to it (`toolchain.upgrade`); a new CortexDB is used only after it passed the memory check, with the brains backed up first. `update.minReleaseAgeDays` (0 by default) can make Buracle wait that many days after an npm or PyPI release, as `buracle update` does then too. An npm package is installed into a staging folder and swapped in only after it passed its check, so a server that starts meanwhile never sees a half-written copy. `--dry-run` only reports; `toolchain.autoInstall: false` or `BURACLE_NO_TOOLCHAIN=1` skips this step.' },
+  { id: 'toolchain', title: 'Toolchain', detail: 'Installs everything the harnesses need: missing system tools (git, Node.js, uv, rg, ast-grep, jq, gh) through Homebrew; MCP server packages and the pyright and typescript-language-server language servers under `~/.buracle/toolchain`; the gopls, rust-analyzer, csharp-ls and jdtls language servers through Homebrew, `go install` or `dotnet tool install`. npm and PyPI packages, CortexDB and the system tools take their newest release, and packages that are already installed move to it (`toolchain.upgrade`); a new CortexDB is used only after it passed the memory check, with the brains backed up first. `update.minReleaseAgeDays` (0 by default) can make Buracle Stack wait that many days after an npm or PyPI release, as `buracle update` does then too. An npm package is installed into a staging folder and swapped in only after it passed its check, so a server that starts meanwhile never sees a half-written copy. `--dry-run` only reports; `toolchain.autoInstall: false` or `BURACLE_NO_TOOLCHAIN=1` skips this step.' },
   { id: 'detect', title: 'Harness detection', detail: 'Every harness enabled in the configuration is looked up with `detect()`. A harness that is not installed or is turned off is skipped and reported.' },
-  { id: 'compose', title: 'Composing the plans', detail: 'Collects the core plan (the shim, the `~/.local/bin/buracle` link, `repo` in `config.yaml`, and the path rules Codex and OpenCode read, `~/.buracle/rules/paths/<id>.md`), the skills plan (one copy of every skill in `harness/agents-skills`, as real files under `~/.agents/skills/<id>`, which Codex, OpenCode and Oh My Pi read themselves; the Claude Code plugin bundles the same files; the links an earlier Buracle put into each harness\'s own skills folder are removed), and the `installPlan()` output of every harness adapter. While a harness that rewrites its own configuration is running (Codex, for example), its adapter skips it and asks you to quit it and try again; in a terminal `buracle install` asks whether to write its configuration anyway. A Codex older than the oldest version Buracle supports is left as it is without a question, also when forced, because it could not load the configuration Buracle writes; the next steps say to update Codex, then to run `buracle install codex` (exit 2). Items an earlier install wrote that no plan produces any more get removal operations. When a target inside HOME passes through a symlink that leads outside HOME (a dotfiles repository elsewhere, for example), only that file is skipped and reported as a conflict; in a terminal `buracle install` asks whether to write through such links.' },
+  { id: 'compose', title: 'Composing the plans', detail: 'Collects the core plan (the shim, the `~/.local/bin/buracle` link, `repo` in `config.yaml`, and the path rules Codex and OpenCode read, `~/.buracle/rules/paths/<id>.md`), the skills plan (one copy of every skill in `harness/agents-skills`, as real files under `~/.agents/skills/<id>`, which Codex, OpenCode and Oh My Pi read themselves; the Claude Code plugin bundles the same files; the links an earlier Buracle Stack put into each harness\'s own skills folder are removed), and the `installPlan()` output of every harness adapter. While a harness that rewrites its own configuration is running (Codex, for example), its adapter skips it and asks you to quit it and try again; in a terminal `buracle install` asks whether to write its configuration anyway. A Codex older than the oldest version Buracle Stack supports is left as it is without a question, also when forced, because it could not load the configuration Buracle Stack writes; the next steps say to update Codex, then to run `buracle install codex` (exit 2). Items an earlier install wrote that no plan produces any more get removal operations. When a target inside HOME passes through a symlink that leads outside HOME (a dotfiles repository elsewhere, for example), only that file is skipped and reported as a conflict; in a terminal `buracle install` asks whether to write through such links.' },
   { id: 'preview', title: 'Preview', detail: '`--dry-run` prints a unified diff for each plan and stops here; a plan that a running harness would skip shows as a warning. Otherwise the changes are counted: in a terminal they are applied at once, without a question, while each step shows on the screen; without a terminal nothing is written unless `--yes` is given, and the summary says how many changes wait.' },
   { id: 'runtime', title: 'Frozen runtime', detail: 'Hooks and the CLI run a frozen copy of the checkout, never the checkout itself. Under the transaction lock, the install copies `src/`, `canonical/`, `harness/`, `package.json`, `bun.lock`, `tsconfig.json` and the runtime packages (`yaml`, `jsonc-parser`, and `beautiful-mermaid` with its `elkjs` and `entities`, which must match `bun.lock`) into `~/.buracle/runtime/<id>` (the id is a hash of what is copied; an identical copy that passed its check is reused), checks the copy (`buracle --version`, and the Claude Code and Codex PreToolUse hooks must deny `rm -rf ~` and let `ls` through) and only then lets the core transaction point the shim at it. A copy that fails its check is removed, the shim keeps the old runtime and the install fails before any transaction. After the core transaction, the live runtime and the newest other one are kept and older ones are removed. `BURACLE_RUNTIME=checkout` writes a shim that runs the checkout directly instead (tests, debugging; `buracle doctor` warns about it).' },
-  { id: 'apply', title: 'Transactional apply', detail: 'The core and shared skills plans are applied first as one transaction, then each harness as its own transaction, in the order of the transaction steps below; the lock is held throughout. When a harness\'s transaction fails, only that transaction is rolled back, the other harnesses stay installed and the exit code is 2; when the core transaction fails, no harness is attempted. When another process changes a file during a transaction, the transaction is retried once. Ctrl-C rolls back the current transaction and stops the install. Items the user deleted are not recreated (they are reported as conflicts); in a terminal `buracle install` asks whether to put them back. A lost ownership ledger is rebuilt from the transaction journals; without journals, `buracle install` in a terminal asks whether to record the values that equal Buracle\'s as its own.' },
-  { id: 'record', title: 'Record', detail: 'Writes the `runtime-config.json` snapshot (the configuration, plus the absolute paths the install saw, under `resolved.*`) and the install record, which the next install uses to find leftover items. Every command in Buracle\'s files that runs the shim is checked to point at a file that exists.' },
-  { id: 'post', title: 'After the install', detail: 'Sets up the memory: reports a missing CortexDB binary and takes back the Claude Code memory redirects an older Buracle wrote. Then lists the harness-specific last steps: approving the hooks once with `/hooks` in Codex (`buracle doctor codex` lists the ones still pending), the one-time restart of OpenCode\'s background service for `BURACLE_HOME`, linking the Oh My Pi plugin to the repository\'s `harness/omp` folder, and `/reload-plugins` in open Claude Code sessions. Conflicts, adopted values, failed optional commands and recovered transactions are reported.' },
+  { id: 'apply', title: 'Transactional apply', detail: 'The core and shared skills plans are applied first as one transaction, then each harness as its own transaction, in the order of the transaction steps below; the lock is held throughout. When a harness\'s transaction fails, only that transaction is rolled back, the other harnesses stay installed and the exit code is 2; when the core transaction fails, no harness is attempted. When another process changes a file during a transaction, the transaction is retried once. Ctrl-C rolls back the current transaction and stops the install. Items the user deleted are not recreated (they are reported as conflicts); in a terminal `buracle install` asks whether to put them back. A lost ownership ledger is rebuilt from the transaction journals; without journals, `buracle install` in a terminal asks whether to record the values that equal Buracle Stack\'s as its own.' },
+  { id: 'record', title: 'Record', detail: 'Writes the `runtime-config.json` snapshot (the configuration, plus the absolute paths the install saw, under `resolved.*`) and the install record, which the next install uses to find leftover items. Every command in Buracle Stack\'s files that runs the shim is checked to point at a file that exists.' },
+  { id: 'post', title: 'After the install', detail: 'Sets up the memory: reports a missing CortexDB binary and takes back the Claude Code memory redirects an older Buracle Stack wrote. Then lists the harness-specific last steps: approving the hooks once with `/hooks` in Codex (`buracle doctor codex` lists the ones still pending), the one-time restart of OpenCode\'s background service for `BURACLE_HOME`, linking the Oh My Pi plugin to the repository\'s `harness/omp` folder, and `/reload-plugins` in open Claude Code sessions. Conflicts, adopted values, failed optional commands and recovered transactions are reported.' },
 ]
 
 export function shellQuote(s: string): string {
@@ -44,7 +44,7 @@ export function shellQuote(s: string): string {
 
 export interface ShimOptions { bun: string, repoRoot: string, buracleHome?: string, runtime?: string }
 
-export const SHIM_DENY_DETAIL = "the hook process failed, or the shim's bun or Buracle's runtime is missing"
+export const SHIM_DENY_DETAIL = "the hook process failed, or the shim's bun or Buracle Stack's runtime is missing"
 
 export function shimContent(opts: ShimOptions): string {
   const frozen = opts.runtime !== undefined
@@ -52,7 +52,7 @@ export function shimContent(opts: ShimOptions): string {
   const deny = denyJson(failClosedReason(SHIM_DENY_DETAIL)).trimEnd()
   const lines = [
     '#!/bin/sh',
-    '# Buracle CLI shim written by `buracle install`. Re-run `buracle install` instead of editing it.',
+    '# Buracle Stack CLI shim written by `buracle install`. Re-run `buracle install` instead of editing it.',
     `# buracle-shim: ${frozen ? 'frozen' : 'checkout'}`,
     frozen
       ? '# It runs the frozen runtime `buracle install` copied from the checkout: edits in the checkout go live with `buracle install`.'
@@ -95,7 +95,7 @@ export function shimContent(opts: ShimOptions): string {
   )
   if (frozen) lines.push('if [ -x "$b" ] && [ -f "$c" ]; then echo "buracle: the runtime $m is missing; running the checkout instead (run \\`buracle install\\` to restore the runtime)" >&2; exec "$b" "$c" "$@"; fi')
   lines.push(
-    'echo "buracle: $m or $b is missing; run \\`bun src/cli/main.ts install\\` in the Buracle checkout" >&2',
+    'echo "buracle: $m or $b is missing; run \\`bun src/cli/main.ts install\\` in the Buracle Stack checkout" >&2',
     'exit 127',
   )
   return lines.join('\n') + '\n'
@@ -162,7 +162,7 @@ export function agentsSkillIds(repoRoot: string): string[] {
   })
 }
 
-/** Where Buracle's skills are installed, once for every harness: `~/.agents/skills`. */
+/** Where Buracle Stack's skills are installed, once for every harness: `~/.agents/skills`. */
 export function installedSkillsDir(): string {
   return join(paths.agentsDir(), 'skills')
 }
@@ -193,9 +193,9 @@ function isLink(path: string): boolean {
 }
 
 /**
- * Buracle's skills, installed once: every file of `harness/agents-skills/<id>` as a real file under
+ * Buracle Stack's skills, installed once: every file of `harness/agents-skills/<id>` as a real file under
  * `~/.agents/skills/<id>`, and one link per skill to that copy for each harness whose profile names a
- * link folder. A skill folder that is a link (somebody else's, or one an earlier Buracle made and this run
+ * link folder. A skill folder that is a link (somebody else's, or one an earlier Buracle Stack made and this run
  * removes) is skipped: writing into it would write through it, and a link cannot become a folder inside one
  * transaction. The run after the removal writes the copy.
  */
@@ -388,7 +388,7 @@ export function markBuracleHome(): void {
   if (names !== undefined && !names.every(n => n === 'config.yaml' || n === HOME_MARKER || /^\..*\.buracle-\d+-[0-9a-f]+\.tmp$/.test(n))) return
   try {
     if (!existsSync(join(bh, HOME_MARKER))) {
-      atomicWriteSync(join(bh, HOME_MARKER), 'This directory was created by Buracle (BURACLE_HOME). `buracle uninstall --purge-state` removes its state directories.\n')
+      atomicWriteSync(join(bh, HOME_MARKER), 'This directory was created by Buracle Stack (BURACLE_HOME). `buracle uninstall --purge-state` removes its state directories.\n')
     }
   } catch {  }
 }

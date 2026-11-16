@@ -38,9 +38,9 @@ function protectedInside(abs: string, ctx: WriteGuardContext): string | undefine
   const vault = typeof ctx.vault === 'string' && ctx.vault !== '' ? normalizePath(expandHome(ctx.vault, ctx.home)) : ''
   const roots: Array<[string, string]> = []
   if (home !== '' && !isRootPath(home)) {
-    roots.push([`${home}/.ssh`, "the user's SSH directory"], [`${home}/.aws`, "the user's AWS credentials directory"], [`${home}/.buracle/state`, "Buracle's own state"])
+    roots.push([`${home}/.ssh`, "the user's SSH directory"], [`${home}/.aws`, "the user's AWS credentials directory"], [`${home}/.buracle/state`, "Buracle Stack's own state"])
   }
-  if (vault !== '' && !isRootPath(vault)) roots.push([vault, 'the Buracle memory vault'])
+  if (vault !== '' && !isRootPath(vault)) roots.push([vault, 'the Buracle Stack memory vault'])
   const a = lower(normalizePath(abs).replace(/\/+$/, ''))
   for (const [root, what] of roots) {
     const r = lower(root)
@@ -92,7 +92,7 @@ function judge(op: CodeOp, ctx: WriteGuardContext, execCwd: string, extraDeny: s
       }
       if (abs !== undefined) {
         const inside = isAbsPath(abs) ? protectedInside(abs, ctx) : undefined
-        if (inside) return { deny: `${q(op.api)} would ${op.kind === 'move' ? 'move away' : 'delete'} ${inside}; leave it to the user and Buracle.`, hook: 'H02' }
+        if (inside) return { deny: `${q(op.api)} would ${op.kind === 'move' ? 'move away' : 'delete'} ${inside}; leave it to the user and Buracle Stack.`, hook: 'H02' }
         const area = isAbsPath(abs) ? selfProtectedArea(abs, home, ctx.selfPaths, true, cwd) : undefined
         if (area !== undefined) {
           const t = selfProtectionText(area)

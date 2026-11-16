@@ -10,11 +10,11 @@ export const name = 'consent'
 export const summary = 'Run a command the user approved in the harness\'s own consent prompt (Codex, H20)'
 export const usage = `Usage: buracle consent run <id> <command>
 
-On Codex, Buracle's H20 gate turns a command it holds for the user's say-so into
-\`buracle consent run <id> '<command>'\`, and Buracle's execpolicy rule makes Codex ask the user
+On Codex, Buracle Stack's H20 gate turns a command it holds for the user's say-so into
+\`buracle consent run <id> '<command>'\`, and Buracle Stack's execpolicy rule makes Codex ask the user
 before it runs. Once the user approved it there, this runs <command> once with the user's shell
 (bash, zsh or sh; else /bin/sh) and exits with its exit code. It refuses (exit 1, nothing runs)
-when Buracle did not hold exactly this command, when the question never reached the user, when
+when Buracle Stack did not hold exactly this command, when the question never reached the user, when
 the user turned it down, when it runs outside the Codex session that asked, when the bash guard
 (H01) refuses the command, or after 15 minutes; then ask the user in the conversation.`
 
@@ -31,8 +31,8 @@ function refusal(why: Refused): string {
   const what = why === 'not-asked' ? 'the consent question never reached the user'
     : why === 'elsewhere' ? 'it does not run in the Codex session that asked the user'
     : why === 'expired' ? 'the approval is older than 15 minutes'
-    : why === 'changed' ? 'the command differs from the one Buracle held'
-    : 'Buracle holds no such command'
+    : why === 'changed' ? 'the command differs from the one Buracle Stack held'
+    : 'Buracle Stack holds no such command'
   return `buracle consent: nothing ran, because ${what}. Ask the user in the conversation, naming the exact command and what it changes, then run the command itself once they say yes.\n`
 }
 
@@ -73,7 +73,7 @@ export async function runConsent(argv: string[], io: CommandIO, now: number = Da
   }
   const denied = guardDenial(command)
   if (denied !== undefined) {
-    io.stderr.write(`buracle consent: nothing ran, because Buracle H01 refuses it: ${denied}\n`)
+    io.stderr.write(`buracle consent: nothing ran, because Buracle Stack H01 refuses it: ${denied}\n`)
     return EXIT.error
   }
   return runCommand(promptShell(env), command, io)

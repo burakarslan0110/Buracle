@@ -25,7 +25,7 @@ export const agyProfile: HarnessProfile = {
     { key: 'agyDir', under: '.gemini/config', entries: ['hooks.json', 'mcp_config.json', 'config.json', 'plugins/'] },
     { key: 'agyDir', under: '.gemini', entries: ['antigravity-cli/settings.json'] },
   ],
-  selfText: { what: "AGY CLI's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use AGY's own commands (`agy mcp …`, `agy plugin …`, `/hooks`)" },
+  selfText: { what: "AGY CLI's own configuration, which registers Buracle Stack's guard hooks", remedy: "ask the user to make this change themselves, or use AGY's own commands (`agy mcp …`, `agy plugin …`, `/hooks`)" },
   skills: {
     // AGY reads skills from <config>/skills only (the ~/.agents/skills folder is read per workspace, not globally): the
     // install links every skill of the one copy into that folder.

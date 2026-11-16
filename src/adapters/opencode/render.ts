@@ -48,7 +48,7 @@ export function agentsBlock(canonical: CanonicalBundle, pathRulesDir: string): s
   const always = canonical.rules.filter(r => r.scope === 'always').sort(byId)
   const pathRules = canonical.rules.filter(r => r.scope === 'paths').sort(byId)
   const out: string[] = [
-    '<!-- Managed by Buracle (`buracle install`). Edit canonical/rules in the Buracle repository instead of this block. -->',
+    '<!-- Managed by Buracle Stack (`buracle install`). Edit canonical/rules in the Buracle Stack repository instead of this block. -->',
   ]
   for (const r of always) out.push('', trimBlock(renderText(r.body)))
   const pointer = pathRulesPointer(pathRules.map(r => r.id), pathRulesDir)
@@ -194,7 +194,7 @@ export function configFragmentText(canonical: CanonicalBundle, shim: string): st
   for (const [id, entry] of opencodeServers(canonical, shim)) servers[id] = entry
   const doc = { $schema: CONFIG_SCHEMA_URL, share: 'disabled', permissions: configPermissions(), experimental: { todo: true }, mcp: { servers } }
   return [
-    '// Buracle keys for ~/.config/opencode/opencode.jsonc (OpenCode v2). `buracle install` merges them key by key',
+    '// Buracle Stack keys for ~/.config/opencode/opencode.jsonc (OpenCode v2). `buracle install` merges them key by key',
     '// (mcp.servers.<id>, permissions, share, experimental.todo from OpenCode 2.1.2 on, $schema) and keeps every',
     '// other key and comment of the user.',
     '// {env:HOME}/.buracle/bin/buracle is replaced with the absolute shim path at install time.',
@@ -210,9 +210,9 @@ export function cliSet(pluginDir: string, opts: { bypass?: boolean } = {}): Reco
 
 export function cliFragmentText(): string {
   return [
-    '// Buracle keys for ~/.config/opencode/cli.json (OpenCode v2 TUI settings), merged by `buracle install`.',
+    '// Buracle Stack keys for ~/.config/opencode/cli.json (OpenCode v2 TUI settings), merged by `buracle install`.',
     '// `plugins` gets one entry at install time: the absolute path of <config dir>/plugins/buracle, which',
-    '// enables the Buracle status line without disabling the built-in footer. It is left out when the user',
+    '// enables the Buracle Stack status line without disabling the built-in footer. It is left out when the user',
     '// already keeps their own `plugins` list.',
     JSON.stringify({ $schema: CLI_SCHEMA_URL }, null, 2),
   ].join('\n') + '\n'

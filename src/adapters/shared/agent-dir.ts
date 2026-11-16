@@ -2,7 +2,7 @@ import { detectBinary } from '../../engine/proc'
 import { readLedger } from '../../engine/txn'
 
 // Pi (`pi`) and Oh My Pi (`omp`) both read PI_CODING_AGENT_DIR. Without it each has its own folder (~/.pi/agent and
-// ~/.omp/agent); with it both read one folder, and Buracle's files for the two (extensions, MCP entries, settings)
+// ~/.omp/agent); with it both read one folder, and Buracle Stack's files for the two (extensions, MCP entries, settings)
 // would overwrite each other. The rule: when the variable names one folder for two installed hosts, the harness whose
 // files are already in it keeps it (the ledger says which; Oh My Pi, the older adapter, when neither is), the other's
 // install writes nothing, and `buracle doctor` says why.
@@ -23,7 +23,7 @@ export interface AgentDirProbe {
   /** `agentDirShared` of src/engine/paths.ts: the folder PI_CODING_AGENT_DIR names, if it is set. */
   shared(): string | undefined
   installed(bin: string): Promise<boolean>
-  /** The hosts that already have files of Buracle's in the folder (the ownership ledger); none when unknown. */
+  /** The hosts that already have files of Buracle Stack's in the folder (the ownership ledger); none when unknown. */
   owners?(dir: string): Promise<readonly FamilyHost[]>
 }
 
@@ -57,6 +57,6 @@ export async function agentDirConflict(source: { agentDirShared(): string | unde
   const name = (h: FamilyHost): string => (h === 'pi' ? 'Pi' : 'Oh My Pi')
   return {
     dir, keeper, skipped,
-    message: `PI_CODING_AGENT_DIR points Pi and Oh My Pi at one folder (${dir}), so Buracle installs into it for ${name(keeper)} only and leaves ${name(skipped)} out. Unset the variable for one of the two, or give each its own folder, then run \`buracle install\`.`,
+    message: `PI_CODING_AGENT_DIR points Pi and Oh My Pi at one folder (${dir}), so Buracle Stack installs into it for ${name(keeper)} only and leaves ${name(skipped)} out. Unset the variable for one of the two, or give each its own folder, then run \`buracle install\`.`,
   }
 }

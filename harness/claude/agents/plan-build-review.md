@@ -1,6 +1,6 @@
 ---
 name: plan-build-review
-description: "Read-only reviewer for a Buracle plan-build plan before the user approves it. Launch it from the plan-build workflow once the plan file passes `buracle plan validate`, passing the plan path, the user's request verbatim and the clarifications. It checks requirement coverage, risky assumptions, missing tasks and tests, task order and Definition-of-Done quality, and returns strict JSON findings."
+description: "Read-only reviewer for a Buracle Stack plan-build plan before the user approves it. Launch it from the plan-build workflow once the plan file passes `buracle plan validate`, passing the plan path, the user's request verbatim and the clarifications. It checks requirement coverage, risky assumptions, missing tasks and tests, task order and Definition-of-Done quality, and returns strict JSON findings."
 tools: "Read, Bash, mcp__plugin_buracle_codegraph__*, mcp__plugin_buracle_semble__*, mcp__plugin_buracle_context7__*"
 disallowedTools: "Write, Edit, NotebookEdit"
 model: sonnet

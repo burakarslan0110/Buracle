@@ -1,7 +1,7 @@
 ---
 trigger: glob
 globs: "**/*.tsx, **/*.jsx, **/*.vue, **/*.svelte, **/*.astro, **/*.html, **/*.css, **/*.scss, **/*.sass, **/*.less, **/*.razor, **/*.razor.css"
-description: "Buracle path rule: Frontend"
+description: "Buracle Stack path rule: Frontend"
 ---
 # Frontend
 

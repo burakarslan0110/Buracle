@@ -16,7 +16,7 @@ export function pathRuleFile(rule: RuleDoc, opts: { skills?: readonly string[], 
 }
 
 /**
- * The always-loaded line about the path rules. Where a harness has no path-scoped rules of its own, Buracle's hook
+ * The always-loaded line about the path rules. Where a harness has no path-scoped rules of its own, Buracle Stack's hook
  * hands the matching rule over at the first edit, so the instructions name the rules and their folder, not every glob.
  */
 export function pathRulesPointer(ids: readonly string[], dir: string): string | undefined {
@@ -24,7 +24,7 @@ export function pathRulesPointer(ids: readonly string[], dir: string): string | 
   return [
     '# Path-scoped rules',
     '',
-    `When you first edit a file that a path rule covers (${[...ids].sort().join(', ')}), Buracle hands you the rule: follow it. The rules are in \`${dir}\`.`,
+    `When you first edit a file that a path rule covers (${[...ids].sort().join(', ')}), Buracle Stack hands you the rule: follow it. The rules are in \`${dir}\`.`,
   ].join('\n')
 }
 

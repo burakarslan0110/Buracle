@@ -25,7 +25,7 @@ The same holds when they say it in their own language.
    answers neither, so ask the open question again or check the manual step first. Three
    decision pauses are the exception, because "continue" is their answer: the stop guard's
    runaway question (reason `runaway: …`), a goal-build hand-back (`build hand-back: …`) and the
-   model-switch pause after plan approval (`model switch: …`). Buracle resumes those itself.
+   model-switch pause after plan approval (`model switch: …`). Buracle Stack resumes those itself.
 
 ## Pick up after a compaction or in a new session
 
@@ -57,7 +57,7 @@ The same holds when they say it in their own language.
    fix the cause and run review-scope again. When no default branch was found, or HEAD is the
    default branch, add `--base <ref>` naming the branch or commit the work started from.
 3. `git diff --stat <diff_range>` lists the changed files.
-4. Launch the reviewer with your subagent tool; the block's first line names the agent (where the harness lists Buracle's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the rest is
+4. Launch the reviewer with your subagent tool; the block's first line names the agent (where the harness lists Buracle Stack's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the rest is
    its prompt, for example:
 
    ```text
@@ -92,7 +92,7 @@ The same holds when they say it in their own language.
    reports: `buracle worktree diff <slug>-<n>`, read the diff, merge it as in *Worktree lifecycle*
    step 4, run the checks, and `buracle worktree cleanup <slug>-<n>`.
 
-## Diagnose Buracle itself
+## Diagnose Buracle Stack itself
 
 1. `buracle doctor` (or `buracle doctor <harness>`).
 2. Report the failing checks with their messages. Fixes that change the installation

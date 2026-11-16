@@ -128,6 +128,6 @@ In the report, list each server with the harnesses whose config declares it and 
 cannot reach it. Adding a declaration to another harness's config makes a second copy to keep in
 step, so offer it and let the user decide.
 
-Buracle's own servers (`context7`, `codegraph`, `semble`, `web-search`, `web-fetch`, `grep`,
-`chrome-devtools`, `buracle-memory`) are covered by Buracle's routing card in every
+Buracle Stack's own servers (`context7`, `codegraph`, `semble`, `web-search`, `web-fetch`, `grep`,
+`chrome-devtools`, `buracle-memory`) are covered by Buracle Stack's routing card in every
 harness; do not repeat them here.

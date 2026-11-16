@@ -1,6 +1,6 @@
 import type { ToolKind } from '../events'
 
-// Every secret Buracle masks is found here: the patterns, the function that applies them to a text (`redact`), and the
+// Every secret Buracle Stack masks is found here: the patterns, the function that applies them to a text (`redact`), and the
 // walk that applies it to a tool's output (`maskSecrets`, `maskToolOutput`). The memory, the spool and every harness
 // adapter call this module; none keeps a pattern of its own.
 
@@ -504,5 +504,5 @@ export function maskToolOutput(value: unknown): { value: unknown, count: number 
 }
 
 export function maskNotice(count: number): string {
-  return `Buracle: ${count === 1 ? '1 secret value' : `${count} secret values`} hidden from the model`
+  return `Buracle Stack: ${count === 1 ? '1 secret value' : `${count} secret values`} hidden from the model`
 }

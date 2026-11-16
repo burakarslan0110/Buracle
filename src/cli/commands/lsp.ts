@@ -3,14 +3,14 @@ import { join } from 'node:path'
 import type { CommandIO } from '../router'
 
 export const name = 'lsp'
-export const summary = 'Run, bridge or check Buracle\'s language servers (buracle lsp run <id>, buracle lsp mcp)'
+export const summary = 'Run, bridge or check Buracle Stack\'s language servers (buracle lsp run <id>, buracle lsp mcp)'
 export const usage = `Usage: buracle lsp run <id>
        buracle lsp mcp
        buracle lsp list [--json]
        buracle lsp check [<id>…] [--json]
 
 run <id>   Starts language server <id> (pyright, typescript, gopls, rust-analyzer, csharp-ls,
-           jdtls) on stdin/stdout: Buracle's toolchain copy for servers marked prefer: toolchain
+           jdtls) on stdin/stdout: Buracle Stack's toolchain copy for servers marked prefer: toolchain
            (installed by \`buracle install\`), else the one on PATH or in the toolchain's go and
            dotnet folders. The server takes over this process (no launcher stays behind).
            The Claude plugin's .lsp.json starts them this way.
@@ -20,7 +20,7 @@ mcp        Starts the lsp MCP server on stdin/stdout (newline-delimited JSON-RPC
            language when a tool first needs it, in the project root its markers name (the nearest
            folder with tsconfig.json, go.mod, Cargo.toml, ... up to the git top level; never the
            home folder), tells it which project files changed on disk before each call, and
-           stops it after 15 idle minutes or when stdin closes. Buracle's file checks (H04) ask
+           stops it after 15 idle minutes or when stdin closes. Buracle Stack's file checks (H04) ask
            it for an edited file's diagnostics through a local channel it registers under
            ~/.buracle/run/lsp.
 list       Every server and the command that starts it now.

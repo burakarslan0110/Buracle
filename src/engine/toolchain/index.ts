@@ -161,8 +161,8 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
       const provided = toolPackage(t, state)
       if (provided !== undefined) {
         item.current = provided.version
-        item.source = `${provided.registry} ${provided.name} (Buracle toolchain)`
-        item.detail = `${provided.version} from the Buracle toolchain`
+        item.source = `${provided.registry} ${provided.name} (Buracle Stack toolchain)`
+        item.detail = `${provided.version} from the Buracle Stack toolchain`
         const want = t.bins ?? [t.name]
         if (!want.every(b => provided.links?.includes(b))) {
           record(s => {
@@ -232,7 +232,7 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
     }
     if (!opts.install || (needs === 'upgrade' && !opts.upgrade)) {
       item.status = needs === 'install' ? 'missing' : 'outdated'
-      item.detail = needs === 'install' ? 'not installed in the Buracle toolchain' : `${have?.version} installed, ${target} available${heldNote}`
+      item.detail = needs === 'install' ? 'not installed in the Buracle Stack toolchain' : `${have?.version} installed, ${target} available${heldNote}`
       return
     }
     const r = await installPackage({ ...req, version: target }, opts.nowMs(), { minAgeDays })
@@ -267,7 +267,7 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
     if (!wanted(opts, id, group)) return
     const req = toolRequest(t)
     if (req === undefined) return
-    const item: ToolchainItem = { id, group, label: t.name, required: t.required, status: 'ok', source: `${req.registry} ${req.name} (Buracle toolchain)`, detail: '' }
+    const item: ToolchainItem = { id, group, label: t.name, required: t.required, status: 'ok', source: `${req.registry} ${req.name} (Buracle Stack toolchain)`, detail: '' }
     emit(item, 'start')
     await ensurePackage(item, req, t.lsp?.bin ?? (t.bins ?? [t.name])[0] ?? t.name)
     emit(item, 'done')
@@ -276,7 +276,7 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
 
   if (wanted(opts, 'tool:cortexdb', 'cli')) {
     const { checkCortexdb } = await import('./cortexdb')
-    const item: ToolchainItem = { id: 'tool:cortexdb', group: 'cli', label: 'cortexdb', required: true, status: 'ok', source: 'github liliang-cn/cortexdb, newest release (Buracle toolchain)', detail: '' }
+    const item: ToolchainItem = { id: 'tool:cortexdb', group: 'cli', label: 'cortexdb', required: true, status: 'ok', source: 'github liliang-cn/cortexdb, newest release (Buracle Stack toolchain)', detail: '' }
     emit(item, 'start')
     const check = checkCortexdb()
     if (check.status === 'ok') {

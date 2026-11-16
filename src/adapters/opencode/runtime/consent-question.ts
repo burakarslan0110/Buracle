@@ -5,7 +5,7 @@ import { asRecord } from './util'
 const HARNESS = 'opencode' as const
 
 export function questionHint(need: ConsentNeed): string {
-  return `To ask right away, call the \`question\` tool with one question whose text is exactly ${JSON.stringify(consentQuestion(need))} and the options ${CONSENT_OPTIONS.map(o => `"${o}"`).join(', ')}; Buracle records the user's pick, and after an allow you run the command again.`
+  return `To ask right away, call the \`question\` tool with one question whose text is exactly ${JSON.stringify(consentQuestion(need))} and the options ${CONSENT_OPTIONS.map(o => `"${o}"`).join(', ')}; Buracle Stack records the user's pick, and after an allow you run the command again.`
 }
 
 function offersConsentOptions(q: Record<string, unknown>): boolean {

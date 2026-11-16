@@ -1,6 +1,6 @@
-# Buracle: repository guide for coding agents
+# Buracle Stack: repository guide for coding agents
 
-Buracle is one engineering setup and one memory for every coding agent. It keeps one canonical set of
+Buracle Stack is one engineering setup and one memory for every coding agent. It keeps one canonical set of
 skills, rules, agents, MCP servers, hooks and status lines and generates it for Claude Code, Codex CLI,
 OpenCode (v2), Oh My Pi, Qwen Code, Pi and AGY CLI. The code is TypeScript on Bun ≥ 1.4, ESM only, with strict
 TypeScript, and the CLI runs from source.
@@ -107,7 +107,7 @@ CI also parses the install script with `bash -n scripts/install.sh`. Run that af
 - Language. Everything is English: code, comments, identifiers, test names, agent-facing prose (skills, rules, agents,
   hook texts), user docs, CLI output, status lines, the mod and the web UI (one dictionary in `src/memory/ui/i18n.js`,
   no language switch). Agents still reply in the user's language, and the workflow documents under `docs/` (PRDs, plans,
-  build contracts, audits) follow it too, with the markers Buracle reads in English (PRD 2026-11-06). The one exception
+  build contracts, audits) follow it too, with the markers Buracle Stack reads in English (PRD 2026-11-06). The one exception
   is category D, the recognition of text in the user's language: whole-message control words, the reply to a held consent
   question, memory query stopwords and inflections, secret-word redaction, case folding and the MCP categories' trigger
   phrases. Its Turkish words stay as matching data behind English identifiers and comments. A new file with category D

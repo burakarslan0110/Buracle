@@ -4,7 +4,7 @@ export function reviewerShellDenial(agentType: string | undefined, command: stri
   if (agentType === undefined || !REVIEW_AGENT_TYPE.test(agentType)) return undefined
   const problem = readOnlyShellProblem(command)
   if (problem === undefined) return undefined
-  return `Buracle: ${agentType} is a read-only reviewer and ${problem}. Read files with Read, search with rg, and see the change with git diff, log or show and \`buracle review-scope --json\`; change nothing.`
+  return `Buracle Stack: ${agentType} is a read-only reviewer and ${problem}. Read files with Read, search with rg, and see the change with git diff, log or show and \`buracle review-scope --json\`; change nothing.`
 }
 
 export function readOnlyShellProblem(command: string): string | undefined {

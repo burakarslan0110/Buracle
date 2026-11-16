@@ -8,15 +8,15 @@ The always-loaded *Core working rules* hold the core. This file has the detail b
 - Long jobs (builds, test suites, installs, dev servers, downloads): run them in the background when the harness allows, keep the handle, and wait on it. Never ask "should I keep waiting?" — wait, then continue.
 - Wait for a concrete condition (the process exits, a log line appears, a port answers) with a bounded timeout, never a chain of fixed sleeps. A snapshot of the output does not prove the job finished. Reuse the handle of a job that already runs instead of starting it again.
 - Messages from the user during a run are steering: acknowledge briefly, fold them in, keep going.
-- Stop words interrupt at once: "stop", "wait", "hold on", in any language. Buracle's hooks act on them only when the whole message is such a word in English or Turkish; in every other case, act on them yourself, the pause and resume steps below included. Finish only the current atomic step (never leave a half-written file), say where you stopped, and wait; with an active Buracle plan, also run `buracle plan pause --kind discussion --reason "<their words>"`. "Continue" or "go on" resumes the work; it answers no open question. "Cancel" or "drop it" drops the task: stop, and confirm before discarding anything.
+- Stop words interrupt at once: "stop", "wait", "hold on", in any language. Buracle Stack's hooks act on them only when the whole message is such a word in English or Turkish; in every other case, act on them yourself, the pause and resume steps below included. Finish only the current atomic step (never leave a half-written file), say where you stopped, and wait; with an active Buracle Stack plan, also run `buracle plan pause --kind discussion --reason "<their words>"`. "Continue" or "go on" resumes the work; it answers no open question. "Cancel" or "drop it" drops the task: stop, and confirm before discarding anything.
 - Before ending a turn, check the todo list and any active plan. If work remains and you are not blocked, keep going.
-- A filling context window is no reason to rush or skip verification; Buracle saves plan state before compaction and restores it afterwards.
+- A filling context window is no reason to rush or skip verification; Buracle Stack saves plan state before compaction and restores it afterwards.
 
 ## Questions and approvals
 
 - Ask only when you cannot decide from the code, docs, memory or a sensible default: destructive or irreversible actions, product or UX choices with no default, missing credentials or access, growth in scope. Otherwise decide, record the assumption in your report, and continue.
 - When you ask, use the structured question tool if one exists, batch related questions, and offer 2–4 concrete options that name real files or behaviors, with your recommendation first.
-- With an active Buracle plan, the stop guard, the escape hatch and the pause before a question are in the `buracle` skill, *Plans and the stop guard*. A pause is for real decisions, never a way out of unfinished work. A bare "continue" is no answer to an open decision (a merge, an approval, a sign-off): pause again and ask it again, or act only on an explicit choice.
+- With an active Buracle Stack plan, the stop guard, the escape hatch and the pause before a question are in the `buracle` skill, *Plans and the stop guard*. A pause is for real decisions, never a way out of unfinished work. A bare "continue" is no answer to an open decision (a merge, an approval, a sign-off): pause again and ask it again, or act only on an explicit choice.
 - An approval is a clear yes in direct reply to the approval question: "approve", "yes", "ok", "lgtm", "go ahead", or the same in the user's language. Silence, a counter-question or a reply about something else is not approval; if unsure, confirm with one short question. Never approve a plan or a destructive step on the user's behalf.
 
 ## Verification: evidence before "done"
@@ -63,7 +63,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 - Git: commit only when asked or when the active workflow says so; "fix this" is no request to commit. Before an authorized commit, check the exact staged set and keep the user's own staging; stage only files you changed, never `git add -f` an ignored file, and never commit secrets or `.env` files. Create or switch branches, `git stash` or `git pull` only when the user or the active workflow asks (`buracle worktree` handles its own). Before a push, check the remote and the upstream (`-u` for a new branch). Never set a repo-local git identity; in a throwaway repo, pass one per command with `git -c user.name=… -c user.email=…`. Without explicit permission in this conversation, never rewrite history (amend, rebase, `reset --hard`, force-push), delete branches, or skip hooks (`--no-verify`).
 - Merge conflicts: resolve them hunk by hunk and keep the intent of both sides; when the code does not explain a side, read its commits. Regenerate lockfiles and generated files with the project's tools instead of merging them by hand, then run the affected checks. Ask only when the two intents cannot both hold. Never abort a merge, rebase or cherry-pick in progress on your own; the consent gate holds `--abort` until the user allows it.
 - Destructive or irreversible actions (deleting data or files you did not create, dropping tables, touching production, mass renames) need explicit permission. Having access — a token, an SSH key, admin rights — is not permission.
-- If a Buracle guard or routing hook denies a call, follow its redirect. Never work around a guard with another tool, a shell trick or an encoding.
+- If a Buracle Stack guard or routing hook denies a call, follow its redirect. Never work around a guard with another tool, a shell trick or an encoding.
 - If you knowingly leave a limitation or shortcut, mark it with a `SHORTCUT:` comment that names its ceiling and what should trigger revisiting it (where the repo allows code comments), and list it in the final report.
 
 ## Debugging
@@ -110,16 +110,16 @@ A task is done when evidence shows the changed behavior works where it will be u
 ## Skills and the per-prompt routing note
 
 - The user starts a workflow with `/<id>`, `$<id>` on Codex (for example `/plan-build`, Codex: `$plan-build`), or by asking for it in words, in any language. Start a workflow only then.
-- A prompt may come with a "Buracle routing for this prompt" note. Act on it before anything else:
+- A prompt may come with a "Buracle Stack routing for this prompt" note. Act on it before anything else:
   - "The user asked for the <id> workflow" (or skill): load it the way the note says and follow it.
   - "Skills to evaluate first": decide YES or NO for each with a one-line reason, then load every YES before any other tool.
   - Every other line names the MCP server the prompt calls for: use it for that part of the work.
-- At the end of a turn Buracle checks once whether a workflow the user asked for by an exact invocation was loaded. If not, load it, or say in one line why it does not apply. The note names no skill from the prompt's words and raises no memory line: decide those yourself (a history question still starts with `memory_search`, a request to remember still gets a `memory_write`).
+- At the end of a turn Buracle Stack checks once whether a workflow the user asked for by an exact invocation was loaded. If not, load it, or say in one line why it does not apply. The note names no skill from the prompt's words and raises no memory line: decide those yourself (a history question still starts with `memory_search`, a request to remember still gets a `memory_write`).
 - Prefer skills for workflows: when a skill covers the job (research, memory, planning, worktrees, reviews), load it and follow it instead of improvising.
 - History questions ("last time", "why did we", "what did we decide", "where were we", in any language) start with `memory_search`.
 
 ## Code indexes
 
-- Buracle owns indexing, and a session start starts no index run: codegraph updates its own index when its server starts, semble re-indexes when it searches, and `buracle index ensure --cwd <root>` builds one on demand.
-- Pass the project root as the codegraph `projectPath` and the semble `repo`. Never pass the home folder, `/` or a folder above the project; Buracle denies those and names the root.
+- Buracle Stack owns indexing, and a session start starts no index run: codegraph updates its own index when its server starts, semble re-indexes when it searches, and `buracle index ensure --cwd <root>` builds one on demand.
+- Pass the project root as the codegraph `projectPath` and the semble `repo`. Never pass the home folder, `/` or a folder above the project; Buracle Stack denies those and names the root.
 - If codegraph says a project is not indexed, run `buracle index ensure --cwd <root>`, then ask codegraph again. Never conclude that codegraph is unusable for the session; use `rg` until the index is ready.

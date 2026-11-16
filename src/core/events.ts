@@ -40,7 +40,7 @@ export const HOOK_IDS: readonly HookId[] = [
   'H22', 'H23', 'H24', 'H25', 'H28',
 ]
 
-// Ids of hooks earlier Buracle versions had (H27 context.session came and went with Context Mode; H26 profile.signals ended when no word list read
+// Ids of hooks earlier Buracle Stack versions had (H27 context.session came and went with Context Mode; H26 profile.signals ended when no word list read
 // the prompt any more: the prompt spool line belongs to the memory spool, H14).
 export const RETIRED_HOOK_IDS = ['H26', 'H27'] as const
 
@@ -56,7 +56,7 @@ export function isAbsPath(p: string): boolean {
   return typeof p === 'string' && p.startsWith('/')
 }
 
-// A backslash is part of a name, never a separator: Buracle runs on macOS and Linux only.
+// A backslash is part of a name, never a separator: Buracle Stack runs on macOS and Linux only.
 export function normalizePath(p: string): string {
   if (p === '') return ''
   const abs = p.startsWith('/')

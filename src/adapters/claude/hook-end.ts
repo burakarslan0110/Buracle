@@ -13,15 +13,15 @@ export const REVIEW_AGENT = /^(?:buracle:)?(?:plan-build|changes|goal-build)-rev
 
 export function runawayNotice(why: StopGuardResult['why']): string | undefined {
   if (why === 'runaway-plan') {
-    return `Buracle: the stop guard reached its limit for this plan (${RUNAWAY_PER_PLAN} blocks) and let the session stop. The plan is not VERIFIED yet: check it with \`buracle plan status\`.`
+    return `Buracle Stack: the stop guard reached its limit for this plan (${RUNAWAY_PER_PLAN} blocks) and let the session stop. The plan is not VERIFIED yet: check it with \`buracle plan status\`.`
   }
   if (why === 'runaway-chain') {
-    return `Buracle: the stop guard blocked ${RUNAWAY_PER_CHAIN} times in a row, so it let the session stop to break the loop. Send a new message to continue.`
+    return `Buracle Stack: the stop guard blocked ${RUNAWAY_PER_CHAIN} times in a row, so it let the session stop to break the loop. Send a new message to continue.`
   }
   return undefined
 }
 
-export const READ_ONLY_NOTICE = 'Buracle: the session is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode (shift+tab) to continue the plan.'
+export const READ_ONLY_NOTICE = 'Buracle Stack: the session is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode (shift+tab) to continue the plan.'
 
 export function stopFeedback(reason: string): HookOutcome {
   return out({ hookSpecificOutput: { hookEventName: 'Stop', additionalContext: reason } })
@@ -62,7 +62,7 @@ export async function postCompact(p: Record<string, unknown>, sid: string, ctx: 
 }
 
 export function reviewNote(agent: string, problems: readonly string[]): string {
-  return `Buracle H19: your final message as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}). ` +
+  return `Buracle Stack H19: your final message as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}). ` +
     'Answer again with exactly one JSON object that follows the output schema in your instructions, with no text or code fence around it.'
 }
 

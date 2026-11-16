@@ -23,7 +23,7 @@ Repeat for each unticked task, in order. When 2 or more unticked tasks have no f
 5. **Refactor** names and duplication while green, then re-run the same tests. On a hot path (a request handler, a render, a polling loop, a CLI inner loop), check that expensive work (parsing, I/O, serialization, a heavy import) does not repeat while its input is unchanged.
 6. Repeat steps 3 to 5 for the remaining DoD behaviors.
 7. **Prove.** Run the task's `Verify:` command. If the task changes something you can run (a CLI, an endpoint, a page), exercise it once for real now instead of leaving everything to verification.
-8. **Diagnostics.** Fix type and lint errors in touched files; Buracle's edit checker may already have reported them.
+8. **Diagnostics.** Fix type and lint errors in touched files; Buracle Stack's edit checker may already have reported them.
 9. **Tick.** Change the task's line to `- [x] Task N done` immediately and complete its item in your todo tool. In a worktree run, commit the task on the worktree branch: `git add <task files>` and `git commit -m "task N: <title>"`. Outside a worktree, commit only if the user asked for commits.
 10. Move to the next task without checking in.
 

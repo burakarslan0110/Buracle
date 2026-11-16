@@ -94,9 +94,9 @@ async function runInCheckout(command: string, argv: readonly string[], io: Omit<
   const { checkoutRoot } = await import('../engine/paths')
   const checkout = process.env['BURACLE_REEXEC'] === '1' ? undefined : checkoutRoot()
   if (checkout === undefined) {
-    const why = process.env['BURACLE_REEXEC'] === '1' ? 'the checkout runs this command from a frozen runtime itself' : 'no Buracle checkout was found (`repo` in ~/.buracle/config.yaml)'
+    const why = process.env['BURACLE_REEXEC'] === '1' ? 'the checkout runs this command from a frozen runtime itself' : 'no Buracle Stack checkout was found (`repo` in ~/.buracle/config.yaml)'
     if (NEEDS_CHECKOUT.has(command)) {
-      io.stderr.write(`buracle ${command}: ${why}. Run \`bun src/cli/main.ts ${command}\` in the Buracle checkout, or set its path with \`buracle config set repo <path>\`.\n`)
+      io.stderr.write(`buracle ${command}: ${why}. Run \`bun src/cli/main.ts ${command}\` in the Buracle Stack checkout, or set its path with \`buracle config set repo <path>\`.\n`)
       return EXIT.error
     }
     io.stderr.write(`buracle ${command}: ${why}; running it from the live runtime.\n`)
@@ -145,7 +145,7 @@ async function loadCommand(name: string): Promise<Command | undefined> {
 export const COMMAND_GROUPS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Commands', ['install', 'update', 'doctor', 'config', 'uninstall']],
   ['Used by your agents and hooks', ['plan', 'flow', 'worktree', 'review-scope', 'project', 'skills', 'rules', 'mem', 'index', 'usage', 'hook', 'statusline', 'mcp', 'lsp', 'consent']],
-  ['Buracle development', ['build']],
+  ['Buracle Stack development', ['build']],
 ]
 
 export async function helpText(all = false): Promise<string> {
@@ -166,7 +166,7 @@ export async function helpText(all = false): Promise<string> {
       '  --json       machine-readable output',
       '  --verbose    more detail on stderr',
       '  --help       show help (`buracle <command> --help` for one command)',
-      '  --version    print the Buracle version',
+      '  --version    print the Buracle Stack version',
       '',
       'Exit codes: 0 ok, 1 error, 2 partial success or user action needed.',
     )

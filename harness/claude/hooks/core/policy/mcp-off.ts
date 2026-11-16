@@ -14,7 +14,7 @@ function ids(x: unknown): string[] {
   return Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string' && v !== '') : []
 }
 
-/** Buracle's own off list for the harness: `mcp.off.<harness>` of the configuration. */
+/** Buracle Stack's own off list for the harness: `mcp.off.<harness>` of the configuration. */
 export function offServersFor(config: { mcp?: unknown }, harness: Harness): string[] {
   const mcp = config.mcp
   if (!isObj(mcp) || !isObj(mcp['off'])) return []
@@ -39,12 +39,12 @@ export interface ClaudeOffInput {
   state: unknown
   /** The folder of the session: the key of `projects` in the state file. */
   project: string
-  /** Each Buracle server of the plugin: its command lines (as written and expanded) and, for a remote one, its URL. */
+  /** Each Buracle Stack server of the plugin: its command lines (as written and expanded) and, for a remote one, its URL. */
   servers: Readonly<Record<string, { commands: readonly (readonly string[])[], url?: string }>>
 }
 
 /**
- * The Buracle servers Claude Code itself keeps off: a `deniedMcpServers` entry that names one (`serverName`
+ * The Buracle Stack servers Claude Code itself keeps off: a `deniedMcpServers` entry that names one (`serverName`
  * as `<id>` or `plugin:buracle:<id>`, `serverCommand` equal to its command line, `serverUrl` equal to its
  * URL), or the `/mcp` toggle of the session's project (either name form).
  */

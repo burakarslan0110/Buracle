@@ -66,8 +66,8 @@ export function resumeNotice(sid: string, now: number, cfg: Pick<BuracleConfig, 
   if (suggestion === undefined) return undefined
   const summary = core.bandSummary(view)
   return {
-    user: `Buracle: this session has an unfinished workflow run (${summary}). To go on, say: ${suggestion}`,
-    model: `Buracle: this session has an unfinished workflow run: ${summary}. Continue it only when the user asks.`,
+    user: `Buracle Stack: this session has an unfinished workflow run (${summary}). To go on, say: ${suggestion}`,
+    model: `Buracle Stack: this session has an unfinished workflow run: ${summary}. Continue it only when the user asks.`,
   }
 }
 

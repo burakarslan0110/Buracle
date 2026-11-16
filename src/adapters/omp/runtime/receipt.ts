@@ -80,7 +80,7 @@ export function createTurnReceipts(host: OmpReceiptHost): TurnReceipts {
         t.receipt = r.state
         alarm = r.alarm
       }
-      if (alarm !== undefined) show(ctx, `Buracle: ${alarm}`, 'warning')
+      if (alarm !== undefined) show(ctx, `Buracle Stack: ${alarm}`, 'warning')
     },
     end(sid, ctx) {
       const t = turns.get(sid)

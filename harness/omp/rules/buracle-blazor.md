@@ -1,5 +1,5 @@
 ---
-description: "Buracle path rule: Blazor (injected when editing or writing matching files)"
+description: "Buracle Stack path rule: Blazor (injected when editing or writing matching files)"
 condition:
   - "**/*.razor"
   - "**/*.razor.cs"

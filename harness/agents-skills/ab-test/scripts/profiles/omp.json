@@ -1,6 +1,6 @@
 {
   "harness": "omp",
-  "status": "Flags checked against `omp --help` (omp 18.8.3); event patterns are an UNVERIFIED starting point. The shape of `omp -p --mode json` events is not documented in Buracle's research; these patterns only assume that skill reads use skill://<id> URLs and MCP tools are named mcp__<server>_<tool>. Inspect the smoke-run stdout and rewrite the patterns before trusting any result.",
+  "status": "Flags checked against `omp --help` (omp 18.8.3); event patterns are an UNVERIFIED starting point. The shape of `omp -p --mode json` events is not documented in Buracle Stack's research; these patterns only assume that skill reads use skill://<id> URLs and MCP tools are named mcp__<server>_<tool>. Inspect the smoke-run stdout and rewrite the patterns before trusting any result.",
   "usage": "Per arm: --env HOME=<arm>/home --env PI_CODING_AGENT_DIR=<arm>/home/.omp/agent plus provider credentials. omp reads ~/.agents (skills and rules) by default, so the moved HOME hides the real ones. Build a without-arm with --append-arg --no-skills or --append-arg --skills=<glob>. Never add --auto-approve.",
   "argv": ["omp", "-p", "--mode", "json", "--no-session", "--cwd", "{work}", "{prompt}"],
   "cwd": "{work}",

@@ -1,5 +1,5 @@
 ---
-description: "Buracle path rule: Frontend (injected when editing or writing matching files)"
+description: "Buracle Stack path rule: Frontend (injected when editing or writing matching files)"
 condition:
   - "**/*.tsx"
   - "**/*.jsx"

@@ -1,7 +1,7 @@
 ---
 trigger: glob
 globs: "**/*.py, **/*.pyi, **/pyproject.toml, **/requirements*.txt, **/uv.lock, **/setup.cfg"
-description: "Buracle path rule: Python"
+description: "Buracle Stack path rule: Python"
 ---
 # Python
 

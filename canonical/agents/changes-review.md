@@ -1,7 +1,7 @@
 ---
 name: changes-review
 description: >-
-  Read-only reviewer for implemented changes before a Buracle workflow is marked verified. Launch it after
+  Read-only reviewer for implemented changes before a Buracle Stack workflow is marked verified. Launch it after
   implementation (plan-build verification, bugfix finalization, goal-build hand-back), passing the plan path or the
   expected behavior, the run slug and the verification evidence gathered so far. It resolves the diff with
   `buracle review-scope --json` and checks plan adherence, correctness, tests, security and goal

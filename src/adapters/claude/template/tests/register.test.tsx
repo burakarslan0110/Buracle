@@ -176,7 +176,7 @@ describe('commands', () => {
     expect((await $.command.run(command('remember', '  '))).text).toBe('Usage: /remember <text>')
   })
 
-  test('/brain starts and opens the Buracle Console', async ($, on) => {
+  test('/brain starts and opens the Buracle Stack Console', async ($, on) => {
     const world = worldOf(on, { [SHIM]: '#!/bin/sh\n' })
     await $.session.start(SESSION)
     const answer = await $.command.run(command('brain'))
@@ -219,7 +219,7 @@ describe('H20 consent dialog', () => {
     await $.session.start(SESSION)
     const ran = await $.tool.call({ tool: 'Bash', command: 'git push origin feature' })
     expect(denyOf(ran)).toBeUndefined()
-    expect(world.asked[0]?.question).toBe('Buracle consent: `git push origin feature` pushes to a remote. Run it?')
+    expect(world.asked[0]?.question).toBe('Buracle Stack consent: `git push origin feature` pushes to a remote. Run it?')
     expect(world.asked[0]?.options).toEqual(['Allow once', 'Allow for this session', 'Refuse'])
     expect(world.reached).toEqual(['Bash'])
     const consent = world.json(CONSENT) as { grants: Array<{ kind: string, uses: number }> }
@@ -270,7 +270,7 @@ describe('H20 consent dialog', () => {
     await $.session.start(SESSION)
     const r = await $.tool.call({ tool: 'PowerShell', command: 'git push origin feature' } as never)
     expect(denyOf(r) ?? '').toContain('the user refused')
-    expect(world.asked.map(a => a.question)).toEqual(['Buracle consent: `git push origin feature` pushes to a remote. Run it?'])
+    expect(world.asked.map(a => a.question)).toEqual(['Buracle Stack consent: `git push origin feature` pushes to a remote. Run it?'])
     expect(world.reached).toEqual([])
   })
 
@@ -291,7 +291,7 @@ describe('masking secrets in tool output', () => {
     await $.session.start(SESSION)
     const ran = await $.tool.call({ tool: 'Read', file_path: `${CWD}/.env.local` } as never)
     expect(JSON.stringify((ran as { result?: unknown }).result)).not.toContain(AWS_KEY)
-    expect(world.notices).toEqual(['Buracle: 1 secret value hidden from the model'])
+    expect(world.notices).toEqual(['Buracle Stack: 1 secret value hidden from the model'])
   })
 
   test('an image that Read or an MCP screenshot returns passes through as it is: its base64 is not a secret', async ($, on) => {
@@ -328,7 +328,7 @@ describe('turn receipt and loop alarms', () => {
     await $.session.start(SESSION)
     await $.tool.call({ tool: 'Edit', file_path: `${CWD}/src/a.ts`, old_string: 'a', new_string: 'b' } as never)
     await $.turn.complete({ answer: 'Fixed it.', durationMs: 1000, turnId: 't1', reason: 'answer' } as never)
-    expect(world.toasts).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change'])
+    expect(world.toasts).toEqual(['Buracle Stack · 1 file (+1 −1) · ⚠ unverified change'])
   })
 
   test('a passing check after the edit leaves no toast', async ($, on) => {
@@ -344,7 +344,7 @@ describe('turn receipt and loop alarms', () => {
     const world = worldOf(on, {}, { results: { Bash: { stdout: '', stderr: 'boom', interrupted: false, exitCode: 1 } } })
     await $.session.start(SESSION)
     for (let i = 0; i < 3; i++) await $.tool.call({ tool: 'Bash', command: 'bun test' })
-    expect(world.toasts).toEqual(['Buracle: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
+    expect(world.toasts).toEqual(['Buracle Stack: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
   })
 })
 

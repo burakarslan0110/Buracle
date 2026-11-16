@@ -188,7 +188,7 @@ export function memoryStateDir(): string { return join(stateDir(), 'memory') }
 export function brainDir(): string { return join(buracleHome(), 'brain') }
 export function pathRulesDir(): string { return join(buracleHome(), 'rules', 'paths') }
 export function toolchainDir(): string { return join(buracleHome(), 'toolchain') }
-/** The system tools Buracle downloaded itself (node, uv, rg, jq), one folder each (src/engine/toolchain/system-download.ts). */
+/** The system tools Buracle Stack downloaded itself (node, uv, rg, jq), one folder each (src/engine/toolchain/system-download.ts). */
 export function systemToolsDir(): string { return join(toolchainDir(), 'system') }
 /** The folders that hold the downloaded tools' programs: Node keeps them in bin/. */
 export function systemToolBinDirs(): string[] {
@@ -227,10 +227,10 @@ export function mcpLogFile(id: string): string { return join(logsDir(), `mcp-${i
 /** The longest socket path used as is: macOS allows 103 bytes, Linux 107. */
 export const MCP_SOCKET_PATH_MAX = 100
 
-/** The local port of the Buracle Console (127.0.0.1 only); when it is taken, the next free one is used. */
+/** The local port of the Buracle Stack Console (127.0.0.1 only); when it is taken, the next free one is used. */
 export const MEMORY_UI_PORT = 41777
 /**
- * The directory for sockets whose path under `mcpRunDir()` would be too long: short and per user and Buracle
+ * The directory for sockets whose path under `mcpRunDir()` would be too long: short and per user and Buracle Stack
  * home. `/tmp`, not `$TMPDIR`: the macOS `$TMPDIR` alone takes about 50 of the 103 bytes.
  */
 export function mcpFallbackRunDir(base = '/tmp'): string {

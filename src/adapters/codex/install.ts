@@ -25,7 +25,7 @@ export class HarnessBusyError extends Error {
 }
 
 /**
- * Codex older than the oldest version Buracle supports: it stops at a config.toml key it does not know (0.142 reads
+ * Codex older than the oldest version Buracle Stack supports: it stops at a config.toml key it does not know (0.142 reads
  * `[agents] default_subagent_reasoning_effort` as an agent role and does not start), so the install leaves it alone.
  */
 export class HarnessTooOldError extends Error {
@@ -33,11 +33,11 @@ export class HarnessTooOldError extends Error {
   readonly code = 'HARNESS_TOO_OLD'
   readonly harness = 'codex'
   readonly update = 'update Codex with the installer that installed it'
-  /** `written`: an earlier Buracle install already wrote config.toml, so this Codex does not start now. */
+  /** `written`: an earlier Buracle Stack install already wrote config.toml, so this Codex does not start now. */
   constructor(readonly version: string, readonly min: string, readonly written = false) {
     super(written
-      ? `Codex ${version} is older than ${min}, the oldest Codex Buracle supports, and cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it. Buracle changed nothing in Codex this time. Update Codex with the installer that installed it, then run \`buracle install codex\`.`
-      : `Codex ${version} is older than ${min}, the oldest Codex Buracle supports: it could not load the config.toml Buracle writes and would not start, so Buracle left Codex as it is. Update Codex with the installer that installed it, then run \`buracle install codex\`.`)
+      ? `Codex ${version} is older than ${min}, the oldest Codex Buracle Stack supports, and cannot load the config.toml an earlier Buracle Stack install wrote, so it does not start until you update it. Buracle Stack changed nothing in Codex this time. Update Codex with the installer that installed it, then run \`buracle install codex\`.`
+      : `Codex ${version} is older than ${min}, the oldest Codex Buracle Stack supports: it could not load the config.toml Buracle Stack writes and would not start, so Buracle Stack left Codex as it is. Update Codex with the installer that installed it, then run \`buracle install codex\`.`)
     this.name = 'HarnessTooOldError'
   }
 }
@@ -118,7 +118,7 @@ export async function assertCodexIdle(ctx: AdapterContext, what: 'install' | 'un
   const home = ctx.paths.codexHome()
   const pids = await codexProcessesUsing(home)
   if (pids.length > 0) {
-    throw new HarnessBusyError(`Codex is running against ${home} (pid ${pids.join(', ')}). It rewrites ${join(home, 'config.toml')} itself, so Buracle will not change it now. Quit Codex and run the ${what} again; in a terminal, \`buracle ${what}\` asks whether to change it anyway (BURACLE_FORCE=1 does that without asking).`)
+    throw new HarnessBusyError(`Codex is running against ${home} (pid ${pids.join(', ')}). It rewrites ${join(home, 'config.toml')} itself, so Buracle Stack will not change it now. Quit Codex and run the ${what} again; in a terminal, \`buracle ${what}\` asks whether to change it anyway (BURACLE_FORCE=1 does that without asking).`)
   }
 }
 

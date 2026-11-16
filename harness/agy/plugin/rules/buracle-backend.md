@@ -1,7 +1,7 @@
 ---
 trigger: glob
 globs: "**/api/**, **/routes/**, **/handlers/**, **/controllers/**, **/endpoints/**, **/middleware/**, **/models/**, **/models.py, **/entities/**, **/schema/**, **/schemas/**, **/queries/**, **/repository/**, **/repositories/**, **/dao/**, **/migrations/**, **/migrate/**, **/alembic/**, **/db/**, **/*.sql, **/*.prisma, **/*.graphql, **/*.proto, **/openapi*.yaml, **/openapi*.yml, **/openapi*.json"
-description: "Buracle path rule: Backend"
+description: "Buracle Stack path rule: Backend"
 ---
 # Backend
 

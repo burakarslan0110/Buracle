@@ -31,7 +31,7 @@ If that path does not exist, use the folder that holds this SKILL.md.
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it
 current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start: `buracle flow start ab-test --title "<target>"` (harmless when a hook already started it).
@@ -88,9 +88,9 @@ harness:
 
 - Make a temp root: `mktemp -d "${TMPDIR:-/tmp}/buracle-bench-<slug>-XXXXXX"`.
 - Put each variant there without touching the working tree. Baseline from git:
-  `git archive <ref> <paths> | tar -x -C <root>/baseline`. For a canonical Buracle skill or rule,
+  `git archive <ref> <paths> | tar -x -C <root>/baseline`. For a canonical Buracle Stack skill or rule,
   `<paths>` is `harness/`, the committed rendered output.
-- Candidate: copy the working-tree files. A canonical Buracle skill or rule must be rendered
+- Candidate: copy the working-tree files. A canonical Buracle Stack skill or rule must be rendered
   first, in a copy so neither the repo nor `~/.buracle` changes:
   `rsync -a --exclude .git <repo>/ <root>/candidate/repo/`, then
   `BURACLE_HOME=<root>/candidate/buracle bun <root>/candidate/repo/src/cli/main.ts build`; use
@@ -164,7 +164,7 @@ unless the user wants the transcripts; never copy transcripts into the repo or m
 
 ## Claude Code: `claude plugin eval`
 
-For plugin-level questions in Claude Code ("does the Buracle plugin make Claude call context7 for
+For plugin-level questions in Claude Code ("does the Buracle Stack plugin make Claude call context7 for
 library questions?"), the built-in evaluator can replace phases 4–7 (mark the evaluation itself with
 `buracle flow phase run`):
 

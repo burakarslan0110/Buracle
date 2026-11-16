@@ -261,7 +261,7 @@ async function warmSemble(root: string, o: ToolRun): Promise<IndexToolRecord> {
 
 export async function ensureIndexes(root: string, opts: EnsureOptions, nowMs: () => number = Date.now): Promise<EnsureResult> {
   const release = takeLock(root, nowMs())
-  if (release === undefined) return { root, skipped: 'another Buracle process is indexing this project' }
+  if (release === undefined) return { root, skipped: 'another Buracle Stack process is indexing this project' }
   const exec: Runner = opts.runner ?? ((argv, o) => run([...argv], { ...o, processGroup: true }))
   const env = { ...INDEX_ENV }
   const timeoutMs = opts.timeoutMs ?? 15 * 60_000
@@ -340,7 +340,7 @@ export async function excludeLocally(root: string, pattern: string): Promise<boo
     try { text = readFileSync(file, 'utf8') } catch {  }
     if (text.split(/\r?\n/).some(l => l.trim() === pattern)) return true
     mkdirSync(join(common.trim(), 'info'), { recursive: true })
-    const add = `${text !== '' && !text.endsWith('\n') ? '\n' : ''}# Buracle: code index (codegraph)\n${pattern}\n`
+    const add = `${text !== '' && !text.endsWith('\n') ? '\n' : ''}# Buracle Stack: code index (codegraph)\n${pattern}\n`
     atomicWriteSync(file, text + add)
     return true
   } catch (e) {

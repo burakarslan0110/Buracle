@@ -46,7 +46,7 @@ export function subagentStateDenial(command: string): string | undefined {
     return hit !== undefined
   })
   if (hit === undefined) return undefined
-  return `Buracle H01: a subagent does not run \`${hit}\`, because the plan, the workflow state and the worktree merges belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed.`
+  return `Buracle Stack H01: a subagent does not run \`${hit}\`, because the plan, the workflow state and the worktree merges belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed.`
 }
 
 export function subagentStateDenialAll(commands: readonly string[]): string | undefined {

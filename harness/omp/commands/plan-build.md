@@ -1,8 +1,8 @@
 ---
-description: "Buracle plan-build: Plan, approve, TDD-implement and verify work through a plan file"
+description: "Buracle Stack plan-build: Plan, approve, TDD-implement and verify work through a plan file"
 argument-hint: "<task | docs/plan-build/<file>.md | pause | resume> [--worktree | --new-branch | --current-branch]"
 ---
-Run Buracle's `plan-build` workflow for the request below; the user asked for it explicitly.
+Run Buracle Stack's `plan-build` workflow for the request below; the user asked for it explicitly.
 First read `skill://plan-build` and follow that skill step by step (its references and scripts resolve under `skill://plan-build/`). If the skill cannot be read, say so and stop instead of improvising the procedure.
 
 Request: $ARGUMENTS

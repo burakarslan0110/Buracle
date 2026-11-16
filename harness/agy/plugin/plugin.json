@@ -1,6 +1,6 @@
 {
   "name": "buracle",
-  "displayName": "Buracle",
-  "version": "0.8.18",
-  "description": "Buracle: always-on rules, path rules and review agents. Written by `buracle install`; edits are overwritten."
+  "displayName": "Buracle Stack",
+  "version": "0.8.19",
+  "description": "Buracle Stack: always-on rules, path rules and review agents. Written by `buracle install`; edits are overwritten."
 }

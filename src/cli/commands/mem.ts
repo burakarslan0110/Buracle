@@ -66,7 +66,7 @@ Backups and moving a brain (the brain stays on this machine; nothing is synced)
   project init [--cwd DIR]                   map this folder to its project
   doctor [--no-mcp]                          CortexDB binary, the brain file, leak check, MCP handshake
                                              (--json: {"checks":[{level,check,detail}]}; exit 1 errors, 2 warnings)
-  ui [--open] [--port N] [--stop]            the Buracle Console (http://localhost:41777): starts it in the
+  ui [--open] [--port N] [--stop]            the Buracle Stack Console (http://localhost:41777): starts it in the
                                              background when it does not run, prints its address. With
                                              memory.ui.autostart (the default) the install and every harness
                                              session start it too, and it runs until the last harness session

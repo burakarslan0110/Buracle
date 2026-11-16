@@ -78,7 +78,7 @@ export function memNonProjectReason(dir: string, env: MemHygieneEnv): string | u
   if (d === '' || isRootPath(d)) return 'the filesystem root'
   if (same(d, env.home)) return 'your home folder'
   if (env.vault !== undefined && env.vault !== '' && inside(d, env.vault)) return 'inside the memory vault'
-  if (env.buracleHome !== undefined && env.buracleHome !== '' && inside(d, env.buracleHome)) return "inside Buracle's state folder"
+  if (env.buracleHome !== undefined && env.buracleHome !== '' && inside(d, env.buracleHome)) return "inside Buracle Stack's state folder"
   if (env.claudeDir !== undefined && env.claudeDir !== '' && inside(d, `${trimSlash(env.claudeDir)}/jobs`)) return 'a Claude Code job folder'
   if (d.split('/').some(seg => seg.toLowerCase() === 'scratchpad')) return 'a scratchpad folder'
   const temp = env.tempRoots.filter(r => r !== '' && !isRootPath(r))

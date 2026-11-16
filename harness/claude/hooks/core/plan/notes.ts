@@ -285,7 +285,7 @@ export function notesNoticeText(matches: readonly NotesInboxEntry[], s: NoticeSe
     }
   }
   const quoted = (xs: Set<string>, sep: string) => [...xs].map(c => `\`${c}\``).join(sep)
-  return `Buracle: the user left ${n} open ${n === 1 ? 'note' : 'notes'} in the review page on ${where.join('; ')}. Before you go on, read them with ${quoted(cmds, ' and ')}, apply each one (or say why not), and mark each applied note with ${quoted(marks, ' or ')}.`
+  return `Buracle Stack: the user left ${n} open ${n === 1 ? 'note' : 'notes'} in the review page on ${where.join('; ')}. Before you go on, read them with ${quoted(cmds, ' and ')}, apply each one (or say why not), and mark each applied note with ${quoted(marks, ' or ')}.`
 }
 
 export function brainPageArg(args: string): 'brain' | 'review' | undefined {

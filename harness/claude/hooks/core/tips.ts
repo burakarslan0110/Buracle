@@ -8,12 +8,12 @@ export interface Tip {
 
 export interface TipCatalog { tips: Tip[] }
 
-export const TIPS_LABEL = 'Buracle'
-// Claude Code accepts ids of up to 64 letters, digits, '.', '_' or '-'; Buracle keeps them lower case.
+export const TIPS_LABEL = 'Buracle Stack'
+// Claude Code accepts ids of up to 64 letters, digits, '.', '_' or '-'; Buracle Stack keeps them lower case.
 export const TIP_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/
 // Claude Code allows 500 characters; a tip stays one short line so it fits a spinner row.
 export const TIP_TEXT_MAX = 160
-// Claude Code reads at most 200 tips across all settings files; Buracle leaves room for the user's own.
+// Claude Code reads at most 200 tips across all settings files; Buracle Stack leaves room for the user's own.
 export const TIPS_MAX = 100
 
 function isObj(x: unknown): x is Record<string, unknown> {

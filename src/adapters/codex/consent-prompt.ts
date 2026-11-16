@@ -79,7 +79,7 @@ export function consentPromptInput(p: Payload, sid: string, command: string, ctx
   return { ...rec(p['tool_input']), command: consentRunCommand(ctx.buracleBin, id, command) }
 }
 
-export const UNKNOWN_CONSENT_RUN = `Buracle H20: ${CONSENT_RUN_REASON}`
+export const UNKNOWN_CONSENT_RUN = `Buracle Stack H20: ${CONSENT_RUN_REASON}`
 
 export function settleConsentAsks(sid: string, rollout: string | undefined, turnOver: boolean): number {
   let text: string | undefined

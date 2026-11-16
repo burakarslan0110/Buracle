@@ -51,7 +51,7 @@ function capped<K, V>(map: Map<K, V>, key: K, value: V): void {
 }
 
 /**
- * Buracle's extension for Pi (`pi.on(event, handler)`, docs/extensions.md of pi-coding-agent). Every handler feeds the
+ * Buracle Stack's extension for Pi (`pi.on(event, handler)`, docs/extensions.md of pi-coding-agent). Every handler feeds the
  * shared pipeline (src/adapters/shared/pipeline) and turns its decision into Pi's answer; a handler that fails lets
  * the call through and logs, except the H01 and H02 guards, which fail closed.
  */

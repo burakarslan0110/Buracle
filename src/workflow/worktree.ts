@@ -245,7 +245,7 @@ export async function worktreeDetect(ctx: WorkflowCtx, s: ResolvedSession | unde
       lines.push(`In plan worktree '${m.slug}': ${facts.top} on ${facts.branch ?? m.branch} (base ${m.base}).`)
     } else {
       data['linked'] = { path: facts.top, branch: facts.branch ?? null }
-      lines.push(`In a linked worktree that Buracle does not manage: ${facts.top}.`)
+      lines.push(`In a linked worktree that Buracle Stack does not manage: ${facts.top}.`)
     }
   } else {
     lines.push(`Not in a plan worktree (main checkout ${facts.mainRoot}${facts.branch !== undefined ? ` on ${facts.branch}` : ''}).`)

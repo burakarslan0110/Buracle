@@ -54,7 +54,7 @@ export function indexExclusion(dir: string, ctx: IndexExclusionContext): string 
     }
   }
   if (ctx.vault.trim() !== '' && withinKey(d, pathKey(ctx.vault, ci))) return 'inside the memory vault'
-  if (ctx.buracleHome.trim() !== '' && withinKey(d, pathKey(ctx.buracleHome, ci))) return "inside Buracle's state folder"
+  if (ctx.buracleHome.trim() !== '' && withinKey(d, pathKey(ctx.buracleHome, ci))) return "inside Buracle Stack's state folder"
   for (const raw of ctx.exclude) {
     const pattern = raw.trim()
     if (pattern !== '' && excludeMatches(pattern, d, ctx)) return `excluded by index.exclude (${pattern})`
@@ -72,7 +72,7 @@ export type IndexState =
 export interface ProjectIndex { codegraph: IndexState; semble: IndexState }
 
 /**
- * How Buracle keeps the code indexes (codegraph, semble): built automatically, at most once per
+ * How Buracle Stack keeps the code indexes (codegraph, semble): built automatically, at most once per
  * `minIntervalMin`, for the project and up to `maxChildren` child projects.
  */
 export interface IndexSettings { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: readonly string[], children: boolean, maxChildren: number }
@@ -183,15 +183,15 @@ function baseName(p: string): string {
 }
 
 const PASS = `as codegraph ${code('projectPath')} and semble ${code('repo')}`
-const OWNS = `Indexing is Buracle's job, not the user's decision: if codegraph says a project is not indexed, run ${code('buracle index ensure --cwd <project>')} (or wait for the background run) and call it again; never stop using codegraph for the session.`
+const OWNS = `Indexing is Buracle Stack's job, not the user's decision: if codegraph says a project is not indexed, run ${code('buracle index ensure --cwd <project>')} (or wait for the background run) and call it again; never stop using codegraph for the session.`
 
 function rootGuidance(root: string, cg: IndexState): string | undefined {
   switch (cg.state) {
     case 'off': return undefined
     case 'ready': return OWNS
-    case 'building': return `Until codegraph is ready, use semble and rg and call codegraph again later; indexing is Buracle's job, not the user's decision, so never stop using codegraph for the session.`
+    case 'building': return `Until codegraph is ready, use semble and rg and call codegraph again later; indexing is Buracle Stack's job, not the user's decision, so never stop using codegraph for the session.`
     case 'none':
-    case 'failed': return `Run ${code(`buracle index ensure --cwd ${root}`)} to build codegraph's index (Buracle's job, not the user's decision); until it is ready, use semble and rg, then call codegraph again. Never stop using codegraph for the session.`
+    case 'failed': return `Run ${code(`buracle index ensure --cwd ${root}`)} to build codegraph's index (Buracle Stack's job, not the user's decision); until it is ready, use semble and rg, then call codegraph again. Never stop using codegraph for the session.`
   }
 }
 
@@ -202,7 +202,7 @@ export function workspaceContext(info: WorkspaceInfo, harness: Harness): string 
   if (info.root !== undefined) {
     const { codegraph, semble } = info.index
     lines.push(`Project root: ${info.root}. Pass it ${PASS} (not a subfolder, a parent folder or your home folder).`)
-    lines.push(`Code indexes: codegraph ${stateWord(codegraph)}, semble ${stateWord(semble)} (Buracle builds and refreshes them in the background).`)
+    lines.push(`Code indexes: codegraph ${stateWord(codegraph)}, semble ${stateWord(semble)} (Buracle Stack builds and refreshes them in the background).`)
     const g = rootGuidance(info.root, codegraph)
     if (g !== undefined) lines.push(g)
     return lines.join('\n')
@@ -216,15 +216,15 @@ export function workspaceContext(info: WorkspaceInfo, harness: Harness): string 
       const pi = info.childIndex?.[c]
       return pi === undefined ? [] : [`${baseName(c)}: codegraph ${stateWord(pi.codegraph)}, semble ${stateWord(pi.semble)}`]
     })
-    if (states.length > 0) lines.push(`Code indexes (Buracle builds and refreshes them in the background): ${states.join('; ')}.`)
+    if (states.length > 0) lines.push(`Code indexes (Buracle Stack builds and refreshes them in the background): ${states.join('; ')}.`)
     if (codegraphOn || info.childIndex === undefined) lines.push(OWNS)
     return lines.join('\n')
   }
   if (info.excluded !== undefined) {
     const byConfig = info.excluded.startsWith('excluded by index.exclude')
-    lines.push(`${info.cwd} is ${info.excluded}: Buracle does not index it. Pass the project folder you work in ${PASS}, never this folder${byConfig ? ' or anything inside it' : ''}.`)
+    lines.push(`${info.cwd} is ${info.excluded}: Buracle Stack does not index it. Pass the project folder you work in ${PASS}, never this folder${byConfig ? ' or anything inside it' : ''}.`)
   } else {
-    lines.push(`${info.cwd} is not a project (no git repository or project manifest), so Buracle indexes nothing here. Pass the project folder you work in ${PASS}, never a parent folder or your home folder.`)
+    lines.push(`${info.cwd} is not a project (no git repository or project manifest), so Buracle Stack indexes nothing here. Pass the project folder you work in ${PASS}, never a parent folder or your home folder.`)
   }
   if (codegraphOn) lines.push(OWNS)
   return lines.join('\n')

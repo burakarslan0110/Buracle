@@ -7,7 +7,7 @@ import { piProfile } from './pi'
 import { qwenProfile } from './qwen'
 import { defineHarnesses, type HarnessProfile } from './profile'
 
-// The harnesses Buracle supports. The key order is their order everywhere (tables, loops, generated output).
+// The harnesses Buracle Stack supports. The key order is their order everywhere (tables, loops, generated output).
 export const HARNESS_PROFILES = {
   claude: claudeProfile,
   codex: codexProfile,

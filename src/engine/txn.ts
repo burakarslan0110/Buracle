@@ -141,7 +141,7 @@ interface LedgerState { ledger: Ledger; existed: boolean; rebuilt?: { from: numb
 function loadLedgerState(): LedgerState {
   const r = readJsonSafeSync<Ledger>(paths.ownedLedgerFile())
   if (!r.ok) {
-    if (r.code !== 'missing') throw new Error(`ownership ledger is unreadable, refusing to continue: ${r.error} (move it away and Buracle rebuilds it from its transaction journals)`)
+    if (r.code !== 'missing') throw new Error(`ownership ledger is unreadable, refusing to continue: ${r.error} (move it away and Buracle Stack rebuilds it from its transaction journals)`)
     const rebuilt = rebuildLedger()
     return rebuilt ? { ledger: rebuilt.ledger, existed: false, rebuilt: { from: rebuilt.from } } : { ledger: {}, existed: false }
   }
@@ -665,11 +665,11 @@ function wroteThis(entry: LedgerEntry | undefined, hash: string | undefined): bo
 
 function notOurs(entry: LedgerEntry | undefined, absentEntry: string): string {
   if (!entry) return absentEntry
-  return entry.adopted === true ? 'set by the user before Buracle (never written by Buracle)' : 'modified outside Buracle'
+  return entry.adopted === true ? 'set by the user before Buracle Stack (never written by Buracle Stack)' : 'modified outside Buracle Stack'
 }
 
 function removedDetail(label: string): string {
-  return `${label}: removed since Buracle installed it; not re-creating it (run \`buracle install\` in a terminal to put it back)`
+  return `${label}: removed since Buracle Stack installed it; not re-creating it (run \`buracle install\` in a terminal to put it back)`
 }
 
 function keptUserValue(pointer: string): string {
@@ -677,7 +677,7 @@ function keptUserValue(pointer: string): string {
 }
 
 function enforcedNote(label: string, why: string): string {
-  return `${label}: ${why}; wrote Buracle's value because the key is enforced`
+  return `${label}: ${why}; wrote Buracle Stack's value because the key is enforced`
 }
 
 function shortValue(v: unknown): string {
@@ -700,9 +700,9 @@ function plainJson(v: unknown, depth = 0): boolean {
 function takeoverRefusal(format: 'json' | 'jsonc' | 'yaml' | 'toml', text: string, segs: readonly string[], displaced: { value: unknown } | undefined): string | undefined {
   if (format === 'yaml') {
     const alias = yamlAliasAt(text, segs)
-    if (alias !== undefined) return `the value is a YAML alias (*${alias}); Buracle does not override it, even for an enforced key`
+    if (alias !== undefined) return `the value is a YAML alias (*${alias}); Buracle Stack does not override it, even for an enforced key`
   }
-  if (displaced !== undefined && !plainJson(displaced.value)) return 'the value cannot be recorded exactly (it is not plain JSON data), so it could not be put back; Buracle does not override it, even for an enforced key'
+  if (displaced !== undefined && !plainJson(displaced.value)) return 'the value cannot be recorded exactly (it is not plain JSON data), so it could not be put back; Buracle Stack does not override it, even for an enforced key'
   return undefined
 }
 
@@ -712,7 +712,7 @@ function userValueVerdict(entry: LedgerEntry | undefined, cur: { found: boolean,
   if (policy.soft) return { keep: true }
   if (!cur.found) {
     if (!policy.enforce) return { conflict: removedDetail(label) }
-    return { takeover: { why: 'removed since Buracle installed it' } }
+    return { takeover: { why: 'removed since Buracle Stack installed it' } }
   }
   const why = notOurs(entry, wording.absentEntry)
   if (!policy.enforce) return { conflict: `${label}: ${why}; ${wording.keeping}` }
@@ -752,7 +752,7 @@ function opFile(c: Computed, op: Extract<Op, { kind: 'file' }>, own: OwnFn): voi
     c.applied++
     return
   }
-  c.conflicts.push({ op, detail: entry ? `${op.path} was ${notOurs(entry, '')}; keeping the user's version` : `${op.path} exists and is not owned by Buracle; keeping the user's version` })
+  c.conflicts.push({ op, detail: entry ? `${op.path} was ${notOurs(entry, '')}; keeping the user's version` : `${op.path} exists and is not owned by Buracle Stack; keeping the user's version` })
 }
 
 function opSymlink(c: Computed, op: Extract<Op, { kind: 'symlink' }>, own: OwnFn): void {
@@ -779,7 +779,7 @@ function opSymlink(c: Computed, op: Extract<Op, { kind: 'symlink' }>, own: OwnFn
     c.applied++
     return
   }
-  c.conflicts.push({ op, detail: entry ? `${op.path} was ${notOurs(entry, '')}; keeping it` : `${op.path} exists and is not owned by Buracle; keeping it` })
+  c.conflicts.push({ op, detail: entry ? `${op.path} was ${notOurs(entry, '')}; keeping it` : `${op.path} exists and is not owned by Buracle Stack; keeping it` })
 }
 
 function parseStructured(kind: 'json' | 'jsonc' | 'yaml', text: string): { ok: true, value: unknown } | { ok: false, error: string } {
@@ -1103,7 +1103,7 @@ function opMd(c: Computed, op: Extract<Op, { kind: 'md-block' }>, own: OwnFn): v
   if (cur !== undefined && normalizeBlock(cur) === want) { own(op, 'md-block', hash, pointer, undefined, false); c.skipped.push({ op, reason: 'unchanged' }); return }
   const entry = c.ledger[ledgerKey(op.path, pointer)]
   if (cur !== undefined && !wroteThis(entry, sha256(normalizeBlock(cur)))) {
-    c.conflicts.push({ op, detail: `${op.path} block ${op.id}: ${notOurs(entry, 'exists but is not owned by Buracle')}; keeping it` })
+    c.conflicts.push({ op, detail: `${op.path} block ${op.id}: ${notOurs(entry, 'exists but is not owned by Buracle Stack')}; keeping it` })
     return
   }
   if (cur === undefined && entry !== undefined && !c.opts.restore(op)) { c.conflicts.push({ op, detail: removedDetail(`${op.path} block ${op.id}`), removed: true }); return }
@@ -1270,7 +1270,7 @@ function opList(c: Computed, op: JsonListMergeOp, setEntry: SetEntryFn, now: str
       if (theirs.hash === hash) { items.push(c.opts.takeOwnership ? { id, sha256: hash } : { id, sha256: hash, adopted: true }); continue }
       const before = prevById.get(id)
       conflicted++
-      const why = before === undefined ? 'already defined by the user' : before.adopted === true ? 'set by the user before Buracle (never written by Buracle)' : 'modified outside Buracle'
+      const why = before === undefined ? 'already defined by the user' : before.adopted === true ? 'set by the user before Buracle Stack (never written by Buracle Stack)' : 'modified outside Buracle Stack'
       c.conflicts.push({ op, detail: `${label} item ${id}: ${why}; keeping the user's item` })
       if (before !== undefined) items.push(before)
       continue
@@ -1359,7 +1359,7 @@ function removeList(c: Computed, op: Op, key: string, entry: LedgerEntry, setEnt
     if (idx >= 0) { removeIdx.push(idx); continue }
     if (arr && arr.some(e => idOf(e) === rec.id)) {
       kept.push(rec)
-      c.conflicts.push({ op, detail: `${label} item ${rec.id} was modified outside Buracle; not removing it` })
+      c.conflicts.push({ op, detail: `${label} item ${rec.id} was modified outside Buracle Stack; not removing it` })
     }
   }
   if (arr && removeIdx.length > 0) {
@@ -1385,7 +1385,7 @@ function removeList(c: Computed, op: Op, key: string, entry: LedgerEntry, setEnt
       if (stableStringify(check.value) !== stableStringify(want)) throw new Error('the document did not read back as expected')
     }
   } catch (e) {
-    c.conflicts.push({ op, detail: `${label}: cannot remove Buracle's items (${errText(e)})` })
+    c.conflicts.push({ op, detail: `${label}: cannot remove Buracle Stack's items (${errText(e)})` })
     return
   }
   if (kept.length > 0) {
@@ -1430,7 +1430,7 @@ function removeCleanup(c: Computed, op: Extract<Op, { kind: 'remove' }>, entry: 
   }
 }
 
-const HELD_BEFORE = 'kept in place: it holds the value it had before Buracle'
+const HELD_BEFORE = 'kept in place: it holds the value it had before Buracle Stack'
 
 function keepSoftValue(c: Computed, op: Extract<Op, { kind: 'remove' }>, entry: LedgerEntry, setEntry: SetEntryFn): void {
   setEntry(op.path, undefined)
@@ -1443,7 +1443,7 @@ function opRemove(c: Computed, op: Extract<Op, { kind: 'remove' }>, setEntry: Se
     const hash = op.path.indexOf('#')
     const node = c.vfs.get(hash >= 0 ? c.vfs.textPath(op.path.slice(0, hash)) : op.path)
     if (node.type === 'absent') { c.skipped.push({ op, reason: 'absent' }); return }
-    c.conflicts.push({ op, detail: `${op.path} is not recorded as owned by Buracle; not removing it` })
+    c.conflicts.push({ op, detail: `${op.path} is not recorded as owned by Buracle Stack; not removing it` })
     return
   }
   if (entry.owner !== op.owner) { c.conflicts.push({ op, detail: `${op.path} is owned by ${entry.owner}, not ${op.owner}; not removing it` }); return }
@@ -1455,14 +1455,14 @@ function opRemove(c: Computed, op: Extract<Op, { kind: 'remove' }>, setEntry: Se
   if (entry.kind === 'cleanup') { removeCleanup(c, op, entry, setEntry); return }
   if (entry.adopted === true) {
     setEntry(op.path, undefined)
-    c.skipped.push({ op, reason: 'pre-existing value that Buracle never wrote; left in place' })
+    c.skipped.push({ op, reason: 'pre-existing value that Buracle Stack never wrote; left in place' })
     return
   }
   if (entry.kind === 'json-list' || entry.kind === 'jsonc-list') { removeList(c, op, op.path, entry, setEntry); return }
   if (entry.pointer === undefined) {
     const node = c.vfs.get(entry.path)
     if (node.type === 'absent') { setEntry(op.path, undefined); c.skipped.push({ op, reason: 'already absent' }); return }
-    if (fingerprint(node) !== entry.sha256) { c.conflicts.push({ op, detail: `${entry.path} was modified outside Buracle; not removing it` }); return }
+    if (fingerprint(node) !== entry.sha256) { c.conflicts.push({ op, detail: `${entry.path} was modified outside Buracle Stack; not removing it` }); return }
     const ro = node.type === 'file' ? readOnlyReason(node, entry.path) : undefined
     if (ro !== undefined) { c.conflicts.push({ op, detail: ro }); return }
     c.vfs.set(entry.path, { type: 'absent' })
@@ -1483,7 +1483,7 @@ function opRemove(c: Computed, op: Extract<Op, { kind: 'remove' }>, setEntry: Se
       const id = entry.pointer.replace(/^md:/, '')
       const cur = mdBlockGet(text, id)
       if (cur === undefined) { setEntry(op.path, undefined); c.skipped.push({ op, reason: 'already absent' }); return }
-      if (sha256(normalizeBlock(cur)) !== entry.sha256) { c.conflicts.push({ op, detail: `${entry.path} block ${id} was modified outside Buracle; not removing it` }); return }
+      if (sha256(normalizeBlock(cur)) !== entry.sha256) { c.conflicts.push({ op, detail: `${entry.path} block ${id} was modified outside Buracle Stack; not removing it` }); return }
       if (ro !== undefined) { c.conflicts.push({ op, detail: ro }); return }
       next = mdBlockRemove(text, id)
       if (mdBlockGet(next, id) !== undefined) throw new Error(`block ${id} is still present after removal`)
@@ -1492,19 +1492,19 @@ function opRemove(c: Computed, op: Extract<Op, { kind: 'remove' }>, setEntry: Se
       if (!cur.found) { setEntry(op.path, undefined); c.skipped.push({ op, reason: 'already absent' }); return }
       if (valueHash(ownedTomlValue(cur.value, entry.ignore)) !== entry.sha256) {
         if (entry.soft === true) { keepSoftValue(c, op, entry, setEntry); return }
-        c.conflicts.push({ op, detail: `${entry.path} ${entry.pointer} was modified outside Buracle; not removing it` })
+        c.conflicts.push({ op, detail: `${entry.path} ${entry.pointer} was modified outside Buracle Stack; not removing it` })
         return
       }
       if (ro !== undefined) { c.conflicts.push({ op, detail: ro }); return }
       const name = pointerOf(segs)
       if (entry.displaced !== undefined) {
         const back = entry.displaced.value
-        if (entry.kind === 'toml-table' && !isRecord(back)) throw new Error('the value recorded before Buracle is not a table')
+        if (entry.kind === 'toml-table' && !isRecord(back)) throw new Error('the value recorded before Buracle Stack is not a table')
         next = entry.kind === 'toml-table'
           ? tomlPatchTables(text, { [name]: back as Record<string, unknown> }, {}, entry.ignore !== undefined ? { [name]: entry.ignore } : {})
           : tomlPatchTables(text, {}, { [name]: back })
         const got = getIn(tomlParse(next), segs)
-        if (!got.found || valueHash(ownedTomlValue(got.value, entry.ignore)) !== valueHash(tomlNormalize(back))) throw new Error(`${entry.pointer} did not read back as it was before Buracle`)
+        if (!got.found || valueHash(ownedTomlValue(got.value, entry.ignore)) !== valueHash(tomlNormalize(back))) throw new Error(`${entry.pointer} did not read back as it was before Buracle Stack`)
         if (next === text) { setEntry(op.path, undefined); c.skipped.push({ op, reason: HELD_BEFORE }); return }
       } else {
         next = tomlRemove(text, entry.kind === 'toml-table' ? { tables: [name] } : { keys: [name] })
@@ -1518,7 +1518,7 @@ function opRemove(c: Computed, op: Extract<Op, { kind: 'remove' }>, setEntry: Se
       const cur = getIn(parsed.value, segs)
       if (cur.found && valueHash(cur.value) !== entry.sha256) {
         if (entry.soft === true) { keepSoftValue(c, op, entry, setEntry); return }
-        c.conflicts.push({ op, detail: `${entry.path} ${entry.pointer} was modified outside Buracle; not removing it` })
+        c.conflicts.push({ op, detail: `${entry.path} ${entry.pointer} was modified outside Buracle Stack; not removing it` })
         return
       }
       if (ro !== undefined) { c.conflicts.push({ op, detail: ro }); return }
@@ -1740,7 +1740,7 @@ let outerLockHeld = false
 let nestedActive = false
 
 function acquireLockFile(): () => void {
-  if (lockHeldInProcess) throw new Error('another Buracle transaction is already running in this process')
+  if (lockHeldInProcess) throw new Error('another Buracle Stack transaction is already running in this process')
   const lock = paths.txnLockFile()
   mkdirSync(dirname(lock), { recursive: true })
   for (let attempt = 0; attempt < 50; attempt++) {
@@ -1761,7 +1761,7 @@ function acquireLockFile(): () => void {
       const info = parseLock(seen.text)
       if (info.pid !== process.pid && lockHolderAlive(info, seen.mtimeMs)) {
         const since = info.startedAt !== undefined ? `, started ${new Date(info.startedAt).toISOString()}` : ''
-        throw new Error(`another Buracle transaction is running (pid ${info.pid}${since}); lock ${lock}. If no buracle command is running, delete that file and try again.`)
+        throw new Error(`another Buracle Stack transaction is running (pid ${info.pid}${since}); lock ${lock}. If no buracle command is running, delete that file and try again.`)
       }
       if (breakStaleLock(lock, seen) === 'busy') Bun.sleepSync(10)
     }
@@ -1771,7 +1771,7 @@ function acquireLockFile(): () => void {
 
 function acquireLock(): () => void {
   if (outerLockHeld) {
-    if (nestedActive) throw new Error('another Buracle transaction is already running in this process')
+    if (nestedActive) throw new Error('another Buracle Stack transaction is already running in this process')
     nestedActive = true
     return () => { nestedActive = false }
   }
@@ -2190,7 +2190,7 @@ function undoFiles(journal: Journal, txnDir: string, opts: { interrupted: boolea
       continue
     }
     const bt = beforeText(txnDir, f)
-    if (!bt.ok) { out.errors.push(`${f.path}: cannot undo Buracle's keys: ${bt.error}`); leaveAll(f); continue }
+    if (!bt.ok) { out.errors.push(`${f.path}: cannot undo Buracle Stack's keys: ${bt.error}`); leaveAll(f); continue }
     let text = editable.text
     let failed = false
     const kinds = new Set<LedgerKind>()
@@ -2212,7 +2212,7 @@ function undoFiles(journal: Journal, txnDir: string, opts: { interrupted: boolea
       if (f.before.type === 'absent' && emptyDocument(f.path, text, kinds) && cur.type === 'file') unlinkSync(f.path)
       else atomicWriteSync(f.path, text)
       out.restored.push(f.path)
-      out.warnings.push(`${f.path} was changed after the transaction: only Buracle's keys were undone; the other changes were kept`)
+      out.warnings.push(`${f.path} was changed after the transaction: only Buracle Stack's keys were undone; the other changes were kept`)
     } catch (err) {
       out.errors.push(`${f.path}: ${errText(err)}`)
       leaveAll(f)
@@ -2521,8 +2521,8 @@ export async function applyPlans(plans: Plan[], opts: ApplyOptions = {}): Promis
         })
         if (rewritten.length > 0) writeJournal(journal)
         for (const { path, cur } of rewritten) {
-          if (!ownedPartsHold(new Set(c.vfs.aliases(path)), cur, ledgerAfter, ledgerChanges)) throw new Error(`verification failed for ${path}: a command of this transaction changed what Buracle wrote there`)
-          log('info', 'txn: a command rewrote a file Buracle merged into; Buracle\'s values are intact', { txn, path })
+          if (!ownedPartsHold(new Set(c.vfs.aliases(path)), cur, ledgerAfter, ledgerChanges)) throw new Error(`verification failed for ${path}: a command of this transaction changed what Buracle Stack wrote there`)
+          log('info', 'txn: a command rewrote a file Buracle Stack merged into; Buracle Stack\'s values are intact', { txn, path })
         }
       }
       if (ledgerChanges.length > 0) {
@@ -2634,7 +2634,7 @@ export async function rollbackTxn(txn?: string): Promise<RollbackReport> {
     }
     if (journal.status === 'rolled-back') throw new Error(`transaction ${journal.txn} was already rolled back`)
     if (journal.backupsPruned === true && journal.files.some(f => f.before.backup !== undefined)) {
-      throw new Error(`transaction ${journal.txn} is too old to roll back: its backups were removed (Buracle keeps the backups of the newest ${RETENTION.backups} transactions)`)
+      throw new Error(`transaction ${journal.txn} is too old to roll back: its backups were removed (Buracle Stack keeps the backups of the newest ${RETENTION.backups} transactions)`)
     }
     await recoverInterrupted(journal.txn)
     const outcome = await undoJournal(journal, journal.status !== 'committed')
@@ -2686,14 +2686,14 @@ export interface TxnStep {
 export const TXN_STEPS: readonly TxnStep[] = [
   { id: 'lock', title: 'Lock', detail: 'Take the transaction lock (one transaction at a time; a lock whose process is gone, or whose PID now belongs to another program, is taken over) and roll back any transaction a killed process left `applying`.' },
   { id: 'checks', title: 'Idempotency checks', detail: 'Run the idempotency check of every exec op; commands already done are skipped.' },
-  { id: 'plan', title: 'Plan', detail: 'Compute every op against the files and the ownership ledger (merge law; a missing ledger is rebuilt from the journals). Values the user changed or removed become conflicts and are kept, except keys a plan marks enforced (Buracle\'s value is written again with a warning, and removing the key later puts back what it held before Buracle took it over) or soft (the user\'s value is kept and reported as skipped). Read-only and unparsable files and YAML values inherited through merge keys or aliases are never written.' },
+  { id: 'plan', title: 'Plan', detail: 'Compute every op against the files and the ownership ledger (merge law; a missing ledger is rebuilt from the journals). Values the user changed or removed become conflicts and are kept, except keys a plan marks enforced (Buracle Stack\'s value is written again with a warning, and removing the key later puts back what it held before Buracle Stack took it over) or soft (the user\'s value is kept and reported as skipped). Read-only and unparsable files and YAML values inherited through merge keys or aliases are never written.' },
   { id: 'backup', title: 'Backup', detail: 'Copy every file about to change into ~/.buracle/backups/<txn>/ (private: 0700 directories, 0600 files) and check each copy against the planned content.' },
   { id: 'journal', title: 'Journal', detail: 'Write ~/.buracle/journal/<txn>.json (status applying) before the first change.' },
   { id: 'write', title: 'Atomic writes', detail: 'Write each file atomically (temporary file, then rename) and read it back: it must hold exactly what was written. A file someone else changed since the plan stops the transaction.' },
   { id: 'exec', title: 'Commands', detail: 'Run the exec ops (e.g. plugin registration) and re-run their idempotency checks; a failing command stops the transaction, except an optional (soft) one, which is reported as a warning.' },
-  { id: 'verify', title: 'Verify', detail: 'After the commands, re-read every written path. A whole file or link must be exactly as written. A command may rewrite other parts of a file Buracle merged into (e.g. `claude plugin install` edits ~/.claude/settings.json): every value Buracle owns there must still read back as written, and the journal then records the file as the commands left it.' },
-  { id: 'ledger', title: 'Ownership ledger', detail: 'Record what Buracle now owns in ~/.buracle/state/owned.json.' },
-  { id: 'commit', title: 'Commit', detail: 'Mark the journal committed and prune old history (backups of all but the newest 20 command transactions and the newest 10 a hook applied on its own, such as a project\'s memory redirect; journals beyond the newest 50). A failure in any earlier step, or Ctrl-C (SIGINT), SIGTERM or SIGHUP, rolls everything back: a file is restored from its backup only while it still holds what was written (in a file someone else changed since, only Buracle\'s own keys are undone), every command that ran is undone (and, best effort, one that stopped half way), and the ledger is reverted.' },
+  { id: 'verify', title: 'Verify', detail: 'After the commands, re-read every written path. A whole file or link must be exactly as written. A command may rewrite other parts of a file Buracle Stack merged into (e.g. `claude plugin install` edits ~/.claude/settings.json): every value Buracle Stack owns there must still read back as written, and the journal then records the file as the commands left it.' },
+  { id: 'ledger', title: 'Ownership ledger', detail: 'Record what Buracle Stack now owns in ~/.buracle/state/owned.json.' },
+  { id: 'commit', title: 'Commit', detail: 'Mark the journal committed and prune old history (backups of all but the newest 20 command transactions and the newest 10 a hook applied on its own, such as a project\'s memory redirect; journals beyond the newest 50). A failure in any earlier step, or Ctrl-C (SIGINT), SIGTERM or SIGHUP, rolls everything back: a file is restored from its backup only while it still holds what was written (in a file someone else changed since, only Buracle Stack\'s own keys are undone), every command that ran is undone (and, best effort, one that stopped half way), and the ledger is reverted.' },
 ]
 
 function textOf(n: Node): string | undefined {

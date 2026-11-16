@@ -2,7 +2,7 @@
  * `buracle mcp backend <id>`: the one shared copy of an MCP server on this machine. It runs the upstream
  * server once in its normal stdio mode and serves every forwarder that connects to its Unix socket, through
  * the multiplexer of ./mux.ts. It stops `lingerMs()` after its last client left, on SIGTERM, and when its
- * Buracle home disappears. Its socket lives in a private directory (./common.ts, ensurePrivateDir).
+ * Buracle Stack home disappears. Its socket lives in a private directory (./common.ts, ensurePrivateDir).
  */
 import { appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs'
 import net from 'node:net'
@@ -311,7 +311,7 @@ export async function runMcpBackend(id: string, opts: BackendOptions): Promise<n
   const homeId = identity(home)
   let socketId: string | undefined
   const homeWatch = setInterval(() => {
-    if (identity(home) !== homeId || !existsSync(home)) void shutdown('its Buracle home is gone')
+    if (identity(home) !== homeId || !existsSync(home)) void shutdown('its Buracle Stack home is gone')
     else if (socketId !== undefined && identity(files.socket) !== socketId) void shutdown('its socket is gone')
   }, HOME_POLL_MS)
 

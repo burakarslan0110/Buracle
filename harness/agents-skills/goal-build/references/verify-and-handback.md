@@ -127,7 +127,7 @@ Next: <only for outcomes other than done>
 
 ## Export: a portable brief
 
-When the user wants the run continued in a fresh session, by another agent or on a machine without Buracle, hand back a brief instead of running it. Without Buracle there is no run file and no stop guard, so the goal condition moves into the prompt.
+When the user wants the run continued in a fresh session, by another agent or on a machine without Buracle Stack, hand back a brief instead of running it. Without Buracle Stack there is no run file and no stop guard, so the goal condition moves into the prompt.
 
 Where the harness has a goal command (`/goal` in Claude Code, Codex and Oh My Pi), put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` It keeps the session working until the condition holds; `/goal clear` drops it (`/goal drop` in Oh My Pi, whose goal mode is the `goal.enabled` setting, on by default). Without a goal command (OpenCode), the brief's first sentence states the condition, and nothing else holds the session open.
 

@@ -1,5 +1,5 @@
 {
-  "description": "Buracle: command hooks are the backbone (guards, consent, stop guard, prompt routing, usage ledger, workflow tracking, memory, compaction, file checks, code indexes); the mod adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands",
+  "description": "Buracle Stack: command hooks are the backbone (guards, consent, stop guard, prompt routing, usage ledger, workflow tracking, memory, compaction, file checks, code indexes); the mod adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands",
   "modules": [
     "./register.tsx"
   ],

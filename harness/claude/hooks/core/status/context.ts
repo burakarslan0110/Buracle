@@ -26,10 +26,10 @@ export function contextBand(pct: number | undefined, cfg?: Partial<ContextBands>
 export function contextWarning(band: ContextBand, cfg?: Partial<ContextBands>): string | undefined {
   const t = contextThresholds(cfg)
   if (band === 'critical') {
-    return `Buracle: the context window is above ${t.criticalPct}% full. Finish the current atomic step, then bring the plan file up to date (ticked tasks, deviations) and save lasting decisions with memory_write before starting anything new; Buracle keeps the plan state across the coming compaction. Do not skip verification.`
+    return `Buracle Stack: the context window is above ${t.criticalPct}% full. Finish the current atomic step, then bring the plan file up to date (ticked tasks, deviations) and save lasting decisions with memory_write before starting anything new; Buracle Stack keeps the plan state across the coming compaction. Do not skip verification.`
   }
   if (band === 'warn') {
-    return `Buracle: the context window is above ${t.warnPct}% full. Keep outputs short, read narrow line ranges instead of whole files, and keep the plan file and todo list current so the work survives a compaction.`
+    return `Buracle Stack: the context window is above ${t.warnPct}% full. Keep outputs short, read narrow line ranges instead of whole files, and keep the plan file and todo list current so the work survives a compaction.`
   }
   return undefined
 }

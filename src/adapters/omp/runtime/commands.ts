@@ -144,11 +144,11 @@ export function registerUtilityCommands(pi: OmpExtensionAPI, host: CommandHost):
     notify(ctx, lines.join('\n'), 'info')
   }
   pi.registerCommand(OMP_REMEMBER_COMMAND, {
-    description: 'Save a note to the Buracle memory inbox (no model turn)',
+    description: 'Save a note to the Buracle Stack memory inbox (no model turn)',
     handler: safe(OMP_REMEMBER_COMMAND, (args, ctx) => remember(host, args, ctx)),
   })
   pi.registerCommand(OMP_BRAIN_COMMAND, {
-    description: 'Open the Buracle Console (starts it when it is not running); /brain review opens the plan and change review page',
+    description: 'Open the Buracle Stack Console (starts it when it is not running); /brain review opens the plan and change review page',
     handler: safe(OMP_BRAIN_COMMAND, (args, ctx) => brain(host, args, ctx)),
   })
   pi.registerCommand(OMP_ASIDE_COMMAND, {
@@ -156,15 +156,15 @@ export function registerUtilityCommands(pi: OmpExtensionAPI, host: CommandHost):
     handler: safe(OMP_ASIDE_COMMAND, aside),
   })
   pi.registerCommand(OMP_STATUS_COMMAND, {
-    description: 'Buracle status: status, memory, plan or flow',
+    description: 'Buracle Stack status: status, memory, plan or flow',
     handler: safe(OMP_STATUS_COMMAND, status),
   })
   pi.registerCommand(OMP_STATUS_ALIAS, {
-    description: `Buracle status (alias of /${OMP_STATUS_COMMAND})`,
+    description: `Buracle Stack status (alias of /${OMP_STATUS_COMMAND})`,
     handler: safe(OMP_STATUS_ALIAS, status),
   })
   pi.registerCommand(OMP_PING_COMMAND, {
-    description: 'Buracle: liveness check (no model call)',
+    description: 'Buracle Stack: liveness check (no model call)',
     handler: safe(OMP_PING_COMMAND, async (_args, ctx) => { notify(ctx, PING_ANSWER, 'info') }),
   })
 }

@@ -17,7 +17,7 @@ candidate looks obvious. Removal is a separate change that the user starts after
 
 1. **Read-only.** No edits, deletions, formatting, installs or git writes in the project, and never
    `codegraph init` yourself. The one write allowed is `buracle index ensure --cwd <project root>` when
-   codegraph reports no index: it touches only Buracle's index (`.codegraph/`, which Buracle keeps out of
+   codegraph reports no index: it touches only Buracle Stack's index (`.codegraph/`, which Buracle Stack keeps out of
    git, and the semble cache). Use analyzer flags that do not write caches. The working tree must be
    unchanged at the end (Phase 6).
 2. **Two families minimum.** A candidate becomes `remove-candidate` only with evidence from at least two
@@ -49,7 +49,7 @@ dynamic-usage patterns and framework conventions are in [references/signals.md](
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it
 current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start: `buracle flow start dead-code --title "<scope>"` in Phase 0 (harmless when a hook already started
@@ -91,7 +91,7 @@ Track Phases 0-6 with your todo tool.
    means the code is used inside its own file, so at most its `export` is unnecessary.
 2. Take a graph snapshot of everything the codegraph index says nothing reaches, with the index's
    health. It opens the index read-only, never runs `codegraph init` or sync, and needs the codegraph
-   toolchain Buracle installs.
+   toolchain Buracle Stack installs.
    ```bash
    bun "$HOME/.agents/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
    ```

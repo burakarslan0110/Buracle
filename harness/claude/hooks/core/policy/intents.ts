@@ -2,7 +2,7 @@ import { fold, stripQuoted, word } from './text'
 
 export type Intent = 'pause' | 'resume' | 'stop' | 'history' | null
 
-export const GUARD_MARKERS = ['Buracle stop guard:', 'Buracle plan check:', 'Buracle routing check:'] as const
+export const GUARD_MARKERS = ['Buracle Stack stop guard:', 'Buracle Stack plan check:', 'Buracle Stack routing check:'] as const
 
 export function isGuardContinuation(text: string): boolean {
   if (typeof text !== 'string') return false
@@ -77,11 +77,11 @@ export function detectIntent(text: string): Intent {
 }
 
 export const CONTROL_GUIDANCE = {
-  pausePlan: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait. The active plan is now paused; the user saying "continue" (in any language) or `buracle plan resume` continues it. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-  pause: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-  resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
-  stop: 'Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-  resultApproved: 'Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`.',
+  pausePlan: 'Buracle Stack: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait. The active plan is now paused; the user saying "continue" (in any language) or `buracle plan resume` continues it. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
+  pause: 'Buracle Stack: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
+  resume: 'Buracle Stack: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
+  stop: 'Buracle Stack: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
+  resultApproved: 'Buracle Stack: the user approved the verified result, so Buracle Stack recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`.',
 } as const
 
 export interface HeldInteraction { state: 'running' | 'paused'; kind?: 'discussion' | 'decision' | 'manual'; reason?: string }
@@ -120,13 +120,13 @@ export function resumableDecision(i: HeldInteraction | undefined): boolean {
   return isRunawayDecision(i) || isHandback(i) || isModelSwitch(i)
 }
 
-const RUNAWAY_RESUME = 'Buracle: the user chose to continue after the stop guard\'s runaway limit, so the plan is resumed and the stop-guard counters start again. Check `buracle plan status --json` and carry on with the current approach; if the same block comes back, pause and ask again.'
+const RUNAWAY_RESUME = 'Buracle Stack: the user chose to continue after the stop guard\'s runaway limit, so the plan is resumed and the stop-guard counters start again. Check `buracle plan status --json` and carry on with the current approach; if the same block comes back, pause and ask again.'
 
-const HANDBACK_RESUME = 'Buracle: the user said to continue after the build hand-back, so the plan is resumed and the stop-guard counters start again. Run `buracle flow start goal-build --title "<goal title>"`, re-read the run file and do one more round; the user\'s request is what allows a round past the fourth.'
+const HANDBACK_RESUME = 'Buracle Stack: the user said to continue after the build hand-back, so the plan is resumed and the stop-guard counters start again. Run `buracle flow start goal-build --title "<goal title>"`, re-read the run file and do one more round; the user\'s request is what allows a round past the fourth.'
 
-const CRITERIA_ONLY_RESUME = `Buracle: the user said to continue after the criteria-only hand-back (done, verification off), so the plan is resumed. Every criterion passed and verification stays off for this run, so no round is left to do. Do what the message asks (a fix or a change: make it, re-judge the criteria it touches and add the rows to \`## Evidence\`), then hand back again with \`buracle plan pause --kind decision --reason "${VERIFICATION_OFF_REASON}"\`; if it asks for nothing more, hand back right away. A new goal is a new run.`
+const CRITERIA_ONLY_RESUME = `Buracle Stack: the user said to continue after the criteria-only hand-back (done, verification off), so the plan is resumed. Every criterion passed and verification stays off for this run, so no round is left to do. Do what the message asks (a fix or a change: make it, re-judge the criteria it touches and add the rows to \`## Evidence\`), then hand back again with \`buracle plan pause --kind decision --reason "${VERIFICATION_OFF_REASON}"\`; if it asks for nothing more, hand back right away. A new goal is a new run.`
 
-const MODEL_SWITCH_RESUME = 'Buracle: the user said to continue after the model switch, so the plan is resumed on the model now in use. Check `buracle plan status --json`, re-read the plan file and start the implementation with its first unticked task.'
+const MODEL_SWITCH_RESUME = 'Buracle Stack: the user said to continue after the model switch, so the plan is resumed on the model now in use. Check `buracle plan status --json`, re-read the plan file and start the implementation with its first unticked task.'
 
 function quoted(reason: string | undefined): string {
   const r = typeof reason === 'string' ? reason.replace(/\s+/g, ' ').trim() : ''
@@ -137,14 +137,14 @@ const REVIEW_RULE = 'Only an explicit approval of this result counts: then run `
 
 function heldResume(i: HeldInteraction): string | undefined {
   if (i.state !== 'paused') return undefined
-  if (i.kind === 'manual') return `Buracle: the user said to continue, but the plan stays paused on a manual step${quoted(i.reason)}. Check that the step is done (ask if you cannot tell), verify its result, then run \`buracle plan resume\` and continue.`
+  if (i.kind === 'manual') return `Buracle Stack: the user said to continue, but the plan stays paused on a manual step${quoted(i.reason)}. Check that the step is done (ask if you cannot tell), verify its result, then run \`buracle plan resume\` and continue.`
   if (i.kind !== 'decision') return undefined
   if (isRunawayDecision(i)) return RUNAWAY_RESUME
   if (decisionAbout(i, VERIFICATION_OFF_REASON)) return CRITERIA_ONLY_RESUME
   if (isHandback(i)) return HANDBACK_RESUME
   if (isModelSwitch(i)) return MODEL_SWITCH_RESUME
-  if (isResultReview(i)) return `Buracle: the user said to continue, but the plan stays paused on the result review; "continue" is no approval of the result. ${REVIEW_RULE}`
-  return `Buracle: the user said to continue, but the plan stays paused on an open decision${quoted(i.reason)}; "continue" alone does not answer it. If their message makes a choice, act on that choice and run \`buracle plan resume\`; otherwise ask the question again and end the turn.`
+  if (isResultReview(i)) return `Buracle Stack: the user said to continue, but the plan stays paused on the result review; "continue" is no approval of the result. ${REVIEW_RULE}`
+  return `Buracle Stack: the user said to continue, but the plan stays paused on an open decision${quoted(i.reason)}; "continue" alone does not answer it. If their message makes a choice, act on that choice and run \`buracle plan resume\`; otherwise ask the question again and end the turn.`
 }
 
 export function controlGuidance(intent: Intent, opts: { hasPlan: boolean, interaction?: HeldInteraction }): string | undefined {
@@ -175,14 +175,14 @@ export function pausedReply(i: HeldInteraction | undefined, text: string): strin
   if (i === undefined || i.state !== 'paused') return undefined
   if (i.kind === 'manual') {
     return isManualDone(text)
-      ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.`
-      : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`
+      ? `Buracle Stack: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.`
+      : `Buracle Stack: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`
   }
-  if (i.kind === 'discussion') return 'Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.'
+  if (i.kind === 'discussion') return 'Buracle Stack: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.'
   if (i.kind !== 'decision') return undefined
-  if (isResultReview(i)) return `Buracle: the plan is paused on the result review. ${REVIEW_RULE} A bare "continue", silence or green checks are no approval.`
-  if (isModelSwitch(i)) return 'Buracle: the plan is paused so the user can switch models before the implementation. Answer the user; when their message means go on, run `buracle plan resume` and start the implementation.'
-  return `Buracle: the plan is paused on an open decision${quoted(i.reason)}. If this message answers it, act on the answer and run \`buracle plan resume\`; otherwise answer the user and keep waiting.`
+  if (isResultReview(i)) return `Buracle Stack: the plan is paused on the result review. ${REVIEW_RULE} A bare "continue", silence or green checks are no approval.`
+  if (isModelSwitch(i)) return 'Buracle Stack: the plan is paused so the user can switch models before the implementation. Answer the user; when their message means go on, run `buracle plan resume` and start the implementation.'
+  return `Buracle Stack: the plan is paused on an open decision${quoted(i.reason)}. If this message answers it, act on the answer and run \`buracle plan resume\`; otherwise answer the user and keep waiting.`
 }
 
 const WAITING = re([

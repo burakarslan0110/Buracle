@@ -162,7 +162,7 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
   }
   try {
     const left = Object.keys(readLedgerSync()).filter(k => k.endsWith('#autoMemoryDirectory'))
-    if (left.length > 0) add('warn', 'claude redirect', `${left.length} project(s) still carry the autoMemoryDirectory an older Buracle wrote; \`buracle install\` takes them back`)
+    if (left.length > 0) add('warn', 'claude redirect', `${left.length} project(s) still carry the autoMemoryDirectory an older Buracle Stack wrote; \`buracle install\` takes them back`)
   } catch {  }
   return checks
 }
@@ -174,5 +174,5 @@ async function bucketChecks(add: (level: DoctorLevel, check: string, detail: str
   const known = new Set(Object.keys(readProjectsCache().projects))
   const orphans = slugs.filter(s => !known.has(s))
   if (orphans.length > 0) add('warn', 'brain', `${orphans.length} project bucket(s) without a project record, so no status reaches them: ${orphans.join(', ')}; a session in the project's folder registers it again (buracle project init)`)
-  if (counts.foreign > 0) add('warn', 'brain', `${counts.foreign} row(s) in brain.db belong to no bucket (an id without the u/ or p/<project>/ prefix); Buracle ignores them`)
+  if (counts.foreign > 0) add('warn', 'brain', `${counts.foreign} row(s) in brain.db belong to no bucket (an id without the u/ or p/<project>/ prefix); Buracle Stack ignores them`)
 }

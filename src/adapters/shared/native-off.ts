@@ -37,7 +37,7 @@ function isObj(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === 'object' && !Array.isArray(x)
 }
 
-/** The Buracle servers of the Claude plugin with the command lines Claude Code compares a `serverCommand` with. */
+/** The Buracle Stack servers of the Claude plugin with the command lines Claude Code compares a `serverCommand` with. */
 export function claudePluginServers(pluginRoot: string): ClaudeOffInput['servers'] {
   const doc = readCapped(join(pluginRoot, '.mcp.json'))
   const servers = isObj(doc) && isObj(doc['mcpServers']) ? doc['mcpServers'] : {}

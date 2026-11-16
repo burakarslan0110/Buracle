@@ -8,7 +8,7 @@ import { HOOK_GROUP_IDENTITY, OWNER, qwenExcluded, qwenHooks, qwenMcpServers, qw
 export const settingsPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(ctx.paths.qwenHome(), 'settings.json')
 
 /**
- * What the install writes into Qwen's folder (the skills are read from ~/.agents/skills). In settings.json: the Buracle hook groups, one `mcpServers` entry per shipped server and the user's `mcp.off.qwen` as `mcp.excluded`.
+ * What the install writes into Qwen's folder (the skills are read from ~/.agents/skills). In settings.json: the Buracle Stack hook groups, one `mcpServers` entry per shipped server and the user's `mcp.off.qwen` as `mcp.excluded`.
  * The file is read as JSON with comments, as Qwen Code reads it; the user's own hooks, servers and keys stay. Besides it: a
  * managed block in QWEN.md (the always-loaded rules and the commands), the path rules in rules/buracle/, the review agents in
  * agents/ and the custom commands in commands/.
@@ -33,7 +33,7 @@ export async function qwenInstallPlan(ctx: AdapterContext): Promise<Plan> {
   return { id: 'qwen', harness: 'qwen', ops }
 }
 
-/** Everything the ledger records as Buracle's in Qwen's folder goes; a key or file the user changed is kept by the engine. */
+/** Everything the ledger records as Buracle Stack's in Qwen's folder goes; a key or file the user changed is kept by the engine. */
 export async function qwenUninstallPlan(_ctx: AdapterContext, opts: { ledger?: Ledger } = {}): Promise<Plan> {
   let ledger = opts.ledger
   if (ledger === undefined) {

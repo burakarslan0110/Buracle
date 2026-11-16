@@ -1,7 +1,7 @@
 import { CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS } from './native-events'
 import { wordDashToken, type HarnessProfile } from './profile'
 
-/** The name of Buracle's Claude Code plugin; its MCP tools carry it. */
+/** The name of Buracle Stack's Claude Code plugin; its MCP tools carry it. */
 export const CLAUDE_PLUGIN_NAME = 'buracle'
 
 export const claudeProfile: HarnessProfile = {
@@ -19,7 +19,7 @@ export const claudeProfile: HarnessProfile = {
   relocationEnv: ['CLAUDE_CONFIG_DIR'],
   sessionEnv: ['CLAUDE_CODE_SESSION_ID'],
   protectedDirs: [{ key: 'claudeDir', under: '.claude', entries: ['settings.json', 'settings.local.json', 'plugins/'] }],
-  selfText: { what: "Claude Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Claude Code's own commands (`claude plugin …`, `claude mcp …`, `/config`)" },
+  selfText: { what: "Claude Code's own configuration, which registers Buracle Stack's guard hooks", remedy: "ask the user to make this change themselves, or use Claude Code's own commands (`claude plugin …`, `claude mcp …`, `/config`)" },
   skills: {
     readsAgentsDir: false,
     readsClaudeUserDir: true,
@@ -28,7 +28,7 @@ export const claudeProfile: HarnessProfile = {
     mention: (id, invocable) => invocable ? `/${id}` : `/buracle:${id}`,
     agentPrefix: 'buracle:',
     howto: 'the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>',
-    load: (id, explicit, file) => explicit ? `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}` : `Skill tool, buracle:${id}`,
+    load: (id, explicit, file) => explicit ? `read ${file ?? `skills/${id}/SKILL.md in the Buracle Stack plugin`}` : `Skill tool, buracle:${id}`,
     candidateHow: 'Skill tool, buracle:<id>',
   },
   plan: {

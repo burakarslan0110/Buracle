@@ -5,7 +5,7 @@ import { colorLevel, makeStyle, type Style } from './style'
 // scripts/install.sh prints the first two sections in the same layout itself
 // (tests/engine/install-script.test.ts compares them with this file).
 
-export const SECTION_ORDER = ['Prerequisites', 'Buracle', 'Harnesses', 'Tools', 'Memory', 'Result'] as const
+export const SECTION_ORDER = ['Prerequisites', 'Buracle Stack', 'Harnesses', 'Tools', 'Memory', 'Result'] as const
 export type SectionName = typeof SECTION_ORDER[number]
 export type SectionStatus = 'ok' | 'warn' | 'fail' | 'skip' | 'info'
 

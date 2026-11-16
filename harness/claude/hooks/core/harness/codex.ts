@@ -14,7 +14,7 @@ export const codexProfile: HarnessProfile = {
   relocationEnv: ['CODEX_HOME'],
   sessionEnv: ['CODEX_SESSION_ID', 'CODEX_THREAD_ID'],
   protectedDirs: [{ key: 'codexHome', under: '.codex', entries: ['config.toml', 'hooks.json', 'rules/'] }],
-  selfText: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp …`, `codex features …`)" },
+  selfText: { what: "Codex's own configuration, which registers Buracle Stack's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp …`, `codex features …`)" },
   skills: {
     readsAgentsDir: true,
     readsClaudeUserDir: false,

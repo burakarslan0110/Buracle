@@ -8,7 +8,7 @@ export const summary = 'Print the diff range a review should read (base...HEAD)'
 export const usage = `Usage: buracle review-scope [--slug <slug>] [--base <ref>] [--json]
 
 Prints {mode, base_ref, diff_range, warning?} for the review of the current work:
-  worktree      a Buracle plan worktree (--slug, the current directory, or this session's plan):
+  worktree      a Buracle Stack plan worktree (--slug, the current directory, or this session's plan):
                 diff_range <base>...<branch>; also worktree_path
   branch        committed work on a feature branch with a clean checkout: <default>...<branch>
   working-tree  uncommitted changes are part of the work: 'git diff <diff_range>' compares that

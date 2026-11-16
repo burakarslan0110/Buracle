@@ -76,7 +76,7 @@ export function usageError(usage: string, problems: string[]): CmdResult {
 }
 
 export const NO_SESSION_HINT =
-  'no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from ' +
+  'no session: no harness session id was found. Buracle Stack reads it from --session <id> (with --harness <h>), or from ' +
   'BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; ' +
   'when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. ' +
   "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration."

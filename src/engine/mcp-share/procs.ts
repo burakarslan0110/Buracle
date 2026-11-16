@@ -1,4 +1,4 @@
-// The running shared backends and the other Buracle MCP processes, for `buracle mcp status|stop` and doctor.
+// The running shared backends and the other Buracle Stack MCP processes, for `buracle mcp status|stop` and doctor.
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import * as paths from '../paths'
@@ -62,7 +62,7 @@ const BURACLE_ARGS = /(?:^|\s)(?:\S*\/)?(?:buracle(?:\.ts)?|main\.ts)\s+(mcp (ba
 const CODEGRAPH = /codegraph(?:-[a-z]+-[a-z0-9]+)?\/.*\bserve --mcp\b|@colbymchenry\/codegraph\b.*\bserve --mcp\b/
 
 /**
- * The Buracle MCP processes among `rows`, each with its role: `backend` (`mcp backend <id>`), `forwarder`
+ * The Buracle Stack MCP processes among `rows`, each with its role: `backend` (`mcp backend <id>`), `forwarder`
  * (`mcp run <id>`), `upstream` (a child of a backend), `lazy` (a child of a forwarder of a lazy server),
  * `session` (`mcp memory`, `lsp mcp`) and `codegraph` (its proxy or per-project daemon). A server that took
  * over `mcp run` itself looks like any other program and is not listed.
@@ -89,7 +89,7 @@ export function classifyMcpProcesses(rows: readonly PsRow[], lazyIds: ReadonlySe
   return out
 }
 
-/** This user's Buracle MCP processes running now: `ps` (LC_ALL=C, at most 2 s) classified with the catalog's lazy servers. */
+/** This user's Buracle Stack MCP processes running now: `ps` (LC_ALL=C, at most 2 s) classified with the catalog's lazy servers. */
 export function listMcpProcesses(lazyIds: ReadonlySet<string>): McpProcess[] {
   try {
     // Only this user's: another user's processes are not ours to report or stop.
@@ -106,7 +106,7 @@ export function listMcpProcesses(lazyIds: ReadonlySet<string>): McpProcess[] {
 export interface OrphanCheck { level: 'ok' | 'warn', check: string, detail: string }
 
 /**
- * Doctor's `processes` check: each Buracle MCP process that no live harness needs, with the command that
+ * Doctor's `processes` check: each Buracle Stack MCP process that no live harness needs, with the command that
  * stops it. A per-session process (forwarder, lazy child, memory, lsp, codegraph proxy) whose parent is pid 1
  * or has no harness ancestor; a backend idle for longer than the linger time plus 15 s; an upstream whose
  * backend is gone. codegraph's per-project daemon outlives its clients by design and is never reported.
@@ -129,7 +129,7 @@ export function orphanChecks(procs: readonly McpProcess[], states: readonly Back
   const counts = new Map<McpRole, number>()
   for (const p of procs) counts.set(p.role, (counts.get(p.role) ?? 0) + 1)
   const text = [...counts].sort().map(([r, n]) => `${n} ${r}`).join(', ')
-  return [{ level: 'ok', check: 'processes', detail: text === '' ? 'no Buracle MCP process runs' : `every Buracle MCP process has a live harness (${text})` }]
+  return [{ level: 'ok', check: 'processes', detail: text === '' ? 'no Buracle Stack MCP process runs' : `every Buracle Stack MCP process has a live harness (${text})` }]
 }
 
 /** Sends SIGTERM to the live shared backends (all, or the ones of `id`) and returns their pids. */

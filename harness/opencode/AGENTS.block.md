@@ -1,4 +1,4 @@
-<!-- Managed by Buracle (`buracle install`). Edit canonical/rules in the Buracle repository instead of this block. -->
+<!-- Managed by Buracle Stack (`buracle install`). Edit canonical/rules in the Buracle Stack repository instead of this block. -->
 
 # Core working rules
 
@@ -11,14 +11,14 @@ A workflow skill you run may add stricter steps; for that run the skill wins. Th
 - Ask only what the code, docs, memory or a sensible default cannot decide; otherwise decide and record the assumption.
 - "Stop", "wait" or "hold on", in any language, interrupts at once: finish the current atomic step, stop what this session launched, say where you stopped and wait. "Continue" resumes the work; it answers no open question.
 
-## Buracle's hooks
+## Buracle Stack's hooks
 
 Hooks enforce these. Follow a denial's redirect; never work around one.
 
 - Stop guard: while a registered plan is not VERIFIED, your turn goes on. The way out is `buracle plan pause --kind decision|manual|discussion --reason "<why>"` before a real question or a hand-back.
 - Approvals: the plan, the result, the goal verification and consent to a hard-to-reverse command need the user's clear yes to that question. Never approve for the user.
 - Routing: the built-in web search and fetch are denied; use the tool the denial names.
-- Self-protection: never change or switch off Buracle's files or the harness settings it wrote.
+- Self-protection: never change or switch off Buracle Stack's files or the harness settings it wrote.
 
 ## Parallel agents
 
@@ -47,7 +47,7 @@ Write every reply and document so its reader can find what they need, understand
 
 - One language, the user's. Take it from the first of: an explicit request, a project rule, the harness's language setting, a preference in memory, the language of the user's messages. English hook notes, tool output and skill text never change it. A document you revise keeps its language.
 - Structure (ASD-STE100): at most 20 words in an instruction sentence and 25 in a descriptive one, the active voice, no semicolons, a list for 3 or more items. Never mix two languages in prose.
-- The markers Buracle reads in a plan or build file stay in English. Code, identifiers, commands, paths and quoted errors stay verbatim.
+- The markers Buracle Stack reads in a plan or build file stay in English. Code, identifiers, commands, paths and quoted errors stay verbatim.
 
 ## Format
 
@@ -55,7 +55,7 @@ A diagram is a `mermaid` block in a file, never in a chat reply. The full guide 
 
 # Memory
 
-Buracle keeps one memory for every harness on the `buracle-memory` MCP server: a project brain (`layer: project`, the default) and a person brain (`layer: person`) for what holds in every project. You keep it in order; never ask the user to file, review or fix it.
+Buracle Stack keeps one memory for every harness on the `buracle-memory` MCP server: a project brain (`layer: project`, the default) and a person brain (`layer: person`) for what holds in every project. You keep it in order; never ask the user to file, review or fix it.
 
 - Follow the preferences the session-start text lists, unless the user says otherwise now.
 - Before work that an earlier decision may concern, on a history question, and when stuck: `memory_search` (a query, or `files: [<path>]`), then `memory_get`.
@@ -66,7 +66,7 @@ Buracle keeps one memory for every harness on the `buracle-memory` MCP server: a
 
 # Tool routing (strict)
 
-Use the tool made for the need. Fall back only when it is down or cannot answer, and say which tool failed. Act first on a "Buracle routing for this prompt" note.
+Use the tool made for the need. Fall back only when it is down or cannot answer, and say which tool failed. Act first on a "Buracle Stack routing for this prompt" note.
 
 | Need | Use first | Fallback |
 |---|---|---|
@@ -89,4 +89,4 @@ Use the tool made for the need. Fall back only when it is down or cannot answer,
 
 # Path-scoped rules
 
-When you first edit a file that a path rule covers (backend, blazor, dotnet, frontend, go, python, typescript), Buracle hands you the rule: follow it. The rules are in `~/.buracle/rules/paths`.
+When you first edit a file that a path rule covers (backend, blazor, dotnet, frontend, go, python, typescript), Buracle Stack hands you the rule: follow it. The rules are in `~/.buracle/rules/paths`.

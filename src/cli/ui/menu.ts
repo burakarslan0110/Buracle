@@ -9,10 +9,10 @@ export type MenuAction = { kind: 'run'; argv: string[] } | { kind: 'quit' }
 export interface MenuItem { id: string; label: string; does: string; key: string; action: MenuAction }
 
 export const MENU: readonly MenuItem[] = [
-  { id: 'install', label: 'Install or repair', does: 'set Buracle up in your coding agents, or repair it', key: 'i', action: { kind: 'run', argv: ['install'] } },
+  { id: 'install', label: 'Install or repair', does: 'set Buracle Stack up in your agents, or repair it', key: 'i', action: { kind: 'run', argv: ['install'] } },
   { id: 'update', label: 'Update', does: 'look for new versions and apply them, step by step', key: 'u', action: { kind: 'run', argv: ['update'] } },
   { id: 'doctor', label: 'Health check', does: 'check every part and see how to fix what is broken', key: 'd', action: { kind: 'run', argv: ['doctor'] } },
-  { id: 'memory', label: 'Memory', does: 'open the Buracle Console in your browser', key: 'm', action: { kind: 'run', argv: ['mem', 'ui', '--open'] } },
+  { id: 'memory', label: 'Memory', does: 'open the Buracle Stack Console in your browser', key: 'm', action: { kind: 'run', argv: ['mem', 'ui', '--open'] } },
   { id: 'quit', label: 'Quit', does: '', key: 'q', action: { kind: 'quit' } },
 ]
 

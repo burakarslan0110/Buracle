@@ -34,11 +34,11 @@ import { commandHeader, sectionHeading } from '../ui/frame'
 import { padEnd, styleFor, type Style } from '../ui/style'
 
 export const name = 'install'
-export const summary = 'Set up or repair Buracle in every detected harness (first setup included)'
+export const summary = 'Set up or repair Buracle Stack in every detected harness (first setup included)'
 export const usage = `Usage: buracle install [<harness>…] [--dry-run] [--yes] [--json]
        buracle install --script --log <file> [--started <epoch ms>] [--yes]
 
-Sets Buracle up, repairs it, and makes edits in the checkout live, in one command. With
+Sets Buracle Stack up, repairs it, and makes edits in the checkout live, in one command. With
 harness names (${HARNESSES.join(', ')}) only those harnesses are installed.
 On a new machine it creates ~/.buracle/config.yaml (repo: this checkout), the
 ~/.buracle/bin/buracle shim and its ~/.local/bin/buracle link, and the memory folder
@@ -50,7 +50,7 @@ sits in ~/.bun/bin) into ~/.local/bin, and says what is left (a harness to insta
 
 --script is what scripts/install.sh runs: it prints the Harnesses,
 Tools, Memory and Result sections, one line each unless something did not pass, starts the
-Buracle Console (memory.ui.autostart), runs the checks of \`buracle doctor\` and writes every
+Buracle Stack Console (memory.ui.autostart), runs the checks of \`buracle doctor\` and writes every
 detail to the install log (--log). --started is when the script began (the Result line
 shows the time taken).
 
@@ -82,21 +82,21 @@ own: backup -> atomic writes -> journal -> commands -> verify -> ledger -> commi
 rolling that transaction back on failure (or on Ctrl-C). A harness that fails is
 reported (exit 2); the others stay installed. Values you changed are kept and
 reported as conflicts; items you deleted stay deleted (reported). A Codex older
-than the oldest version Buracle supports is left as it is, also under BURACLE_FORCE=1
-(it could not load the config Buracle writes); the next steps name its update (exit 2).
+than the oldest version Buracle Stack supports is left as it is, also under BURACLE_FORCE=1
+(it could not load the config Buracle Stack writes); the next steps name its update (exit 2).
 
 In a terminal it applies at once, without a confirmation question, and shows each step while it
 runs: the generated files, the toolchain, the plan, the runtime check, each transaction and the
 memory. Without a terminal it writes nothing unless --yes is given.
 
 In a terminal it asks when a rare case comes up, once each, and the answer is no unless you
-say yes: a harness is running (write its config anyway?), Buracle items you removed (put
+say yes: a harness is running (write its config anyway?), Buracle Stack items you removed (put
 them back?), config files that are links leading outside your home folder (write through
-them?), a lost ownership ledger (record the values that equal Buracle's as Buracle's own?).
+them?), a lost ownership ledger (record the values that equal Buracle Stack's as Buracle Stack's own?).
 Without a terminal, or with --yes, every answer is no and the next steps say so.
-Right after the Codex transaction, Codex's trust records for Buracle's own hooks are
+Right after the Codex transaction, Codex's trust records for Buracle Stack's own hooks are
 written (their own transaction), so /hooks needs no approval. Right after the Claude
-transaction, the official LSP plugins Buracle's language servers replace go on
+transaction, the official LSP plugins Buracle Stack's language servers replace go on
 lspRecommendationNeverPlugins in ~/.claude.json and lspRecommendationDisabled is set
 to true there (their own transaction; a value you set stays yours), so Claude Code's
 "LSP plugin recommendation" dialog stops offering them. Afterwards it lists
@@ -162,7 +162,7 @@ export interface InstallFlowResult {
   toolchain?: ToolchainItem[]
   runtime?: { mode: RuntimeMode, id?: string, dir?: string, reused?: boolean, pruned?: string[] }
   busyHarnesses?: Harness[]
-  /** Harnesses left as they are because they are older than the oldest version Buracle supports. */
+  /** Harnesses left as they are because they are older than the oldest version Buracle Stack supports. */
   tooOldHarnesses?: Array<{ harness: Harness, version: string, min: string, update: string }>
   removedItems?: number
   outsideLinks?: number
@@ -223,8 +223,8 @@ async function memorySteps(): Promise<string[]> {
     if (bin.status !== 'ok') steps.push(`Memory: ${bin.detail}.`)
     const { removeClaudeRedirects } = await import('../../memory/project-init')
     const redirects = await removeClaudeRedirects()
-    if (redirects.removed.length > 0) steps.push(`Took back Claude Code's memory redirect (autoMemoryDirectory) in ${redirects.removed.length} project${redirects.removed.length === 1 ? '' : 's'}; Claude Code's own auto memory is off, Buracle's brain is the memory.`)
-    for (const k of redirects.kept.slice(0, 3)) steps.push(`${tilde(k.path)} keeps an autoMemoryDirectory Buracle did not write or that changed (${k.why}); it is unused while Claude Code's auto memory is off.`)
+    if (redirects.removed.length > 0) steps.push(`Took back Claude Code's memory redirect (autoMemoryDirectory) in ${redirects.removed.length} project${redirects.removed.length === 1 ? '' : 's'}; Claude Code's own auto memory is off, Buracle Stack's brain is the memory.`)
+    for (const k of redirects.kept.slice(0, 3)) steps.push(`${tilde(k.path)} keeps an autoMemoryDirectory Buracle Stack did not write or that changed (${k.why}); it is unused while Claude Code's auto memory is off.`)
   } catch (e) {
     steps.push(`Memory setup did not finish: ${e instanceof Error ? e.message : String(e)} (run \`buracle mem doctor\`).`)
   }
@@ -251,7 +251,7 @@ function isServiceEnvSet(op: ExecOp): boolean {
   return op.argv.slice(1, 4).join(' ') === 'service set env'
 }
 
-const OPENCODE_RESTART_AHEAD = 'OpenCode: applying runs `opencode service set env BURACLE_HOME …`, which stops OpenCode\'s background service once; the next `opencode` run starts it again with Buracle\'s environment.'
+const OPENCODE_RESTART_AHEAD = 'OpenCode: applying runs `opencode service set env BURACLE_HOME …`, which stops OpenCode\'s background service once; the next `opencode` run starts it again with Buracle Stack\'s environment.'
 
 async function postInstallSteps(composed: ComposeResult, txns: readonly string[], hadCodex: boolean, repoRoot: string, failed: ReadonlySet<string>, codexTrusted = false): Promise<string[]> {
   const included = (h: Harness) => composed.harnesses.some(x => x.harness === h && x.included) && !failed.has(h)
@@ -268,10 +268,10 @@ async function postInstallSteps(composed: ComposeResult, txns: readonly string[]
   const ranFor = (h: Harness) => (planOf(composed, h)?.plan.ops ?? []).filter((op): op is ExecOp => op.kind === 'exec' && ran.has(JSON.stringify(op.argv)))
   const steps: string[] = []
   if (included('codex') && !codexTrusted && (!hadCodex || files.has(join(paths.codexHome(), 'hooks.json')))) {
-    steps.push('Codex: open Codex and trust the Buracle hooks once with /hooks (Codex skips untrusted hooks; the approval holds while Buracle\'s hook definitions stay the same). `buracle doctor codex` lists the hooks still pending.')
+    steps.push('Codex: open Codex and trust the Buracle Stack hooks once with /hooks (Codex skips untrusted hooks; the approval holds while Buracle Stack\'s hook definitions stay the same). `buracle doctor codex` lists the hooks still pending.')
   }
   if (included('opencode') && ranFor('opencode').some(isServiceEnvSet)) {
-    steps.push('OpenCode: `opencode service set env BURACLE_HOME` stopped OpenCode\'s background service once so it picks up Buracle\'s environment; the next `opencode` run starts it again (restart OpenCode windows that are open).')
+    steps.push('OpenCode: `opencode service set env BURACLE_HOME` stopped OpenCode\'s background service once so it picks up Buracle Stack\'s environment; the next `opencode` run starts it again (restart OpenCode windows that are open).')
   }
   if (included('omp') && ranFor('omp').length > 0) {
     steps.push(`Oh My Pi: the buracle-omp plugin is linked to ${tilde(join(repoRoot, 'harness', 'omp'))} (\`omp plugin link\`), so \`buracle build\` reaches it without a reinstall. Keep the checkout there (after moving it, run \`buracle install omp\` again) and restart running omp sessions.`)
@@ -307,7 +307,7 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
   const homeProblem = checkHome() ?? buracleHomeProblem()
   if (homeProblem) return fail(homeProblem)
   const repoRoot = opsDeps.repoRoot()
-  if (paths.isFrozenRuntime(repoRoot)) return fail(`${tilde(repoRoot)} is a frozen runtime, not the checkout; run \`bun src/cli/main.ts install\` in the Buracle checkout`)
+  if (paths.isFrozenRuntime(repoRoot)) return fail(`${tilde(repoRoot)} is a frozen runtime, not the checkout; run \`bun src/cli/main.ts install\` in the Buracle Stack checkout`)
   // A run that will write first settles what an earlier one left half done; a preview writes nothing, so it repairs nothing.
   if (!opts.dryRun && (opts.yes || io.stdin.isTTY)) {
     try {
@@ -412,8 +412,8 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
     const { record } = readInstallRecord()
     if (!existsSync(paths.ownedLedgerFile()) && Object.keys(record.plans).length > 0 && !ledgerRebuildable()) {
       result.ledgerLost = true
-      if (opts.ask !== undefined && await opts.ask('The ownership ledger is gone; record the values that equal Buracle\'s as Buracle\'s own?')) applyOpts.takeOwnership = true
-      else result.warnings.push(`the ownership ledger ${tilde(paths.ownedLedgerFile())} is missing and no transaction journal is left to rebuild it: values that equal Buracle's are recorded as yours (adopted) and are never removed. If they are Buracle's, run \`buracle install\` in a terminal and say yes when it asks.`)
+      if (opts.ask !== undefined && await opts.ask('The ownership ledger is gone; record the values that equal Buracle Stack\'s as Buracle Stack\'s own?')) applyOpts.takeOwnership = true
+      else result.warnings.push(`the ownership ledger ${tilde(paths.ownedLedgerFile())} is missing and no transaction journal is left to rebuild it: values that equal Buracle Stack's are recorded as yours (adopted) and are never removed. If they are Buracle Stack's, run \`buracle install\` in a terminal and say yes when it asks.`)
     }
   }
 
@@ -452,10 +452,10 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
   try {
     preview = await compare()
     result.removedItems = preview.conflicts.filter(c => c.removed === true).length
-    if (result.removedItems > 0 && opts.ask !== undefined && opts.restore !== true && await opts.ask(`Put back ${result.removedItems} Buracle item(s) you removed?`)) {
+    if (result.removedItems > 0 && opts.ask !== undefined && opts.restore !== true && await opts.ask(`Put back ${result.removedItems} Buracle Stack item(s) you removed?`)) {
       applyOpts.restore = () => true
       preview = await compare()
-    } else if (result.removedItems > 0) result.steps.push(`${result.removedItems} Buracle item(s) you removed stay removed; run \`buracle install\` in a terminal to put them back.`)
+    } else if (result.removedItems > 0) result.steps.push(`${result.removedItems} Buracle Stack item(s) you removed stay removed; run \`buracle install\` in a terminal to put them back.`)
   } catch (e) {
     return fail(`invalid install plan: ${errText(e)}`)
   }
@@ -613,7 +613,7 @@ async function applyCodexTrust(result: InstallFlowResult, conflicts: ConflictInf
     conflicts.push(...t.conflicts.map(conflictInfo))
     return t.conflicts.length === 0
   } catch (e) {
-    result.warnings.push(`codex: recording Buracle's hooks as trusted failed (${errText(e)}); approve them in Codex with /hooks`)
+    result.warnings.push(`codex: recording Buracle Stack's hooks as trusted failed (${errText(e)}); approve them in Codex with /hooks`)
     return false
   }
 }
@@ -676,7 +676,7 @@ export function renderInstallStyled(r: InstallFlowResult, st: Style, columns = 1
   if (r.recovered.length > 0) lines.push(`  ${st.warn(st.sym.warn)} Rolled back an interrupted transaction: ${r.recovered.join(', ')}`)
   for (const c of r.conflicts) lines.push(`  ${st.warn(st.sym.warn)} Kept your value: ${st.muted(tildeText(c.detail))}`)
   for (const k of r.kept) lines.push(`  ${st.accent(st.sym.info)} Kept your value of ${k.key} in ${st.muted(tilde(k.path))}`)
-  if (r.adopted.length > 0) lines.push(`  ${st.accent(st.sym.info)} ${r.adopted.length} value${r.adopted.length === 1 ? '' : 's'} already matched Buracle's; they stay yours and are never removed`)
+  if (r.adopted.length > 0) lines.push(`  ${st.accent(st.sym.info)} ${r.adopted.length} value${r.adopted.length === 1 ? '' : 's'} already matched Buracle Stack's; they stay yours and are never removed`)
   for (const w of r.warnings) lines.push(`  ${st.warn(st.sym.warn)} ${tildeText(w)}`)
   for (const e of r.errors) lines.push(`  ${st.err(st.sym.err)} ${e.source}: ${tildeText(e.error)}`)
   if (r.steps.length > 0) {
@@ -717,11 +717,11 @@ export function renderInstall(r: InstallFlowResult, io: CommandIO, title = 'bura
     for (const c of r.conflicts) out.write(`  - ${tildeText(c.detail)}\n`)
   }
   if (r.kept.length > 0) {
-    out.write('Kept your values (you changed them; Buracle leaves them as they are):\n')
+    out.write('Kept your values (you changed them; Buracle Stack leaves them as they are):\n')
     for (const k of r.kept) out.write(`  - ${tilde(k.path)} ${k.key}\n`)
   }
   if (r.adopted.length > 0) {
-    out.write('Adopted (these already had Buracle\'s value; they stay yours and are never removed):\n')
+    out.write('Adopted (these already had Buracle Stack\'s value; they stay yours and are never removed):\n')
     for (const a of r.adopted) out.write(`  - ${tilde(keyPath(a))}${a.includes('#') ? ` ${a.slice(a.indexOf('#') + 1)}` : ''}\n`)
   }
   for (const w of r.warnings) io.stderr.write(`warning: ${tildeText(w)}\n`)

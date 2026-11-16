@@ -39,7 +39,7 @@ export function parseShim(text: string): { bun: string, main: string } | undefin
 
 export function shimCheck(info: ShimInfo | undefined, repoRoot: string): { level: DoctorLevel, detail: string } {
   const shim = tilde(paths.shimPath())
-  if (info === undefined) return { level: 'warn', detail: `${shim} is not a Buracle shim; run \`buracle install\`` }
+  if (info === undefined) return { level: 'warn', detail: `${shim} is not a Buracle Stack shim; run \`buracle install\`` }
   if (!isExecutable(info.bun)) return { level: 'error', detail: `the shim's bun (${tilde(info.bun)}) is missing; run \`buracle install\`` }
   const checkoutMain = join(repoRoot, 'src', 'cli', 'main.ts')
   if (info.mode === 'frozen') {
@@ -260,7 +260,7 @@ export async function runtimeChecks(repoRoot: string, bundle: { bundle: Canonica
   const out: DoctorCheck[] = []
   const add = (level: DoctorLevel, check: string, detail: string) => out.push({ section: s, level, check, detail: tildeText(detail) })
   const h = runtimeHealth(repoRoot)
-  if (h.shim === undefined) add('info', 'runtime', 'no Buracle shim to read, so no runtime to compare (the shim row says what to do)')
+  if (h.shim === undefined) add('info', 'runtime', 'no Buracle Stack shim to read, so no runtime to compare (the shim row says what to do)')
   else if (h.shim.mode !== 'frozen') add('info', 'runtime', `the shim runs ${tilde(h.shim.main)} directly (mode: checkout); there is no frozen runtime`)
   else {
     for (const p of h.problems) add('error', 'runtime', p)
@@ -276,11 +276,11 @@ export async function runtimeChecks(repoRoot: string, bundle: { bundle: Canonica
   const g = checkoutGitState(repoRoot)
   if (g.dirty === true) add('info', 'checkout', `${tilde(repoRoot)} has uncommitted changes${h.shim?.mode === 'frozen' ? ' (they reach the hooks only after `buracle install`)' : ''}`)
   const f = scanHookFailures(nowMs, DAY_MS)
-  if (f.failures === 0) add('ok', 'hooks', 'no Buracle hook failed in the last 24 h')
+  if (f.failures === 0) add('ok', 'hooks', 'no Buracle Stack hook failed in the last 24 h')
   else {
     const last = f.last
     const where = last !== undefined ? `; last ${last.ts}${last.harness !== undefined ? ` ${last.harness}` : ''}${last.event !== undefined ? ` ${last.event}` : ''}${last.error !== undefined ? `: ${last.error}` : ''}` : ''
-    add('warn', 'hooks', `${f.failures} Buracle hook failure(s) in the last 24 h, ${f.failClosed} of them denied the tool call (fail closed)${where}; see ${tilde(paths.logFile())}`)
+    add('warn', 'hooks', `${f.failures} Buracle Stack hook failure(s) in the last 24 h, ${f.failClosed} of them denied the tool call (fail closed)${where}; see ${tilde(paths.logFile())}`)
   }
   out.push(...await journalChecks())
   out.push(...staleLockChecks(nowMs))
@@ -307,13 +307,13 @@ export async function checkTools(tools: readonly ToolSpec[], timeoutMs = TOOL_CH
     const pkg = toolPackage(t, state)
     const entry = pkg?.bins[(t.bins ?? [t.name])[0] ?? t.name]
     const copy = entry !== undefined ? binArgv(entry) : undefined
-    // Buracle runs its toolchain copy when it has one (the index runs, the MCP servers, the language servers), also
+    // Buracle Stack runs its toolchain copy when it has one (the index runs, the MCP servers, the language servers), also
     // when PATH has another version, so that copy is the one to report.
     if (pkg !== undefined && copy !== undefined) {
       const rr = await check([...copy, ...t.check.slice(1)])
       const v = versionOf(t, rr)
-      if (rr.code !== 0 && v === undefined) return { name: t.name, status: 'error', detail: `the Buracle toolchain copy (${pkg.registry} ${pkg.name} ${pkg.version}) does not run: exit ${rr.code}${rr.timedOut ? ` (timed out twice after ${Math.round(timeoutMs / 1000)} s)` : ''}; run \`buracle install\`` }
-      return { name: t.name, status: 'ok', version: v ?? pkg.version, detail: `${v ?? pkg.version} (Buracle toolchain)` }
+      if (rr.code !== 0 && v === undefined) return { name: t.name, status: 'error', detail: `the Buracle Stack toolchain copy (${pkg.registry} ${pkg.name} ${pkg.version}) does not run: exit ${rr.code}${rr.timedOut ? ` (timed out twice after ${Math.round(timeoutMs / 1000)} s)` : ''}; run \`buracle install\`` }
+      return { name: t.name, status: 'ok', version: v ?? pkg.version, detail: `${v ?? pkg.version} (Buracle Stack toolchain)` }
     }
     const r = await check(t.check)
     if (r.code === 127) {
@@ -322,11 +322,11 @@ export async function checkTools(tools: readonly ToolSpec[], timeoutMs = TOOL_CH
       if (local !== undefined) {
         const rr = await check([local, ...t.check.slice(1)])
         const v = versionOf(t, rr)
-        if (rr.code !== 0 && v === undefined) return { name: t.name, status: 'error', detail: `the Buracle toolchain copy (${tilde(local)}) does not run: exit ${rr.code}${rr.timedOut ? ' (timed out)' : ''}; run \`buracle install\`` }
-        return v !== undefined ? { name: t.name, status: 'ok', version: v, detail: `${v} (Buracle toolchain, ${tilde(local)})` } : { name: t.name, status: 'ok', detail: `present (version not recognized; Buracle toolchain, ${tilde(local)})` }
+        if (rr.code !== 0 && v === undefined) return { name: t.name, status: 'error', detail: `the Buracle Stack toolchain copy (${tilde(local)}) does not run: exit ${rr.code}${rr.timedOut ? ' (timed out)' : ''}; run \`buracle install\`` }
+        return v !== undefined ? { name: t.name, status: 'ok', version: v, detail: `${v} (Buracle Stack toolchain, ${tilde(local)})` } : { name: t.name, status: 'ok', detail: `present (version not recognized; Buracle Stack toolchain, ${tilde(local)})` }
       }
-      if (pkg === undefined) return { name: t.name, status: 'missing', detail: 'not found on PATH or in the Buracle toolchain' }
-      return { name: t.name, status: 'ok', version: pkg.version, detail: `${pkg.version} (Buracle toolchain)` }
+      if (pkg === undefined) return { name: t.name, status: 'missing', detail: 'not found on PATH or in the Buracle Stack toolchain' }
+      return { name: t.name, status: 'ok', version: pkg.version, detail: `${pkg.version} (Buracle Stack toolchain)` }
     }
     const version = versionOf(t, r)
     if (r.code !== 0 && version === undefined) return { name: t.name, status: 'error', detail: `\`${t.check.join(' ')}\` exited ${r.code}${r.timedOut ? ' (timed out)' : ''}` }
@@ -355,7 +355,7 @@ export function toolchainChecks(state: ToolchainState): DoctorCheck[] {
     const notes = [
       ...(p.rolled_back !== undefined ? [`${p.rolled_back} was rolled back`] : []),
     ]
-    return [{ section: 'tools', level: 'ok' as const, check: k, detail: `${p.version} in Buracle's toolchain${notes.length > 0 ? `; ${notes.join('; ')}` : ''}` }]
+    return [{ section: 'tools', level: 'ok' as const, check: k, detail: `${p.version} in Buracle Stack's toolchain${notes.length > 0 ? `; ${notes.join('; ')}` : ''}` }]
   })
 }
 
@@ -380,7 +380,7 @@ export async function harnessChecks(adapters: readonly Adapter[], live: LiveCont
       continue
     }
     out.push({ section: s, level: 'ok', check: 'installed', detail: `${det.version ?? 'unknown version'}${det.path ? ` (${tilde(det.path)})` : ''}` })
-    // Buracle finds a harness in folders PATH often lacks (omp installed with `bun add -g` sits in ~/.bun/bin), so "installed"
+    // Buracle Stack finds a harness in folders PATH often lacks (omp installed with `bun add -g` sits in ~/.bun/bin), so "installed"
     // alone hides that the user's terminal says "command not found".
     if (det.path !== undefined && existsSync(det.path) && Bun.which(basename(det.path), { PATH: process.env['PATH'] ?? '' }) === null) {
       out.push({ section: s, level: 'warn', check: 'on-path', detail: `${basename(det.path)} is at ${tilde(det.path)} but no shell finds it by name; \`buracle install\` links it into ${tilde(paths.localBinDir())}` })
@@ -424,7 +424,7 @@ export function skillChecks(skillIds: readonly string[], repoRoot: string, harne
   }
   if (absent.length > 0) out.push({ section: s, level: 'error', check, detail: `missing: ${absent.join(', ')}; run \`buracle install\`` })
   else out.push({ section: s, level: 'ok', check, detail: `${skillIds.length} skill(s) for ${users.join(', ')}` })
-  if (changed.length > 0) out.push({ section: s, level: 'warn', check: 'installed copy differs', detail: `not the text of this checkout (kept as yours; \`buracle install\` updates a copy Buracle wrote): ${changed.join(', ')}` })
+  if (changed.length > 0) out.push({ section: s, level: 'warn', check: 'installed copy differs', detail: `not the text of this checkout (kept as yours; \`buracle install\` updates a copy Buracle Stack wrote): ${changed.join(', ')}` })
   for (const h of users) {
     const dir = harnessSkillLinksDir(h)
     if (dir === undefined) continue
@@ -456,7 +456,7 @@ export async function mcpChecks(catalog: McpCatalog, timeoutMs: number, nowIso: 
 }
 
 /**
- * The `processes` check of `buracle doctor mcp`: every Buracle MCP process without a live harness, and the
+ * The `processes` check of `buracle doctor mcp`: every Buracle Stack MCP process without a live harness, and the
  * command that stops it. `hasHarness(ppid)` says whether a harness runs at or above that parent pid (the CLI
  * passes the ancestor walk of src/workflow/session-store.ts).
  */

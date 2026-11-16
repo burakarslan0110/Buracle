@@ -99,7 +99,7 @@ function dangerousSpelling(w: ShellWord, mode: Mode): string | undefined {
     if (first === 'users' || first === 'home') {
       const shown = lower.startsWith(HOME_ABS.toLowerCase() + '/') ? `~${p.slice(HOME_ABS.length)}` : p
       if (segs.length === 3 && HOME_FOLDERS.has((segs[2] as string).toLowerCase())) return what(`the home folder ${shown}`)
-      if (segs.length === 4 && (segs[2] as string).toLowerCase() === 'documents' && (segs[3] as string).toLowerCase() === 'buracle') return what(`the Buracle memory vault ${shown}`)
+      if (segs.length === 4 && (segs[2] as string).toLowerCase() === 'documents' && (segs[3] as string).toLowerCase() === 'buracle') return what(`the Buracle Stack memory vault ${shown}`)
     }
     return undefined
   }
@@ -250,7 +250,7 @@ function protectedWrite(targets: readonly ShellWord[], verb: 'write' | 'delete' 
     if (path === undefined) continue
     const startup = verb === 'write' && visible !== undefined && (isStartupFile(path) || isStartupFile(w.text))
     if (startup && mentionsRelocation(visible())) {
-      return `${q(clip(shown))} would make the shell startup file ${q(path)} set a variable that relocates Buracle or the harness settings, which can run them without the guard hooks; only the user may do that, so ask them to make this change themselves.`
+      return `${q(clip(shown))} would make the shell startup file ${q(path)} set a variable that relocates Buracle Stack or the harness settings, which can run them without the guard hooks; only the user may do that, so ask them to make this change themselves.`
     }
     const ctx = writeContext(walk)
     if (startup) ctx.contents = { [path]: { after: visible(), before: '' } }
@@ -464,7 +464,7 @@ function vaultTarget(w: ShellWord, walk: Walk): string | undefined {
   if (path === undefined || !isAbsPath(path)) return undefined
   const a = normalizePath(path).toLowerCase()
   const v = normalizePath(vault).toLowerCase()
-  return isRootPath(a) || v === a || v.startsWith(`${a.replace(/\/$/, '')}/`) ? 'the Buracle memory vault' : undefined
+  return isRootPath(a) || v === a || v.startsWith(`${a.replace(/\/$/, '')}/`) ? 'the Buracle Stack memory vault' : undefined
 }
 
 function unlinkRule(argv: ShellWord[], walk: Walk): string | undefined {
@@ -1650,7 +1650,7 @@ export function extraDenyReason(patterns: readonly string[] | undefined, texts: 
   for (const pattern of Array.isArray(patterns) ? patterns : []) {
     if (typeof pattern !== 'string' || pattern.trim() === '') continue
     const re = compile(pattern)
-    if (re !== null && texts.some(t => re.test(t))) return `Blocked by the guards.bash.extraDeny pattern ${q(pattern)} in your Buracle config; ask the user before running this command.`
+    if (re !== null && texts.some(t => re.test(t))) return `Blocked by the guards.bash.extraDeny pattern ${q(pattern)} in your Buracle Stack config; ask the user before running this command.`
   }
   return undefined
 }

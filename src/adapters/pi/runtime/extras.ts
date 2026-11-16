@@ -29,7 +29,7 @@ export interface PiExtrasHost {
   slug(sid: string): string | undefined
 }
 
-export const TIP_PREFIX = 'Buracle tip: '
+export const TIP_PREFIX = 'Buracle Stack tip: '
 
 /** A user prompt that loads a workflow skill: Pi spells it `/skill:<id>` (docs/skills.md of pi-coding-agent). */
 export function skillWorkflowOf(text: string): string | undefined {
@@ -40,7 +40,7 @@ export function skillWorkflowOf(text: string): string | undefined {
 
 /**
  * The extras Pi's extension API has a place for (docs/extensions.md): the workflow band as a widget above the editor
- * (`ctx.ui.setWidget`), a Buracle entry in the footer (`ctx.ui.setStatus`) and a usage tip as the working message
+ * (`ctx.ui.setWidget`), a Buracle Stack entry in the footer (`ctx.ui.setStatus`) and a usage tip as the working message
  * (`ctx.ui.setWorkingMessage`). Each is drawn only in the terminal UI and only where the host offers the call.
  */
 export function createPiExtras(host: PiExtrasHost) {

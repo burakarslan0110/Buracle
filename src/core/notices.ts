@@ -85,9 +85,9 @@ export interface NoticeTexts { user: string, model: string }
 export function noticeTexts(shown: readonly Notice[]): NoticeTexts | undefined {
   const list = shown.filter(n => typeof n.message === 'string' && n.message.trim() !== '')
   if (list.length === 0) return undefined
-  const user = list.map(n => `Buracle ${n.since}: ${oneLine(n.message)}`).join('\n')
+  const user = list.map(n => `Buracle Stack ${n.since}: ${oneLine(n.message)}`).join('\n')
   const model = [
-    `Buracle notice, shown once on this machine. Tell the user in one short line at the start of your next reply, do not ask anything about it, and carry on with their request:`,
+    `Buracle Stack notice, shown once on this machine. Tell the user in one short line at the start of your next reply, do not ask anything about it, and carry on with their request:`,
     ...list.map(n => `- ${oneLine(n.message)}`),
   ].join('\n')
   return { user, model }

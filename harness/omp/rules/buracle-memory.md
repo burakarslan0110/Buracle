@@ -1,10 +1,10 @@
 ---
-description: "Buracle always-on rule: Memory"
+description: "Buracle Stack always-on rule: Memory"
 alwaysApply: true
 ---
 # Memory
 
-Buracle keeps one memory for every harness on the `buracle-memory` MCP server: a project brain (`layer: project`, the default) and a person brain (`layer: person`) for what holds in every project. You keep it in order; never ask the user to file, review or fix it.
+Buracle Stack keeps one memory for every harness on the `buracle-memory` MCP server: a project brain (`layer: project`, the default) and a person brain (`layer: person`) for what holds in every project. You keep it in order; never ask the user to file, review or fix it.
 
 - Follow the preferences the session-start text lists, unless the user says otherwise now.
 - Before work that an earlier decision may concern, on a history question, and when stuck: `memory_search` (a query, or `files: [<path>]`), then `memory_get`.

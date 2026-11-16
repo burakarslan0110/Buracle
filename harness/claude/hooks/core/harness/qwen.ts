@@ -2,7 +2,7 @@ import { QWEN_EVENTS } from './native-events'
 import { collapsedWordDashToken, type HarnessProfile } from './profile'
 
 // Qwen Code speaks Claude Code's command-hook dialect (docs/users/features/hooks.md of QwenLM/qwen-code), with its own tool ids.
-// Buracle registers its hooks and MCP servers in ~/.qwen/settings.json (`hooks`, `mcpServers`), not as a Qwen plugin.
+// Buracle Stack registers its hooks and MCP servers in ~/.qwen/settings.json (`hooks`, `mcpServers`), not as a Qwen plugin.
 export const qwenProfile: HarnessProfile = {
   id: 'qwen',
   label: 'Qwen Code',
@@ -18,7 +18,7 @@ export const qwenProfile: HarnessProfile = {
   relocationEnv: ['QWEN_HOME'],
   sessionEnv: [],
   protectedDirs: [{ key: 'qwenHome', under: '.qwen', entries: ['settings.json', 'hookApprovals.json', 'plugins/', 'extensions/'] }],
-  selfText: { what: "Qwen Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Qwen Code's own commands (`qwen mcp …`, `/hooks`)" },
+  selfText: { what: "Qwen Code's own configuration, which registers Buracle Stack's guard hooks", remedy: "ask the user to make this change themselves, or use Qwen Code's own commands (`qwen mcp …`, `/hooks`)" },
   skills: {
     readsAgentsDir: true,
     readsClaudeUserDir: false,

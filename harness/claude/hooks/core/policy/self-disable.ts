@@ -131,7 +131,7 @@ export function buracleArgs(argv: readonly ShellWord[]): string[] | undefined {
 const LOOPBACK = /127\.0\.0\.1|\blocalhost\b|\[::1\]|0\.0\.0\.0/i
 const UI_SETTINGS_PATH = /\/api\/+settings\b/i
 
-export const UI_SETTINGS_REASON = "This would change Buracle's workflow settings through the brain web UI's settings API; those switches are the user's (the reviews, the verification, the approvals). Tell the user what to change; they flip it in the web UI's settings view or type `! buracle config set <key> <value>` themselves."
+export const UI_SETTINGS_REASON = "This would change Buracle Stack's workflow settings through the brain web UI's settings API; those switches are the user's (the reviews, the verification, the approvals). Tell the user what to change; they flip it in the web UI's settings view or type `! buracle config set <key> <value>` themselves."
 
 const DOT_SEGMENT = /\/\.(?=[/?#\s'"`]|$)/g
 const PARENT_SEGMENT = /\/(?!\.\.(?:[/?#\s'"`]|$))[^/\s'"`?#]+\/\.\.(?=[/?#\s'"`]|$)/g
@@ -187,7 +187,7 @@ export function uiSettingsCall(texts: readonly string[], shell = false): boolean
   })
 }
 
-export const CONSENT_RUN_REASON = "`buracle consent run` is Buracle's own wrapper for a command the user is asked about; it runs only commands Buracle put there. Run the command itself: Buracle asks the user when it needs their say-so."
+export const CONSENT_RUN_REASON = "`buracle consent run` is Buracle Stack's own wrapper for a command the user is asked about; it runs only commands Buracle Stack put there. Run the command itself: Buracle Stack asks the user when it needs their say-so."
 
 export function consentRunCall(argv: readonly ShellWord[]): boolean {
   const k = cliIndex(argv, w => literalCli(w) || w.text.includes(DYN))
@@ -201,7 +201,7 @@ function buracleSwitch(args: readonly string[]): string | undefined {
   if (flags.includes('--help') || flags.includes('-h')) return undefined
   const pos = args.filter(a => !a.startsWith('-'))
   const command = pos[0]
-  if (command === 'uninstall') return args.includes('--dry-run') ? undefined : 'it removes Buracle and its guard hooks from every harness'
+  if (command === 'uninstall') return args.includes('--dry-run') ? undefined : 'it removes Buracle Stack and its guard hooks from every harness'
   if (command === 'config' && (pos[1] === 'set' || pos[1] === 'unset')) {
     const key = pos[2]
     if (key === undefined) return undefined
@@ -221,9 +221,9 @@ function pluginSwitch(pos: readonly string[], args: readonly string[]): string |
   const sub = pos[0]?.toLowerCase()
   if (sub !== 'plugin' && sub !== 'plugins') return undefined
   const verb = pos[1]?.toLowerCase() ?? ''
-  if (verb === 'marketplace') return REMOVE_VERBS.has(pos[2]?.toLowerCase() ?? '') && namesBuracle(pos.slice(3)) ? 'it removes the marketplace Buracle\'s plugin comes from' : undefined
+  if (verb === 'marketplace') return REMOVE_VERBS.has(pos[2]?.toLowerCase() ?? '') && namesBuracle(pos.slice(3)) ? 'it removes the marketplace Buracle Stack\'s plugin comes from' : undefined
   if (!REMOVE_VERBS.has(verb)) return undefined
-  if (namesBuracle(pos.slice(2)) || args.includes('--all') || args.includes('-a')) return "it removes or disables Buracle's plugin, which runs the guard hooks"
+  if (namesBuracle(pos.slice(2)) || args.includes('--all') || args.includes('-a')) return "it removes or disables Buracle Stack's plugin, which runs the guard hooks"
   return undefined
 }
 
@@ -263,27 +263,27 @@ function harnessSwitch(name: string, args: readonly string[], env: ReadonlyMap<s
   if (plugin !== undefined) return plugin
   if (!onlyInfo(args)) {
     for (const v of [...(HARNESS_HOME[name] ?? []), 'BURACLE_HOME']) {
-      if (env.has(v)) return `${v} makes it start without Buracle's setup and guard hooks`
+      if (env.has(v)) return `${v} makes it start without Buracle Stack's setup and guard hooks`
     }
   }
   if (name === 'claude') {
-    if (args.includes('--bare') || args.includes('--safe-mode')) return "it starts Claude Code without Buracle's guard hooks"
+    if (args.includes('--bare') || args.includes('--safe-mode')) return "it starts Claude Code without Buracle Stack's guard hooks"
     const settings = optionValue(args, '--settings')
-    if (settings !== undefined && /disableAllHooks|allowManagedHooksOnly|enabledPlugins/i.test(settings)) return "its settings switch Buracle's guard hooks off"
+    if (settings !== undefined && /disableAllHooks|allowManagedHooksOnly|enabledPlugins/i.test(settings)) return "its settings switch Buracle Stack's guard hooks off"
     const sources = optionValue(args, '--setting-sources')
-    if (sources !== undefined && !sources.split(',').map(s => s.trim()).includes('user')) return "without the user settings Claude Code does not load Buracle's plugin"
-    if (pos[0] === 'config' && /^(?:set|add|remove)$/.test(pos[1] ?? '') && /disableAllHooks|enabledPlugins|hooks/i.test(pos[2] ?? '')) return "it switches Buracle's guard hooks off"
+    if (sources !== undefined && !sources.split(',').map(s => s.trim()).includes('user')) return "without the user settings Claude Code does not load Buracle Stack's plugin"
+    if (pos[0] === 'config' && /^(?:set|add|remove)$/.test(pos[1] ?? '') && /disableAllHooks|enabledPlugins|hooks/i.test(pos[2] ?? '')) return "it switches Buracle Stack's guard hooks off"
   }
   if (name === 'codex') {
-    if (pos[0] === 'features' && pos[1] === 'disable' && pos.slice(2).some(f => f === 'hooks' || f === 'codex_hooks')) return "it turns off Codex's hooks, which run Buracle's guards"
+    if (pos[0] === 'features' && pos[1] === 'disable' && pos.slice(2).some(f => f === 'hooks' || f === 'codex_hooks')) return "it turns off Codex's hooks, which run Buracle Stack's guards"
     const overrides = optionValues(args, '-c', '--config')
-    if (overrides.some(o => /^\s*features\.(?:codex_)?hooks\s*=\s*["']?false/i.test(o) || /^\s*features\s*=.*hooks\s*=\s*false/i.test(o))) return "it turns off Codex's hooks, which run Buracle's guards"
-    if (optionValues(args, '--disable').some(f => f === 'hooks' || f === 'codex_hooks')) return "it turns off Codex's hooks, which run Buracle's guards"
+    if (overrides.some(o => /^\s*features\.(?:codex_)?hooks\s*=\s*["']?false/i.test(o) || /^\s*features\s*=.*hooks\s*=\s*false/i.test(o))) return "it turns off Codex's hooks, which run Buracle Stack's guards"
+    if (optionValues(args, '--disable').some(f => f === 'hooks' || f === 'codex_hooks')) return "it turns off Codex's hooks, which run Buracle Stack's guards"
   }
-  if (name === 'opencode' && (args.includes('--pure') || (env.get('OPENCODE_PURE') ?? '') !== '')) return "it starts OpenCode without plugins, Buracle's guard plugin included"
+  if (name === 'opencode' && (args.includes('--pure') || (env.get('OPENCODE_PURE') ?? '') !== '')) return "it starts OpenCode without plugins, Buracle Stack's guard plugin included"
   if (name === 'omp') {
-    if (args.includes('--no-extensions')) return "it starts omp without extensions, Buracle's guard extension included"
-    if (pos[0] === 'config' && pos[1] === 'set' && /^(?:disabledExtensions|extensions)$/.test(pos[2] ?? '') && namesBuracle(pos.slice(3))) return "it disables Buracle's guard extension"
+    if (args.includes('--no-extensions')) return "it starts omp without extensions, Buracle Stack's guard extension included"
+    if (pos[0] === 'config' && pos[1] === 'set' && /^(?:disabledExtensions|extensions)$/.test(pos[2] ?? '') && namesBuracle(pos.slice(3))) return "it disables Buracle Stack's guard extension"
   }
   return undefined
 }
@@ -292,7 +292,7 @@ function persistentEnv(name: string, words: readonly ShellWord[]): string | unde
   const args = words.map(w => w.text)
   const pos = args.filter(a => !a.startsWith('-'))
   const named = (w: string | undefined): boolean => w !== undefined && (w.includes(DYN) || mentionsRelocation(w))
-  const reason = 'it sets a variable that relocates Buracle or the harness settings for every later session, which can run them without the guard hooks'
+  const reason = 'it sets a variable that relocates Buracle Stack or the harness settings for every later session, which can run them without the guard hooks'
   if (name === 'launchctl' && pos[0] === 'setenv' && named(pos[1])) return reason
   if (name === 'set' && args.some(a => a === '--universal' || /^-[A-Za-z]*U/.test(a)) && named(pos[0])) return reason
   if (name === 'systemctl' && pos[0] === 'set-environment' && pos.slice(1).some(named)) return reason
@@ -321,5 +321,5 @@ export function selfDisabling(argv: readonly ShellWord[], shown: string, assigns
     }
   }
   if (what === undefined) return undefined
-  return `would switch off Buracle's guards (${what}); only the user may do that, so ask them to run it themselves by typing ${'`'}! ${shown.replace(/`/g, "'")}${'`'} in the prompt.`
+  return `would switch off Buracle Stack's guards (${what}); only the user may do that, so ask them to run it themselves by typing ${'`'}! ${shown.replace(/`/g, "'")}${'`'} in the prompt.`
 }

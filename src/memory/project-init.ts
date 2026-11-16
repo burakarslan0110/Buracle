@@ -41,7 +41,7 @@ export async function projectInit(cwd: string): Promise<ProjectInitResult> {
   const why = nonProjectReason(abs)
   if (why !== undefined) throw new Error(`${abs} is not a project directory (${why})`)
   const excluded = await projectExclusion(abs)
-  if (excluded !== undefined) throw new Error(`${abs} is ${excluded}: Buracle keeps no project memory for it`)
+  if (excluded !== undefined) throw new Error(`${abs} is ${excluded}: Buracle Stack keeps no project memory for it`)
   const rec = await resolveProject(abs)
   if (!rec) throw new Error(`cannot resolve a project for ${abs}`)
   const warnings: string[] = []
@@ -53,7 +53,7 @@ export async function projectInit(cwd: string): Promise<ProjectInitResult> {
     if (r.removed.length > 0) claudeRedirect = 'removed'
     if (r.kept.length > 0) {
       claudeRedirect = 'kept'
-      warnings.push(`${settings} keeps an autoMemoryDirectory that is not Buracle's to remove (${r.kept[0]?.why ?? 'changed'}); Claude Code's own auto memory is off, so it is unused`)
+      warnings.push(`${settings} keeps an autoMemoryDirectory that is not Buracle Stack's to remove (${r.kept[0]?.why ?? 'changed'}); Claude Code's own auto memory is off, so it is unused`)
     }
   }
   return { slug: rec.slug, scope: rec.scope, db: brainDbFile(), claudeRedirect, warnings }

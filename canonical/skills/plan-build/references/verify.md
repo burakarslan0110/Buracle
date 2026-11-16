@@ -136,7 +136,7 @@ While `plan.resultApproval` is on (the default), the user reviews the verified r
    - Request changes (in the reply, or as notes on the review page; read them as above): `buracle plan resume`. Make a small in-scope fix, re-run the checks it touches and record them in `## Evidence`; send anything larger through the loop back above. Then ask again from step 1.
    - Test first: keep the pause and end the turn; ask again when the user reports back.
 
-Only an explicit approval of this result counts. A bare "continue", silence or green checks are no approval, and Buracle keeps the pause on a bare "continue".
+Only an explicit approval of this result counts. A bare "continue", silence or green checks are no approval, and Buracle Stack keeps the pause on a bare "continue".
 
 ## V9. Worktree merge
 

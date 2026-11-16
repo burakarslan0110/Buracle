@@ -17,7 +17,7 @@ export const ompProfile: HarnessProfile = {
     { key: 'ompAgentDir', under: '.omp/agent', entries: ['config.yml', 'config.yaml', 'settings.json', 'extensions/', 'hooks/'] },
     { key: 'ompHome', under: '.omp', entries: ['plugins/'] },
   ],
-  selfText: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set …`, `omp plugin …`)" },
+  selfText: { what: "omp's own configuration, which loads Buracle Stack's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set …`, `omp plugin …`)" },
   skills: {
     readsAgentsDir: true,
     readsClaudeUserDir: false,

@@ -18,7 +18,7 @@ export function readOnlyStartNotice(workflow: string, harness: Harness): string 
   const mode = READ_ONLY_MODE[harness]
   if (writes === undefined || mode === undefined) return undefined
   const native = workflow === 'plan-build' ? ' With plan.nativePlanMode on, the workflow asks the user to return to plan mode after it has registered and prepared its plan file; a plan already prepared that way (`buracle plan prepare-native`) keeps planning here and ignores this note.' : ''
-  return `Buracle: ${workflow} was started while the session is in ${mode.name}, which allows no file edits, and the workflow's first phase writes ${writes}. Ask the user to ${mode.leave} first, then continue the workflow. Until then only discuss the task in the conversation: do not run \`buracle plan init\` or \`buracle plan register\`.${native}`
+  return `Buracle Stack: ${workflow} was started while the session is in ${mode.name}, which allows no file edits, and the workflow's first phase writes ${writes}. Ask the user to ${mode.leave} first, then continue the workflow. Until then only discuss the task in the conversation: do not run \`buracle plan init\` or \`buracle plan register\`.${native}`
 }
 
 const PLAN_DIRS = DOC_DIR_PREFIX
@@ -55,6 +55,6 @@ export function preApprovalEdit(state: SessionState, files: readonly string[], o
   const other = list.find(f => !isPlanArtifact(f, p.path, typeof opts.cwd === 'string' ? opts.cwd : ''))
   if (other === undefined) return { next: state }
   const gate = p.type === 'Build' ? 'the run file is locked' : 'the user approves the plan'
-  const note = `Buracle: this edit changes ${other} while the plan ${p.path} is still in its plan phase (status ${p.status}). The workflow allows no production code until ${gate}: if this edit is implementation work, stop there and finish the plan phase first. Edits the plan phase calls for (the plan or run file, marked temporary instrumentation, a bugfix's reproducing test) are fine. This note shows once per plan.`
+  const note = `Buracle Stack: this edit changes ${other} while the plan ${p.path} is still in its plan phase (status ${p.status}). The workflow allows no production code until ${gate}: if this edit is implementation work, stop there and finish the plan phase first. Edits the plan phase calls for (the plan or run file, marked temporary instrumentation, a bugfix's reproducing test) are fine. This note shows once per plan.`
   return { note, next: { ...state, guard: { ...state.guard, earlyEditNoted: true } } }
 }

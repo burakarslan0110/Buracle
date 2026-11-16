@@ -33,9 +33,9 @@ this codebase. Every command and path in them is verified here and now.
 
 - **The index is mandatory.** Codex and OpenCode read only `AGENTS.md` files, and omp does not
   read `.claude/rules/`. The `## Scoped rules` list in the root `AGENTS.md` is how they find path
-  rules. At each session start Buracle also lists the rules the index lacks (hook H28), which is
+  rules. At each session start Buracle Stack also lists the rules the index lacks (hook H28), which is
   how gitignored private rules reach them; a tracked rule still belongs in the index.
-- **Buracle keeps the links.** Hook H28 links `.agents/skills/<id>` into `.claude/skills` when a
+- **Buracle Stack keeps the links.** Hook H28 links `.agents/skills/<id>` into `.claude/skills` when a
   session starts in any harness and after an edit, so Claude Code sees project skills another
   harness created. `buracle project check` reports what is out of step and exits 2 until it is fixed.
 - **CLAUDE.md can hide AGENTS.md.** By default Claude Code reads `CLAUDE.md` and
@@ -86,7 +86,7 @@ harness's tool search before concluding that they are unavailable.
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it
 current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start: `buracle flow start project-rules --title "<repo name>"` (harmless when a hook already started
@@ -105,11 +105,11 @@ Track the phases with your todo tool.
 - Run `git rev-parse --show-toplevel` and `git status --porcelain`. If guidance files have
   uncommitted edits, build on them and say so.
 - Run `ls -l AGENTS.md CLAUDE.md CLAUDE.local.md .claude .claude/CLAUDE.md .claude/skills` to see which of them are
-  symlinks, and `buracle project check --json` for the drift Buracle already sees.
+  symlinks, and `buracle project check --json` for the drift Buracle Stack already sees.
 - `buracle skills list --json` lists skills of kind `claude-only`: they live only in
   `.claude/skills`, so Codex cannot see them. Offer `buracle project sync --adopt`, which adds a
   local link and changes no tracked file. Ask with your structured-question tool before `--adopt --move`: it turns
-  each tracked folder into a symlink that teammates without Buracle and Windows checkouts without
+  each tracked folder into a symlink that teammates without Buracle Stack and Windows checkouts without
   symlinks do not follow.
 - List existing guidance in one call:
   `rg --files --hidden -g 'AGENTS.md' -g 'CLAUDE.md' -g '**/.claude/rules/**' -g '**/.agents/**' -g '**/.cursor/rules/**' -g '.github/copilot-instructions.md' -g 'GEMINI.md' -g 'CONTRIBUTING.md'`.
@@ -175,7 +175,7 @@ finding as `path:line — problem — evidence — proposed fix`. In audit mode,
   one read-only call in the current harness and put the result in the report only, since health
   goes stale. Under `## Project tools` add one line each: what it is for and when to consult it.
   In the report, name per server the harnesses that cannot reach it; offer to add the missing
-  declaration only with your structured-question tool, and say it is a second copy to keep in step. Buracle's global
+  declaration only with your structured-question tool, and say it is a second copy to keep in step. Buracle Stack's global
   servers are already covered by its routing card; do not list them.
 
 **Approval gate.** When you would change or remove human-written content, show a compact summary
@@ -203,7 +203,7 @@ ask with your structured-question tool: apply, adjust, or cancel. A brand-new fi
 `buracle flow phase sync`, then `buracle project sync --json`.
 
 - **Exit 0:** note what it changed (skill links, the project's memory core pages, `.git/info/exclude`
-  entries; it never touches `.gitignore`). Buracle repeats the link step by itself at every session
+  entries; it never touches `.gitignore`). Buracle Stack repeats the link step by itself at every session
   start (H28); this run makes it happen now.
 - **Exit 2:** it needs the user; relay its message.
 - **Exit 1:** report the error. Never hand-create `.claude/skills` links or edit

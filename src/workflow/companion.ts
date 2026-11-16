@@ -380,7 +380,7 @@ export async function companionCollect(o: { role?: string, wait?: string }, ctx:
     data['report'] = job.report
     const by = job.reportBy ?? job.targets[0] ?? 'another harness'
     return ok(data, [
-      `Second opinion from ${by} (${agent}): ${job.report.verdict}, ${job.report.findings.length} finding(s)${job.repaired === true ? '; Buracle normalized the shape of its report' : ''}.`,
+      `Second opinion from ${by} (${agent}): ${job.report.verdict}, ${job.report.findings.length} finding(s)${job.repaired === true ? '; Buracle Stack normalized the shape of its report' : ''}.`,
       job.report.summary,
       ...findingLines(job.report),
       `Triage these findings exactly like ${agent}'s and weigh them equally: check each against the code, fix must_fix, fix should_fix or record why not under ## Review Notes.`,

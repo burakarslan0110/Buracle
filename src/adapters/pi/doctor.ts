@@ -16,7 +16,7 @@ function readOr(path: string): string | undefined {
   try { return readFileSync(path, 'utf8') } catch { return undefined }
 }
 
-/** Whether `mcp.json` holds each server Buracle ships, and whether the commands of the entries can start. */
+/** Whether `mcp.json` holds each server Buracle Stack ships, and whether the commands of the entries can start. */
 export function mcpFindings(text: string | undefined, expected: readonly string[], file: string, env: Env): DoctorFinding[] {
   if (text === undefined) return [{ level: 'warn', check: 'pi.mcp', detail: `${file} is missing; run \`buracle install pi\`` }]
   let servers: Record<string, unknown>
@@ -37,8 +37,8 @@ export function mcpFindings(text: string | undefined, expected: readonly string[
   }
   const out: DoctorFinding[] = []
   if (missing.length > 0) out.push({ level: 'warn', check: 'pi.mcp', detail: `${file} lacks ${missing.join(', ')}; run \`buracle install pi\`` })
-  if (broken.length > 0) out.push({ level: 'error', check: 'pi.mcp', detail: `the commands of ${broken.join(', ')} cannot start; install Buracle again and start Pi with the same BURACLE_HOME as this shell` })
-  if (out.length === 0) out.push({ level: 'ok', check: 'pi.mcp', detail: `${expected.length} Buracle MCP servers in ${file}` })
+  if (broken.length > 0) out.push({ level: 'error', check: 'pi.mcp', detail: `the commands of ${broken.join(', ')} cannot start; install Buracle Stack again and start Pi with the same BURACLE_HOME as this shell` })
+  if (out.length === 0) out.push({ level: 'ok', check: 'pi.mcp', detail: `${expected.length} Buracle Stack MCP servers in ${file}` })
   return out
 }
 

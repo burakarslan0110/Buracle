@@ -19,7 +19,7 @@ AGENTS.md block lists are written to `~/.buracle/rules/paths/` by the core insta
 
 - **Workflows** (`manifest.json` `commands.workflow`): one `/<id>` command per user-invocable skill,
   registered by the server plugin. Each records the workflow start for the band and sends the request
-  with the skill attached. Buracle ships no `commands/<id>.md` files any more: a file of the same name
+  with the skill attached. Buracle Stack ships no `commands/<id>.md` files any more: a file of the same name
   would win over the plugin command, so `buracle install` removes the files earlier versions wrote.
 - **Utilities** (`commands.utility`): `/remember <text>` (a memory capture), `/brain` (the brain
   web UI), `/aside <question>` (a read-only side question, handed to OpenCode's own `/btw`),

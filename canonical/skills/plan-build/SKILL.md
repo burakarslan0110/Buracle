@@ -17,7 +17,7 @@ short-description: Plan, approve, TDD-implement and verify work through a plan f
 
 # Plan-build
 
-Drive one unit of work through three phases (plan, implement, verify) around a Markdown plan file. The plan file is the source of truth, the `buracle` CLI owns its state machine, and Buracle's stop guard keeps an approved run going until it is VERIFIED.
+Drive one unit of work through three phases (plan, implement, verify) around a Markdown plan file. The plan file is the source of truth, the `buracle` CLI owns its state machine, and Buracle Stack's stop guard keeps an approved run going until it is VERIFIED.
 
 ## Ground rules
 
@@ -27,7 +27,7 @@ Drive one unit of work through three phases (plan, implement, verify) around a M
 4. **Test first.** A task with behavior starts with a failing test, then the smallest code that passes it.
 5. **Evidence or it didn't happen.** Claim only what you ran, with the command and its result. Checks you could not run go under `## Unverified`.
 6. **Approved means autonomous.** Never ask "should I continue?" or "should I keep waiting?". The stop guard blocks ending the run before VERIFIED; the only escape is a pause (see *Talking to the user*). The one planned stop is the result review at the end of verify ([references/verify.md](references/verify.md) V8); `plan.modelSwitch: manual` adds one right after approval ([references/plan.md](references/plan.md) P9).
-7. **Use the routed tool** (*Tool routing* below). Buracle may deny shell code search or built-in web tools while the matching MCP server is healthy. When a call is denied, switch to the tool the denial names.
+7. **Use the routed tool** (*Tool routing* below). Buracle Stack may deny shell code search or built-in web tools while the matching MCP server is healthy. When a call is denied, switch to the tool the denial names.
 
 ## Start: route by state
 
@@ -68,7 +68,7 @@ Read the phase reference in full before acting on it, and again after a compacti
 
 ## Progress
 
-Buracle shows the run live, in the workflow band above the prompt and in the status line. Keep it current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
+Buracle Stack shows the run live, in the workflow band above the prompt and in the status line. Keep it current with `buracle flow`; the calls are cheap and best effort, so a failing one never stops the run.
 
 - Start or resume: `buracle flow start plan-build --title "<plan title>"` (harmless when a hook already started it).
 - Each phase: `buracle flow phase <id>` with `plan`, `approve` (the approval gate), `implement`, `verify`. Every phase reference makes this call at its start.
@@ -76,7 +76,7 @@ Buracle shows the run live, in the workflow band above the prompt and in the sta
 
 ## Talking to the user
 
-Write the plan and the reply in the user's language, chosen as *Language* in the *Plain language* rule says, in the ASD-STE100 structural style of that rule. A plan you revise keeps its own language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Inventory` and `## Deviations` among them, which the validator and `buracle plan audit` read by these English names), commands and identifiers verbatim.
+Write the plan and the reply in the user's language, chosen as *Language* in the *Plain language* rule says, in the ASD-STE100 structural style of that rule. A plan you revise keeps its own language. Keep the markers Buracle Stack reads (listed in the *Plain language* rule; `## Inventory` and `## Deviations` among them, which the validator and `buracle plan audit` read by these English names), commands and identifiers verbatim.
 
 The stop guard, the escape hatch and the pause before a question are in the `buracle` skill, *Plans and the stop guard*.
 
@@ -91,11 +91,11 @@ Go by the meaning of the reply, in whatever language it comes:
 | approve, yes, ok, lgtm | approve (as the answer to the approval question) | resume, run the approval steps |
 | change, fix, add, remove, no | revise | edit the plan, re-validate, ask again |
 | stop, wait, pause, hold on | pause | `buracle plan pause --kind discussion`, short status, end the turn |
-| continue, go on, resume | resume, but no answer to an open decision or manual step (Buracle keeps that pause) | `buracle plan resume`, continue where the plan says; with an open decision, ask it again |
+| continue, go on, resume | resume, but no answer to an open decision or manual step (Buracle Stack keeps that pause) | `buracle plan resume`, continue where the plan says; with an open decision, ask it again |
 | done, finished | manual step finished | check the result, resume |
 | cancel, abandon, drop it | abandon | confirm, then `buracle plan unregister` |
 
-Any other message during a run is steering: answer briefly, fold it into the plan (record a Deviation if scope changes) and keep working. If Buracle reports the run as paused, answer and wait for the user to say "continue".
+Any other message during a run is steering: answer briefly, fold it into the plan (record a Deviation if scope changes) and keep working. If Buracle Stack reports the run as paused, answer and wait for the user to say "continue".
 
 ## Tool routing
 
@@ -120,7 +120,7 @@ Write the plan per the *Plain language* rule: in the user's language, the main m
 
 ## Review agents
 
-Launch reviewers with your subagent tool and pass inputs as labeled lines. In the input blocks of this skill, the first line names the agent to launch (where the harness lists Buracle's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the remaining lines are its prompt. Run reviewers in the background when the harness supports it and meanwhile keep to work that does not edit files under review; collect the final message before deciding anything.
+Launch reviewers with your subagent tool and pass inputs as labeled lines. In the input blocks of this skill, the first line names the agent to launch (where the harness lists Buracle Stack's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the remaining lines are its prompt. Run reviewers in the background when the harness supports it and meanwhile keep to work that does not edit files under review; collect the final message before deciding anything.
 
 ```text
 changes-review
@@ -142,7 +142,7 @@ Leave out lines that don't apply (`worktree_path` outside worktree runs). A revi
 
 ## When things go wrong
 
-- `buracle: command not found`: stop and tell the user Buracle is not installed or not on PATH. Never imitate the CLI by editing session state by hand.
+- `buracle: command not found`: stop and tell the user Buracle Stack is not installed or not on PATH. Never imitate the CLI by editing session state by hand.
 - A `buracle plan …` command exits 2 with "no session": continue from the plan file, tell the user once that the stop guard is not protecting this run, and suggest `buracle doctor`.
 - `buracle plan validate` exits 1 (errors) or 2 (warnings under `--strict`): fix and re-run until exit 0.
 - `buracle plan complete` or `buracle plan verify` refuses: read the reason (usually unticked tasks or a missing evidence section) and fix that; never work around it (`plan set phase done` runs the same check).

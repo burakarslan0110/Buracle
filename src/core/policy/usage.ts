@@ -348,7 +348,7 @@ export function rootProblem(value: string, facts: WorkspaceFacts | undefined): s
     ? f.excludedReason(dir)
     : indexExclusion(dir, f.exclusion ?? { home: home ?? '', buracleHome: '', vault: '', exclude: [], caseInsensitive: ci })
   if (why !== undefined) return why
-  for (const e of f.excluded ?? []) if (typeof e === 'string' && e.trim() !== '' && isPathWithin(dir, e, ci)) return 'a folder Buracle never indexes'
+  for (const e of f.excluded ?? []) if (typeof e === 'string' && e.trim() !== '' && isPathWithin(dir, e, ci)) return 'a folder Buracle Stack never indexes'
   if (f.root !== undefined) return pathKey(dir, ci) !== pathKey(f.root, ci) && isPathWithin(f.root, dir, ci) ? 'a parent folder of the project' : undefined
   if (f.cwd !== undefined && (f.children?.length ?? 0) > 0 && pathKey(dir, ci) === pathKey(f.cwd, ci)) return 'a folder of projects, not a project'
   return undefined
@@ -469,7 +469,7 @@ export function reminders(l: UsageLedger, call: ToolCall, ctx: ReminderContext):
     const value = input[root.key]
     const why = typeof value === 'string' ? rootProblem(value, ctx.facts) : undefined
     if (why !== undefined && typeof value === 'string') {
-      const reason = `Buracle: ${rootCheckText(root.server, root.key, value, why, ctx.facts)}`
+      const reason = `Buracle Stack: ${rootCheckText(root.server, root.key, value, why, ctx.facts)}`
       if (enforce) return { deny: { reason, key: 'root' }, next: l }
       if (remind) return { context: reason, next: recorded }
     }
@@ -493,18 +493,18 @@ export function reminders(l: UsageLedger, call: ToolCall, ctx: ReminderContext):
   if (ruleNote !== undefined) return ruleNote
   const pattern = str(input['pattern']) ?? str(input['query'])
   if (call.kind === 'search' && pattern !== undefined && available.has('semble') && naturalLanguage(pattern) && canShow(l, 'semble-intent', { cooldownTurns: 3, max: 3, topic: 'code-search' })) {
-    return { context: `Buracle: "${pattern.trim().slice(0, 80)}" reads like a question about intent: ${reminderText(ctx, 'code-search')}.`, next: markShown(recorded, 'semble-intent') }
+    return { context: `Buracle Stack: "${pattern.trim().slice(0, 80)}" reads like a question about intent: ${reminderText(ctx, 'code-search')}.`, next: markShown(recorded, 'semble-intent') }
   }
   const t = recorded.turnTools
   if (t.read.length >= 5 && t.graph === 0 && available.has('codegraph') && canShow(l, 'read-fanout', { perTurn: true, max: 2, topic: 'code-structure' })) {
-    return { context: `Buracle: ${t.read.length} files read this turn without codegraph; to map how they connect, ${reminderText(ctx, 'code-structure')}.`, next: markShown(recorded, 'read-fanout') }
+    return { context: `Buracle Stack: ${t.read.length} files read this turn without codegraph; to map how they connect, ${reminderText(ctx, 'code-structure')}.`, next: markShown(recorded, 'read-fanout') }
   }
   if (t.search >= 4 && t.graph === 0 && (available.has('semble') || available.has('codegraph')) && canShow(l, 'search-streak', { perTurn: true, max: 3, topic: 'code-search' })) {
-    return { context: `Buracle: ${t.search} text searches this turn and no semble or codegraph call; ${reminderText(ctx, 'code-search')}, and ask codegraph for definitions and callers.`, next: markShown(recorded, 'search-streak') }
+    return { context: `Buracle Stack: ${t.search} text searches this turn and no semble or codegraph call; ${reminderText(ctx, 'code-search')}, and ask codegraph for definitions and callers.`, next: markShown(recorded, 'search-streak') }
   }
   const url = server === 'web-fetch' ? [urlIn(input)].find((u): u is string => u !== undefined && isDocsUrl(u)) : undefined
   if (url !== undefined && available.has('context7') && canShow(l, 'docs-fetch', { cooldownTurns: 1, max: 3, topic: 'library-docs' })) {
-    return { context: `Buracle: this is a library documentation page; for docs at the installed version, ${reminderText(ctx, 'library-docs')}.`, next: markShown(recorded, 'docs-fetch') }
+    return { context: `Buracle Stack: this is a library documentation page; for docs at the installed version, ${reminderText(ctx, 'library-docs')}.`, next: markShown(recorded, 'docs-fetch') }
   }
   return { next: recorded }
 }
@@ -515,7 +515,7 @@ export function turnAudit(l: UsageLedger): StopDecision {
   for (const id of p.route.load) {
     const s = l.skills[id]
     if (s === undefined || s.turn < p.turn) {
-      return { action: 'block', hook: 'H23', reason: `Buracle routing check: the user asked for ${id} and it was not loaded. Load it now and follow it, or say in one line why it does not apply.` }
+      return { action: 'block', hook: 'H23', reason: `Buracle Stack routing check: the user asked for ${id} and it was not loaded. Load it now and follow it, or say in one line why it does not apply.` }
     }
   }
   return { action: 'allow' }

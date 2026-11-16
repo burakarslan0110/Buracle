@@ -1,5 +1,5 @@
 ---
-description: "Buracle path rule: Python (injected when editing or writing matching files)"
+description: "Buracle Stack path rule: Python (injected when editing or writing matching files)"
 condition:
   - "**/*.py"
   - "**/*.pyi"

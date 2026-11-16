@@ -1,7 +1,7 @@
 ---
 trigger: glob
 globs: "**/*.cs, **/*.csproj, **/*.sln, **/*.slnx, **/global.json, **/Directory.Build.props, **/Directory.Packages.props"
-description: "Buracle path rule: .NET and C#"
+description: "Buracle Stack path rule: .NET and C#"
 ---
 # .NET and C#
 

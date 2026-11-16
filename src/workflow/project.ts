@@ -132,7 +132,7 @@ export async function projectSync(mode: 'init' | 'sync', ctx: WorkflowCtx, _s: R
   const agentsPath = join(root, 'AGENTS.md')
   const agentsExists = existsSync(agentsPath)
   if (!agentsExists) {
-    const msg = `${root} has no AGENTS.md. Create it with the project-rules workflow, \`/project-rules\` (Codex: \`$project-rules\`), then run 'buracle project sync' again. Buracle never writes AGENTS.md itself.`
+    const msg = `${root} has no AGENTS.md. Create it with the project-rules workflow, \`/project-rules\` (Codex: \`$project-rules\`), then run 'buracle project sync' again. Buracle Stack never writes AGENTS.md itself.`
     guidance.push(msg)
     needsUser.push(msg)
   }
