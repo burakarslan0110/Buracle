@@ -1,18 +1,26 @@
-"""Buracle Stack launch film score: an original 55 s track synthesized from code (released as CC0 with the film).
+"""Buracle Stack launch film score: an original 40 s track synthesized from code (released as CC0 with the film).
 
-120 BPM in A minor, one beat = 0.5 s, one chord per bar. The sections follow the beat sheet of index.html, so every
-scene change lands on a beat and the big moments get their own musical event, with room between them:
+120 BPM in A minor, one beat = 0.5 s, one bar = 2 s, one chord per bar. The film has three explosions, and the score has
+a drop on each one, on the exact frame and on the downbeat of a bar, each after one sixteenth of silence and each with a
+crash, a sub boom and a slam that start on the very sample of the frame:
+
+  6.0  the logos lock onto the layer
+ 22.0  /plan-build is VERIFIED
+ 34.0  the wordmark slams onto the end card (the seven logos slam into a row a beat before, at 33.5)
+
+The sections between them follow the scenes of index.html (every section starts on a bar line):
 
   0.0  intro: half-time kick and 8th hats for one bar, then four on the floor, 16th hats and an opening arp;
-       a noise riser from 4.0 and a snare roll from 5.0 build to 6.0
-  6.0  drop (the logos lock onto the layer): crash, sub boom, full groove with sidechained supersaw chords
-  9.0  memory: half-time groove, 8th arp and hats (the calm part), crash
- 14.5  knowledge graph: four on the floor, 8th arp and the counter line; a crash where the search starts (19.5)
- 24.5  workflows: arp up an octave in 16ths; the bass rests for one beat before 28.5 (VERIFIED: crash and boom)
- 32.5  MCP servers: crash, counter line, 8th arp
- 38.0  guards: bass out, chords and arp filtered down, kick stays
- 43.0  and more: the groove comes back with 16ths for the feature cards; riser from 47.0, snare build to 49.5
- 49.5  end card: second drop on the wordmark slam, full groove to 53.0, then one held chord that rings to 55.0
+       a noise riser from 4.0 and a snare roll from 5.0 build to the first drop
+  6.0  drop: full groove with sidechained supersaw chords
+  8.0  memory: half-time groove, 8th arp and hats (the calm part, Codex writes and the session is distilled), crash
+ 12.0  graph: four on the floor, the search expands through the graph, the counter line
+ 16.0  workflows: arp up an octave in 16ths; the bass rests for the last beat before 22.0; a riser from 20.0 and a
+       snare roll from 20.5 build to VERIFIED
+ 22.0  drop: crash, boom and slam, the full groove
+ 26.0  MCP servers: crash, counter line, 8th arp
+ 30.0  guards: the same full groove as the tools section, nothing filtered out; a riser from 31.5 and a snare roll from 32.5
+ 34.0  end card: the third drop on the wordmark slam, full groove to 38.0, then one held chord that rings to 40.0
 
 Usage: python3 score.py <out.wav>   (needs numpy and scipy; deterministic, seeded noise)
 """
@@ -23,7 +31,7 @@ from scipy import signal
 SR = 48000
 BPM = 120.0
 BEAT = 60.0 / BPM
-DUR = 55.0
+DUR = 40.0
 N = int(SR * DUR)
 rng = np.random.default_rng(20261118)
 
@@ -220,6 +228,15 @@ def pluck(t, note, cutoff, g=1.0, pan=0.0):
     out(t, x * 0.5, g, pan=pan, verb=0.2, delay=0.32)
 
 
+def slam(t, g=1.0):
+    """The body of a drop: a burst of low-passed noise on top of a falling sub, loud from the first sample."""
+    n = idx(0.5)
+    tt = np.arange(n) / SR
+    burst = lp(noise(n), 7000) * env(n, 0.0006, 0.07)
+    sub = np.sin(2 * np.pi * np.cumsum(30 + 60 * np.exp(-tt / 0.2)) / SR) * env(n, 0.001, 0.28)
+    out(t, np.tanh(1.5 * (0.6 * burst + 0.9 * sub)) * 0.9, g, verb=0.25)
+
+
 # ---------------------------------------------------------------- arrangement
 # progression, one bar (four beats) per chord: Am, F, C, G (roots and voicings as MIDI notes)
 CHORDS = [
@@ -228,48 +245,60 @@ CHORDS = [
     (48, [55, 60, 64, 67]),  # C
     (43, [55, 59, 62, 67]),  # G
 ]
+AM, F, C, G = 0, 1, 2, 3
 ARP = [0, 7, 12, 7, 15, 12, 7, 12]  # semitone offsets over the chord root, an octave up
 CHORD_LEN = 4 * BEAT
 
-# sections: (start, end, name); they follow the scenes of index.html
+# The three drops of the film, each on the downbeat of a bar. They are the exact frames of the picture: the logos lock
+# onto the layer (LOCK), /plan-build is VERIFIED (VERIFIED), the wordmark slams onto the end card (WORD). The seven logos
+# slam into a row a beat before the last one (LOGOS). Every drop is preceded by one sixteenth of silence, so the first
+# transient of the drop is unmistakable, and its crash, sub boom and slam start on the very sample of the frame.
+LOCK = 6.0
+VERIFIED = 22.0
+LOGOS = 33.5
+WORD = 34.0
+END_CHORD = 38.0
+GAP = BEAT / 4
+DROPS = (LOCK, VERIFIED, WORD)
+
+# sections: (start, end, name, the chords of its bars); every start is on a bar line (a multiple of 2 s)
 SECTIONS = [
-    (0.0, 6.0, "intro"),     # harnesses, then the logos gather and the layer rises
-    (6.0, 9.0, "drop"),      # the logos lock onto the layer
-    (9.0, 14.5, "memory"),   # one memory: a calmer half-time groove
-    (14.5, 24.5, "graph"),   # the knowledge graph: a distillation, then a search
-    (24.5, 32.5, "loops"),   # the workflows; VERIFIED at 28.5
-    (32.5, 38.0, "tools"),   # nine MCP servers
-    (38.0, 43.0, "guards"),  # filtered, tension
-    (43.0, 49.5, "more"),    # the feature cards, then the build to the end drop
-    (49.5, 53.0, "end"),     # the wordmark slam
+    (0.0, 6.0, "intro", [AM, F, G]),      # harnesses, then the logos gather and the layer rises; the G leads into the drop
+    (6.0, 8.0, "drop", [AM, F]),          # the logos lock onto the layer
+    (8.0, 12.0, "memory", [AM, F, C, G]),  # one memory: a calmer half-time groove (Codex writes, the distillation)
+    (12.0, 16.0, "graph", [AM, F, C, G]),  # the search expands through the graph: four on the floor and a counter line
+    (16.0, 22.0, "loops", [F, C, G]),     # /plan-build phase by phase; the G leads into the drop, one silent beat before it
+    (22.0, 26.0, "drop", [AM, F, C, G]),  # VERIFIED
+    (26.0, 30.0, "tools", [AM, F, C, G]),  # nine MCP servers
+    (30.0, 34.0, "tools", [AM, F, C, G]),  # guards: the groove keeps running, no filter and no dropout; the G leads into the end drop
+    (34.0, 38.0, "end", [AM, F, C, G]),   # the wordmark slam
 ]
-VERIFIED = 28.5
-END_CHORD = 53.0
 
 
 def section_at(t):
-    for s, e, name in SECTIONS:
+    for s, e, name, chords in SECTIONS:
         if s <= t < e:
-            return s, e, name
-    return END_CHORD, DUR, "tail"
+            return s, e, name, chords
+    return END_CHORD, DUR, "tail", []
 
 
-# kicks: half time (beats 1 and 3) in the first two intro bars and in the memory section, four on the floor elsewhere
+# kicks: half time (beats 1 and 3) in the first two intro bars and in the memory section, four on the floor elsewhere;
+# the beats of the last snare roll (33.5 to 34.0) carry no kick
 beats = [round(i * BEAT, 6) for i in range(int(DUR / BEAT))]
 kicks = []
 for bt in beats:
-    s, e, name = section_at(bt)
+    s, e, name, _ = section_at(bt)
     if name == "tail":
         continue
-    if name == "more" and bt >= 49.0:
-        continue  # the last beat before the end drop is a snare roll only
+    if LOGOS < bt < WORD:
+        continue
     pos = int(round(bt / BEAT)) % 4
     half = (name == "intro" and bt < 2.0) or name == "memory"
     if half and pos in (1, 3):
         continue
     kicks.append(bt)
-    kick(bt, 0.5 if name == "intro" else (0.7 if name == "guards" else (0.9 if name in ("more", "graph") else 1.0)))
-    if name in ("drop", "graph", "loops", "tools", "more", "end") and pos in (1, 3):
+    kick(bt, 0.5 if name == "intro" else (0.7 if name == "guards" else (0.9 if name == "graph" else 1.0)))
+    if name in ("drop", "graph", "loops", "tools", "end") and pos in (1, 3):
         clap(bt)
     if name == "memory" and pos == 2:
         clap(bt, 0.85)  # half-time backbeat
@@ -277,52 +306,62 @@ for bt in beats:
 # hats: 16ths in the driving sections, 8ths where the picture asks the eye to read
 for i in range(int(END_CHORD / (BEAT / 4))):
     t = i * BEAT / 4
-    s, e, name = section_at(t)
+    s, e, name, _ = section_at(t)
     pos = i % 4
-    if name == "more" and t >= 48.5:
-        continue
-    sixteenths = name in ("drop", "loops", "more", "end") or (name == "intro" and t >= 2.0)
+    if LOGOS <= t < WORD:
+        continue  # the snare roll owns the last half second before the end drop
+    sixteenths = name in ("drop", "loops", "end") or (name == "intro" and t >= 2.0)
     if not sixteenths and pos % 2 == 1:
         continue
     hat(t, 0.55 + (0.35 if pos == 2 else 0) + (0.12 if pos == 0 else 0), pan=0.25 if pos % 2 else -0.2)
-    if name in ("drop", "graph", "loops", "tools", "more", "end") and pos == 2:
+    if name in ("drop", "graph", "loops", "tools", "end") and pos == 2:
         hat(t, 0.5, open_=True, pan=0.1)
 
-# snare builds into the two drops
+# snare builds into the three drops: eighths, sixteenths, then thirty-seconds that swell into the downbeat
 for t in np.arange(5.0, 5.5, BEAT / 2):
     snare(t, 0.5)
 for t in np.arange(5.5, 6.0, BEAT / 4):
     snare(t, 0.6 + (t - 5.5))
-for t in np.arange(47.5, 48.5, BEAT / 2):
+for t in np.arange(20.5, 21.0, BEAT / 2):
     snare(t, 0.45)
-for t in np.arange(48.5, 49.0, BEAT / 4):
+for t in np.arange(21.0, 21.5, BEAT / 4):
     snare(t, 0.55)
-for t in np.arange(49.0, 49.5, BEAT / 8):
-    snare(t, 0.6 + 0.8 * (t - 49.0))
+for t in np.arange(21.5, 22.0, BEAT / 8):
+    snare(t, 0.6 + 0.8 * (t - 21.5))
+for t in np.arange(32.5, 33.0, BEAT / 2):
+    snare(t, 0.45)
+for t in np.arange(33.0, 33.5, BEAT / 4):
+    snare(t, 0.55)
+for t in np.arange(33.5, 34.0, BEAT / 8):
+    snare(t, 0.6 + 0.8 * (t - 33.5))
 
 riser(4.0, 6.0, 0.9)
-riser(13.5, 14.5, 0.3)
-riser(23.5, 24.5, 0.3)
-riser(47.0, 49.5, 1.0)
+riser(15.0, 16.0, 0.3)
+riser(20.0, 22.0, 0.9)
+riser(25.0, 26.0, 0.3)
+riser(31.5, 34.0, 1.0)
 
-for t, g in ((6.0, 1.0), (9.0, 0.6), (14.5, 0.6), (19.5, 0.45), (24.5, 0.7), (VERIFIED, 0.8), (32.5, 0.7), (38.0, 0.5), (43.0, 0.7), (49.5, 1.0), (END_CHORD, 0.9)):
+for t, g in ((6.0, 1.0), (8.0, 0.5), (12.0, 0.4), (16.0, 0.45), (VERIFIED, 0.95), (26.0, 0.6), (30.0, 0.45), (LOGOS, 0.5), (WORD, 1.0), (END_CHORD, 0.9)):
     crash(t, g)
-for t, g in ((6.0, 1.0), (VERIFIED, 0.7), (49.5, 1.0), (END_CHORD, 0.8)):
+for t, g in ((LOCK, 1.0), (VERIFIED, 0.9), (WORD, 1.0), (END_CHORD, 0.8)):
     boom(t, g)
+for t, g in ((LOCK, 0.9), (VERIFIED, 0.9), (WORD, 1.0)):
+    slam(t, g)
+kick(LOGOS, 0.9)  # the logos slam into a row on the beat before the end drop
 
-# harmony: the progression restarts at each section start, one chord per bar
-for s, e, name in SECTIONS:
+# harmony: the progression of a section restarts at its start, one chord per bar
+for s, e, name, chord_ids in SECTIONS:
     t = s
     ci = 0
     while t < e - 1e-6:
-        root, voicing = CHORDS[ci % 4]
+        root, voicing = CHORDS[chord_ids[ci % len(chord_ids)]]
         length = min(CHORD_LEN, e - t)
         if name == "intro":
             cut = 500 + 2500 * (t / 6.0)
         elif name == "guards":
             cut = 700
         else:
-            cut = 4200 if name in ("drop", "end") else (3800 if name == "more" else 3400)
+            cut = 4200 if name in ("drop", "end") else 3400
         pumps = [k for k in kicks if t <= k < t + length]
         pad_gain = 0.45 if name == "intro" else (0.4 if name == "guards" else (0.85 if name in ("memory", "graph") else 1.0))
         pad_chord(t, voicing, length + 0.05, cut, pad_gain, pumps)
@@ -338,7 +377,7 @@ for s, e, name in SECTIONS:
             bcut = 380 + (900 if not onbeat else 300) if name != "intro" else 260 + 600 * (bt / 6.0)
             bass_note(bt, root - 12 if root > 44 else root, BEAT / 2 * 0.92, bcut, g)
         # arp over the chord root: 16ths in the driving sections, 8ths in the calmer ones
-        sixteenths = name in ("drop", "loops", "more", "end") or (name == "intro" and t >= 2.0)
+        sixteenths = name in ("drop", "loops", "end") or (name == "intro" and t >= 2.0)
         step = BEAT / 4 if sixteenths else BEAT / 2
         steps = int(round(length / step))
         for j in range(steps):
@@ -357,7 +396,7 @@ for s, e, name in SECTIONS:
         t += length
         ci += 1
 
-# final chord: Am(add9) held from 43.0, ringing into the last frame
+# final chord: Am(add9) held from 38.0, ringing into the last frame
 n = idx(2.0)
 for note, pan in ((45, 0), (57, -0.3), (60, 0.3), (64, -0.2), (71, 0.2), (69, 0)):
     f = hz(note)
@@ -400,6 +439,17 @@ L += lp(el, 5000) * 0.45
 R += lp(er, 5000) * 0.45
 
 # ---------------------------------------------------------------- master
+# the silence before each drop: everything, tails included, goes quiet for one sixteenth, then the drop starts on its
+# exact sample (the mask is back at 1 on the drop's first sample, so its transients pass untouched)
+mask = np.ones(N)
+ramp = idx(0.004)
+for d in DROPS:
+    g0, g1 = idx(d - GAP), idx(d)
+    mask[g0:g1] = 0.0
+    mask[g0 - ramp : g0] = np.linspace(1, 0, ramp)
+L *= mask
+R *= mask
+
 # tail fade over the last 0.4 s, gentle saturation, peak normalise to -6 dBFS
 fade = np.ones(N)
 fn = idx(0.4)

@@ -29,7 +29,7 @@ curl -fsSL https://stack.buracle.dev/install.sh | bash
 </div>
 
 <p align="center">
-  <a href="https://stack.buracle.dev/tr/"><img src="https://stack.buracle.dev/media/preview.gif" alt="55 saniyede Buracle Stack: yedi kodlama ajanı tek bir katmana oturur, Codex'te kaydedilen karar Claude Code'da hatırlanır, oturumlar bir bilgi grafına damıtılır ve plan-build döngüsü VERIFIED'a kadar ilerler" width="720"></a>
+  <a href="https://stack.buracle.dev/tr/"><img src="https://stack.buracle.dev/media/preview.gif" alt="40 saniyede Buracle Stack: yedi kodlama ajanı tek bir katmana oturur, Codex'te kaydedilen karar Claude Code'da hatırlanır, oturumlar bir bilgi grafına damıtılır ve plan-build döngüsü VERIFIED'a kadar ilerler" width="720"></a>
 </p>
 
 <p align="center"><img src="https://stack.buracle.dev/assets/logos/claude-code.svg" alt="Claude Code" title="Claude Code" height="36"> <img src="https://stack.buracle.dev/assets/logos/codex.svg" alt="Codex CLI" title="Codex CLI" height="36"> <img src="https://stack.buracle.dev/assets/logos/opencode.svg" alt="OpenCode" title="OpenCode" height="36"> <img src="https://stack.buracle.dev/assets/logos/oh-my-pi.svg" alt="Oh My Pi" title="Oh My Pi" height="36"> <img src="https://stack.buracle.dev/assets/logos/qwen-code.svg" alt="Qwen Code" title="Qwen Code" height="36"> <img src="https://stack.buracle.dev/assets/logos/pi.svg" alt="Pi" title="Pi" height="36"> <img src="https://stack.buracle.dev/assets/logos/agy.svg" alt="AGY CLI" title="AGY CLI" height="36"></p>

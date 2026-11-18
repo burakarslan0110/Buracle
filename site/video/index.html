@@ -9,15 +9,20 @@
     <title>Buracle Stack launch film</title>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
     <!--
-      Buracle Stack 1.0.0 launch film, round 5. 55.0 s, 1920x1080, 30 fps.
+      Buracle Stack 1.0.0 launch film, round 6. 40.0 s, 1920x1080, 30 fps.
       One idea: Buracle Stack is the layer that brings coding agents together. The film walks the landing page in its
-      order (the seven agents and the layer, one memory and its knowledge graph, the workflows, the MCP servers, the
-      guards), then shows what the page does not (a second agent's review, the handoff after a context reset, skills
-      for every agent, the Console, doctor, a clean uninstall) and ends on the install command.
+      order (the seven agents and the layer, one memory with its knowledge graph, the workflows, the MCP servers, the
+      guards) and ends on the install command.
 
-      Pace (round 5): scenes of 4 to 6 s. The headline sits in one slot (top left) and is in place before the picture
-      under it moves. Every line of text stays still and legible for at least 2.0 s. Nothing ever sits on top of a
-      letter: logos, chips, badges, lines, cards and the stamp route around text or wait until it is gone.
+      Round 6 against round 5 (55 s): the knowledge graph is part of the memory scene (one canvas, one headline: the
+      graph in the middle, Codex CLI writes into it from the left, Claude Code reads from the right and adds a finding); the
+      workflows scene shows what each phase of /plan-build does as a loop (the plan file and a terminal change phase by
+      phase, RED and GREEN twice, one per task), then only the flow of the other three workflows;
+      "And more under the hood" is gone; the music has a drop on each of the three explosions.
+
+      Pace: scenes of 4 to 9 s. The headline sits in one slot (top left) and is in place before the picture under it
+      moves. Every line of text stays still and legible for at least 2.0 s. Nothing ever sits on top of a letter:
+      logos, chips, badges, lines, cards and the stamp route around text or wait until it is gone.
       `tools/legibility-gate.mjs` proves it every 0.1 s for both languages. There is no carried shape: each scene
       enters through an object of the previous one (the logos, the Memory module, a slide, a cut on the beat).
 
@@ -25,15 +30,17 @@
       rose for denials. Only the wordmark keeps its own violet gradient and amber eye, because that is the logo.
 
       Language: the root variable `lang` (en | tr). Only the headlines and the plain-language lines (layer modules,
-      "your projects", the session lines, the outcome pills, the query and its stems, the questions and the route labels,
-      the feature cards, the tagline) change. Memory titles stay English, as the brain writes them. Project terms stay
-      English in both: Plan, Review, Approve, RED, GREEN, Verify, VERIFIED, repro, root cause, fix, proof, criteria,
-      rounds, judged, research, PRD, approved, about, cites, tag, DENIED, ASK, MASKED, MCP, the memory card, file
-      names, commands, statuses, settings and harness names.
+      "your projects", the outcome pills, the query, the three workflow cards, the questions and the route labels,
+      the tagline) change. Memory titles stay English, as the brain writes them. Project terms, commands and their
+      output stay English in both: Plan, Review, Approve, RED, GREEN, Verify, VERIFIED, repro, root cause, proof,
+      criteria, rounds, judged, research, PRD, approved, about, cites, tag, DENIED, ASK, MASKED, MCP, the memory
+      card, file names, commands, statuses, settings and harness names.
 
       Music: music/score.py, an original track synthesized from code, 120 BPM in A minor (one beat = 0.5 s, one bar
-      = 2 s). Scene changes, the two drops (6.0, 49.5), VERIFIED (28.5) and every reveal sit on a beat, an eighth or a
-      sixteenth; whooshes start a few frames before the move they carry.
+      = 2 s). The three drops sit on the downbeat of a bar and on the exact frame of the picture, each after one
+      sixteenth of silence, each with a crash, a sub boom and a slam: 6.0 (the lock), 22.0 (VERIFIED), 34.0 (the
+      wordmark slam). Scene changes, VERIFIED and every reveal sit on a beat, an eighth or a sixteenth; whooshes start
+      a few frames before the move they carry.
 
       Beat sheet (film seconds · picture · sound)
       S1 harnesses  0.0-4.0
@@ -41,50 +48,45 @@
         0.25-1.00  the seven harness logos pop one per sixteenth, each with its config folder     · 7 pops
         1.25  "7 setups." rises in under it                                                       · soft thump
         3.75  text out                                                                            ·
-      S2 the layer  4.0-9.0
+      S2 the layer  4.0-8.45
         4.00  "One layer under all of them."  4.30 the logos gather into one row                  · whoosh
         5.00  the buracle stack layer rises under them                                            · rise, riser to 6.0
-        6.00  lock: connectors draw                                                               · DROP: impact, crash
-        6.25  your projects, connected underneath                                                 · pop
-        7.00-8.00 the five modules light up on eighths                                            · 5 blips
-        8.45  the camera zooms through the Memory module; its light floods the frame              · whoosh
-      S3 one memory  9.0-14.5
-        9.00  "One memory for every agent."  9.40 Codex CLI, brain.db and Claude Code slide in    · crash, whoosh
-        10.40 a Decision is written in Codex (memory_write)                                       · pop
-        10.80 the line to brain.db fills; 11.25 saved; 11.35 the line to Claude Code fills        · whoosh, pip
-        12.00 the same Decision is recalled in Claude Code (memory_search)                        · ding
-        14.00 the scene slides away                                                               · swipe
-      S3b the knowledge graph  14.5-24.5
-        14.00 the graph slides in as the memory scene slides out                                    · swipe
-        14.50 "Distilled into a knowledge graph."  15.00 a session of Claude Code                    ·
-        15.60 one bounded model call, up to 3 candidates; 15.90-16.50 three candidates, each with   · blips, then
-              its outcome: new (16.15), update to the cents decision (16.45), known (16.75)        · ding, ding, tick
-        17.00 the new gotcha joins the graph, linked to about: billing and src/billing/total.ts     · pop, ticks
-        19.50 "Search interprets, then expands."  19.75 the query types, 20.25 about: ["billing"]  · typing
-        20.60-20.90 the stopword is struck, the stems appear                                        · blips
-        21.30 the walk leaves the billing hub; 21.50 found by its words, 21.75 found through graph · riser tick, dings
-      S4 the workflows  24.5-32.5
-        24.50 "Workflows that end in proof."  25.00 the /plan-build loop draws                     · crash, pop
-        25.50-28.00 Plan, Review, Approve, RED, GREEN, Verify light on beats                       · ticks, glitch on RED
-        28.50 VERIFIED                                                                            · impact, crash, boom
-        28.60 /bugfix, /goal-build and /requirements rows; their steps light up                   · pop, dings
-      S5 nine MCP servers  32.5-38.0
-        32.50 "9 MCP servers, routed."  32.80 the nine server tiles pop in                         · crash, pop
-        33.30, 33.95, 34.60 a question types; 33.85, 34.50, 35.15 it is routed to context7,        · typing, whoosh, pop
+        6.00  lock: connectors draw, your projects connect underneath                             · DROP 1: impact, crash, boom, slam
+        6.60-7.60 the five modules light up on eighths                                            · 5 blips
+        7.95  the camera zooms through the Memory module; its light floods the frame (8.12-8.45)  · whoosh
+      S3 one memory and its graph  8.45-16.5 (one headline: "One memory for every agent.")
+        8.45  headline; 8.55 brain.db heads the graph, the network pops in; 9.00 Codex CLI slides in from the left · whoosh
+        9.40  a Decision is written in Codex (memory_write)                                       · pop
+        10.00-10.35 the line to the graph draws; 10.45 the decision joins the graph (A), brain.db green · whoosh, pip
+        11.30 Claude Code slides in from the right; 11.70 memory_search "decisions on totals", about: ["billing"]  · pop, typing
+        12.90 the walk leaves the billing hub; 13.20 the memory is read from the graph to Claude Code · riser tick, whoosh
+        13.70 Claude Code's finding, a gotcha (memory_write); 14.20 its line to the graph; 14.60 it joins as a new node (D)  · pop, ding
+        16.20 the scene leaves                                                                    · whoosh
+      S4 the workflows  16.5-25.5
+        16.50 "Workflows that end in proof."  16.75 the rail of six phases, the plan file and the terminal rise
+        17.50 Plan: the plan file is written (two tasks), `buracle plan validate --strict` exits 0 · tick, typing
+        18.20 Review: plan-build-review reports 1 should_fix                                      · tick, pop
+        18.80 Approve: approved: true, status APPROVED                                            · click
+        19.30 RED: `bun test`, task 1 fails; 20.00 GREEN, task 1 ticked; the rail loops (RED, GREEN) · glitch, ding
+        20.15 RED again: task 2 fails; 20.70 GREEN, task 2 ticked                                 · glitch, ding
+        21.20 Verify: changes-review passes, `buracle plan verify`                                · tick, typing
+        22.00 VERIFIED: the stamp slams in, the plan file says VERIFIED                           · DROP 2: impact, crash, boom, slam
+        22.30-23.30 the flows of /bugfix, /goal-build and /requirements light up, step by step    · pop, dings
+      S5 nine MCP servers  25.5-29.5
+        25.50 "9 MCP servers, routed."  25.65 the nine server tiles pop in                        · pop
+        25.80, 26.10, 26.40 a question types; 26.25, 26.55, 26.85 it is routed to context7,      · typing, whoosh, pop
               codegraph and semble and the route label lands
-      S6 guards  38.0-43.0
-        38.00 "Guards answer first."  38.15 the terminal rises                                      · filtered groove
-        38.60 rm -rf ~ → 38.80 DENIED with the H01 text                                           · typing, impact
-        38.95 git push --force origin feature-x → 39.40 ASK with the H20 text                    · typing, bong
-        39.65 gh auth token → 39.85 the token prints, 40.00 scrambles, 40.30 MASKED              · typing, glitch, ding
-      S7 and more  43.0-49.0
-        43.00 "And more under the hood."  43.40-44.40 six feature cards pop on eighths and hold   · crash, 6 blips
-        47.00-49.50 snare build and riser
-      S8 end card  49.0-55.0
-        48.60 the cards leave; 49.00 the seven logos slam into one row                            · minimize, swoosh, ticks
-        49.50 the wordmark wipes in: logo slam                                                    · DROP: impact
-        50.00 tagline · 50.50 the install command types · 51.50 stack.buracle.dev                · typing, ding
-        52.30 the colophon: photo, "Built by Burak Arslan", role, LinkedIn and GitHub; hold to 55.0 · plop, final chord 53.0
+      S6 guards  29.5-33.5
+        29.50 "Guards answer first."  29.60 the terminal rises                                    · filtered groove
+        29.90 rm -rf ~ → 30.10 DENIED with the H01 text                                           · typing, impact
+        30.15 git push --force origin feature-x → 30.45 ASK with the H20 text                    · typing, bong
+        30.50 gh auth token → 30.60 the token prints, 30.62 scrambles, 30.80 MASKED               · typing, glitch, ding
+        32.50-34.00 snare build and riser                                                         ·
+      S7 end card  33.5-40.0
+        33.50 the seven logos slam into one row                                                   · swoosh, ticks, kick
+        34.00 the wordmark wipes in: logo slam                                                    · DROP 3: impact, crash, boom, slam
+        34.50 tagline · 35.00 the install command types · 36.00 stack.buracle.dev                 · typing, ding
+        36.80 the colophon: photo, "Built by Burak Arslan", role, LinkedIn and GitHub; hold to 40.0 · plop, final chord 38.0
     -->
     <style>
       @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Regular.woff2") format("woff2"); font-weight: 400; }
@@ -161,7 +163,7 @@
       }
       #layer-edge { position: absolute; left: 24px; right: 24px; top: -1px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--from), var(--to)); }
       #layer-glow { position: absolute; inset: -2px; border-radius: 20px; box-shadow: 0 0 0 3px var(--accent), 0 0 120px rgba(196, 181, 253, 0.6); opacity: 0; }
-      #layer-wm { position: absolute; left: 32px; top: 22px; width: 368px; height: 48px; }
+      #layer-wm { position: absolute; left: 32px; top: 14px; width: 480px; height: 62px; transform-origin: 0 50%; opacity: 0; }
       .cell {
         position: absolute; top: 88px; width: 262px; height: 88px; border-radius: 12px;
         border: 2px solid rgba(148, 163, 184, 0.24); background: rgba(5, 6, 10, 0.35);
@@ -175,46 +177,84 @@
       .proj { position: absolute; top: 770px; height: 60px; padding: 0 22px; border-radius: 10px; border: 2px solid var(--line-2); background: var(--surface-2); font-family: var(--mono); font-size: 32px; color: var(--ink-2); display: flex; align-items: center; white-space: nowrap; }
       #proj-label { position: absolute; left: 240px; top: 780px; font-family: var(--mono); font-size: 32px; line-height: 40px; color: var(--ink-2); white-space: nowrap; }
 
-      /* scene 3: one memory (the card follows memoryRow in src/memory/ui/panel.js) */
+      /* scene 3: one memory and its knowledge graph, one canvas (the card follows memoryRow in src/memory/ui/panel.js).
+         Memories are dots coloured by kind, linked to the topics (about), files (cites) and tags they carry, the hubs of
+         src/core/memory/graph.ts. The agents are in the left column: Codex CLI writes a Decision, one session is
+         distilled into candidates, Claude Code searches. brain.db heads the graph on the right. */
       #mem { position: absolute; inset: 0; }
-      #brain { position: absolute; left: 860px; top: 340px; width: 200px; height: 200px; }
-      #brain-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(196, 181, 253, 0.75); box-shadow: 0 0 50px rgba(167, 139, 250, 0.45), inset 0 0 40px rgba(167, 139, 250, 0.25); background: radial-gradient(closest-side, rgba(40, 30, 80, 0.9), rgba(16, 12, 34, 0.95)); }
-      #brain-hot { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--ok); box-shadow: 0 0 60px rgba(74, 222, 128, 0.45), inset 0 0 50px rgba(74, 222, 128, 0.25); opacity: 0; }
-      #brain svg { position: absolute; left: 58px; top: 50px; width: 84px; height: 100px; color: var(--accent); }
-      #brain-label { position: absolute; left: 960px; top: 580px; font-family: var(--mono); font-size: 32px; line-height: 40px; color: var(--ink-2); white-space: nowrap; transform: translateX(-50%); }
-      .mline { position: absolute; top: 439px; height: 3px; background: linear-gradient(90deg, rgba(196, 181, 253, 0.15), rgba(196, 181, 253, 0.55), rgba(196, 181, 253, 0.15)); transform-origin: 0 50%; }
+      #kg-graph { position: absolute; inset: 0; }
+      #kg-edges { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
+      #brain { position: absolute; left: 640px; top: 200px; width: 100px; height: 100px; }
+      #brain-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(196, 181, 253, 0.75); box-shadow: 0 0 36px rgba(167, 139, 250, 0.45), inset 0 0 24px rgba(167, 139, 250, 0.25); background: radial-gradient(closest-side, rgba(40, 30, 80, 0.9), rgba(16, 12, 34, 0.95)); }
+      #brain-hot { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--ok); box-shadow: 0 0 44px rgba(74, 222, 128, 0.5), inset 0 0 30px rgba(74, 222, 128, 0.3); opacity: 0; }
+      #brain svg { position: absolute; left: 30px; top: 24px; width: 40px; height: 48px; color: var(--accent); }
+      #brain-label { position: absolute; left: 754px; top: 230px; font-family: var(--mono); font-size: 32px; line-height: 40px; color: var(--ink-2); white-space: nowrap; }
       .card {
-        position: absolute; top: 650px; width: 620px; padding: 22px 26px 24px; border-radius: 12px;
+        position: absolute; left: 100px; top: 480px; width: 480px; padding: 20px 26px 22px; border-radius: 12px;
         background: var(--surface-2); border: 2px solid var(--line-2); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
       }
-      .card .mtop { display: flex; justify-content: space-between; font-size: 32px; line-height: 40px; color: var(--ink-2); }
+      .card .mtop { display: flex; justify-content: space-between; align-items: center; font-size: 30px; line-height: 40px; color: var(--ink-2); }
       .card .mkind { display: flex; align-items: center; gap: 14px; }
       .card .mdot { width: 12px; height: 12px; display: block; background: var(--accent); }
       .card .mtitle { margin-top: 10px; font-size: 38px; line-height: 48px; font-weight: 500; color: var(--ink); white-space: nowrap; }
-      .card .mfoot { margin-top: 14px; display: flex; gap: 16px; align-items: center; white-space: nowrap; height: 46px; }
-      .card .tool { font-family: var(--mono); font-size: 32px; color: var(--accent); }
-      .card .badge { font-size: 32px; line-height: 42px; color: #0b0d14; background: var(--accent); border-radius: 8px; padding: 0 14px; display: flex; gap: 10px; align-items: center; }
-
-      /* scene 4: the loops */
-      #loop { position: absolute; inset: 0; }
-      #track { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
-      .node { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; background: #1d1838; border: 2px solid rgba(148, 163, 184, 0.45); }
-      .chip {
-        position: absolute; left: 0; top: 0; height: 64px; padding: 0 26px; border-radius: 32px;
-        border: 2px solid rgba(148, 163, 184, 0.3); background: #120f20; color: var(--ink-2);
-        font-size: 34px; font-weight: 500; display: flex; align-items: center; white-space: nowrap;
-      }
-      .chip.code { font-family: var(--mono); }
-      #loop-cmd { position: absolute; left: 0; top: 0; font-family: var(--mono); font-size: 60px; line-height: 72px; font-weight: 500; color: var(--ink); white-space: nowrap; }
-      #stamp {
-        position: absolute; left: 0; top: 0; padding: 10px 40px; border: 8px solid var(--ok); border-radius: 10px;
-        font-family: var(--mono); font-weight: 500; font-size: 110px; line-height: 130px; letter-spacing: 0.04em; color: var(--ink); white-space: nowrap;
-        background: rgba(7, 18, 12, 0.94); box-shadow: 0 0 60px rgba(74, 222, 128, 0.3); opacity: 0;
-      }
+      .card .tool { font-family: var(--mono); font-size: 28px; color: var(--accent); }
+      .card.card-r { left: 1340px; top: 700px; }
+      .card.card-r .mtitle { font-size: 30px; }
       .row { position: absolute; left: 0; top: 0; width: 1920px; height: 64px; }
       .row-cmd { position: absolute; top: 0; height: 64px; display: flex; align-items: center; font-family: var(--mono); font-size: 36px; font-weight: 500; color: var(--ink); white-space: nowrap; }
-      .row .chip { height: 60px; padding: 0 22px; border-radius: 30px; font-size: 32px; top: 2px; }
-      .arrow { position: absolute; top: 0; height: 64px; display: flex; align-items: center; font-size: 36px; color: var(--ink-2); }
+      .row .chip { top: 2px; }
+      .kdot { position: absolute; left: 0; top: 0; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; border: 3px solid #0c0a24; }
+      .kring { position: absolute; inset: -12px; border-radius: 50%; border: 3px solid var(--accent); box-shadow: 0 0 22px rgba(196, 181, 253, 0.6); opacity: 0; }
+      .hub { position: absolute; left: 0; top: 0; height: 58px; padding: 0 22px; border-radius: 29px; border: 2px solid rgba(196, 181, 253, 0.5); background: #16122c; display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 28px; color: var(--ink); white-space: nowrap; }
+      .hub .hk { color: var(--ink-2); }
+      .hub .hglow { position: absolute; inset: -2px; border-radius: 29px; border: 3px solid var(--accent); box-shadow: 0 0 34px rgba(196, 181, 253, 0.65); opacity: 0; }
+      .kcard { position: absolute; left: 1340px; top: 480px; width: 480px; padding: 16px 26px 18px; border-radius: 14px; background: var(--surface-2); border: 2px solid var(--line-2); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55); }
+      .kcard .kl { font-family: var(--mono); font-size: 28px; line-height: 44px; color: var(--ink); white-space: nowrap; }
+      .kcard .kl.tool { color: var(--accent); }
+      .kcard .kl.dim { color: var(--ink-2); }
+      .kcard .rest { visibility: hidden; }
+      .knote { position: absolute; left: 120px; top: 440px; font-size: 28px; line-height: 40px; color: var(--ink-2); white-space: nowrap; }
+      .krow { position: absolute; left: 120px; height: 56px; display: flex; align-items: center; gap: 14px; white-space: nowrap; }
+      .krow .kd { width: 16px; height: 16px; border-radius: 50%; flex: none; }
+      .krow .kt { font-size: 30px; line-height: 40px; color: var(--ink); }
+      .krow .kp { height: 46px; padding: 0 14px; border-radius: 10px; font-size: 28px; font-weight: 500; display: flex; align-items: center; border: 2px solid; }
+
+      /* scene 4: the workflows. /plan-build runs in two panels: the plan file (its frontmatter and its task change as the
+         phases pass) and a terminal (the real commands and their output). Under them wait the three other workflows. */
+      #loop { position: absolute; inset: 0; }
+      .chip {
+        position: absolute; left: 0; top: 0; height: 60px; padding: 0 22px; border-radius: 30px;
+        border: 2px solid rgba(148, 163, 184, 0.3); background: #120f20; color: var(--ink-2);
+        font-size: 32px; font-weight: 500; display: flex; align-items: center; white-space: nowrap;
+      }
+      .chip.code { font-family: var(--mono); }
+      .arrow { position: absolute; top: 0; height: 60px; display: flex; align-items: center; font-size: 34px; color: var(--ink-2); }
+      #track { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
+      .node { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; background: #1d1838; border: 2px solid rgba(148, 163, 184, 0.45); }
+      #token { position: absolute; left: 0; top: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 24px rgba(196, 181, 253, 0.9); }
+      #lcard { left: 620px; top: 322px; width: 680px; height: 296px; }
+      #lcard .tr { font-size: 28px; line-height: 34px; }
+      .pcard { position: absolute; top: 316px; border-radius: 14px; background: var(--code-bg); border: 2px solid var(--line-2); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55); }
+      #plan { left: 120px; width: 740px; padding: 20px 26px 22px; }
+      #pterm { left: 890px; width: 910px; height: 378px; }
+      .pl { font-family: var(--mono); font-size: 30px; line-height: 40px; color: var(--ink); white-space: pre; }
+      .pl.h { font-size: 28px; color: var(--ink-3); }
+      .pl .k { color: var(--ink-2); }
+      .tr { position: absolute; left: 26px; font-family: var(--mono); font-size: 30px; line-height: 38px; color: var(--ink); white-space: pre; }
+      .tr .p { color: var(--ink-2); }
+      .tr .a { color: var(--accent); }
+      .tr .r { color: var(--alert-ink); }
+      .tr .g { color: var(--ok); }
+      .wcard { position: absolute; top: 722px; width: 540px; height: 236px; border-radius: 14px; background: var(--surface-2); border: 2px solid var(--line-2); }
+      .wcard .wt { position: absolute; left: 26px; top: 14px; font-family: var(--mono); font-size: 36px; line-height: 46px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+      .wcard .wr { position: absolute; left: 26px; right: 14px; height: 44px; display: flex; gap: 18px; align-items: center; white-space: nowrap; }
+      .wcard .wl { width: 172px; flex: none; font-family: var(--mono); font-size: 28px; color: var(--ink-3); }
+      .wcard .wd { font-size: 28px; color: var(--ink); }
+      #stamp {
+        position: absolute; left: 0; top: 0; padding: 4px 26px; border: 6px solid var(--ok); border-radius: 10px;
+        font-family: var(--mono); font-weight: 500; font-size: 52px; line-height: 64px; letter-spacing: 0.04em; color: var(--ink); white-space: nowrap;
+        background: rgba(7, 18, 12, 0.94); box-shadow: 0 0 40px rgba(74, 222, 128, 0.3); opacity: 0;
+      }
 
       /* scene 5: nine MCP servers, routed */
       #tools { position: absolute; inset: 0; }
@@ -260,39 +300,6 @@
       #maker-role { font-size: 28px; line-height: 38px; color: var(--ink-2); white-space: nowrap; }
       #maker-links { font-family: var(--mono); font-size: 28px; line-height: 38px; color: var(--accent); white-space: nowrap; }
 
-      /* scene 3: the line fills that carry the memory (over .mline) */
-      .mfill { position: absolute; top: 438px; height: 5px; border-radius: 3px; background: var(--accent); box-shadow: 0 0 16px rgba(196, 181, 253, 0.7); transform-origin: 0 50%; transform: scaleX(0); }
-
-      /* scene 3b: the knowledge graph. Memories are dots coloured by kind, linked to the topics (about), files (cites) and
-         tags they carry, the hubs of src/core/memory/graph.ts. The left column shows one distillation, then one search. */
-      #kg { position: absolute; inset: 0; }
-      #kg-graph { position: absolute; inset: 0; }
-      #kg-edges { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
-      .kdot { position: absolute; left: 0; top: 0; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; border: 3px solid #0c0a24; }
-      .kring { position: absolute; inset: -12px; border-radius: 50%; border: 3px solid var(--accent); box-shadow: 0 0 22px rgba(196, 181, 253, 0.6); opacity: 0; }
-      .hub { position: absolute; left: 0; top: 0; height: 58px; padding: 0 22px; border-radius: 29px; border: 2px solid rgba(196, 181, 253, 0.5); background: #16122c; display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 28px; color: var(--ink); white-space: nowrap; }
-      .hub .hk { color: var(--ink-2); }
-      .hub .hglow { position: absolute; inset: -2px; border-radius: 29px; border: 3px solid var(--accent); box-shadow: 0 0 34px rgba(196, 181, 253, 0.65); opacity: 0; }
-      .kcard { position: absolute; left: 120px; top: 250px; width: 640px; padding: 18px 26px 20px; border-radius: 14px; background: var(--surface-2); border: 2px solid var(--line-2); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55); }
-      .kcard .kh { font-size: 28px; line-height: 40px; color: var(--ink-2); white-space: nowrap; }
-      .kcard .kl { font-family: var(--mono); font-size: 30px; line-height: 44px; color: var(--ink); white-space: nowrap; }
-      .kcard .kl.tool { color: var(--accent); }
-      .kcard .kl.dim { color: var(--ink-2); }
-      .kcard .rest { visibility: hidden; }
-      .knote { position: absolute; left: 120px; top: 482px; font-size: 28px; line-height: 40px; color: var(--ink-2); white-space: nowrap; }
-      .krow { position: absolute; left: 120px; height: 56px; display: flex; align-items: center; gap: 14px; white-space: nowrap; }
-      .krow .kd { width: 16px; height: 16px; border-radius: 50%; flex: none; }
-      .krow .kt { font-size: 30px; line-height: 40px; color: var(--ink); }
-      .krow .kp { height: 46px; padding: 0 14px; border-radius: 10px; font-size: 28px; font-weight: 500; display: flex; align-items: center; border: 2px solid; }
-      .kchip { position: absolute; left: 120px; height: 54px; padding: 0 16px; border-radius: 10px; background: var(--code-bg); border: 2px solid var(--line-2); font-family: var(--mono); font-size: 30px; color: var(--ink); display: flex; align-items: center; white-space: nowrap; }
-      .kchip.stop { color: var(--ink-3); text-decoration: line-through; }
-
-      /* scene 7: and more (each card: a plain-language title and the real command, setting or text behind it) */
-      #more { position: absolute; inset: 0; }
-      .fcard { position: absolute; width: 540px; height: 236px; padding: 28px 28px 0; border-radius: 18px; background: linear-gradient(180deg, #151b29 0%, #0d111a 100%); border: 2px solid var(--line-2); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55); }
-      .fcard .fglow { position: absolute; inset: -2px; border-radius: 18px; border: 2px solid var(--accent); box-shadow: 0 0 30px rgba(196, 181, 253, 0.45); opacity: 0; }
-      .ftitle { position: relative; font-size: 36px; line-height: 46px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); text-wrap: balance; }
-      .fcode { position: absolute; left: 28px; bottom: 28px; height: 52px; padding: 0 16px; border-radius: 10px; background: var(--code-bg); border: 2px solid var(--line); display: flex; align-items: center; font-family: var(--mono); font-size: 28px; color: var(--accent); white-space: nowrap; }
     </style>
   </head>
   <body>
@@ -302,8 +309,8 @@
         <symbol id="px-db" viewBox="0 0 10 12"><path fill="currentColor" d="M1 0h8v1h-8zM0 1h1v2h-1zM9 1h1v2h-1zM1 3h8v1h-8zM0 4h1v3h-1zM9 4h1v3h-1zM1 7h8v1h-8zM0 8h1v3h-1zM9 8h1v3h-1zM1 11h8v1h-8z" /></symbol>
       </defs>
     </svg>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="55" data-width="1920" data-height="1080" data-fps="30">
-      <div id="film" class="clip" data-start="0" data-duration="55" data-track-index="0" data-track-kind="graphics" data-layout-allow-overflow data-layout-allow-overlap>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="40" data-width="1920" data-height="1080" data-fps="30">
+      <div id="film" class="clip" data-start="0" data-duration="40" data-track-index="0" data-track-kind="graphics" data-layout-allow-overflow data-layout-allow-overlap>
         <div id="ground"></div>
         <div id="grid"></div>
         <div id="glow-cool"></div>
@@ -332,42 +339,49 @@
           </div>
         </div>
 
-        <!-- scene 3: one memory -->
+        <!-- scene 3: one memory, and the knowledge graph it is made of: one canvas. Codex CLI writes into the graph on its
+             left, Claude Code reads from its right and adds a finding of its own. -->
         <div id="mem">
-          <div class="mline" id="mline-a" data-deco style="left: 548px; width: 284px"></div>
-          <div class="mline" id="mline-b" data-deco style="left: 1088px; width: 285px"></div>
-          <div class="mfill" id="mfill-a" data-deco style="left: 548px; width: 284px"></div>
-          <div class="mfill" id="mfill-b" data-deco style="left: 1088px; width: 285px"></div>
-          <div id="brain" data-deco>
-            <div id="brain-ring"></div>
-            <div id="brain-hot"></div>
-            <svg><use href="#px-db" /></svg>
-          </div>
-          <div id="brain-label">~/.buracle/brain/brain.db</div>
-          <div class="card" id="card-a" data-deco style="left: 140px">
-            <div class="mtop"><span class="mkind"><i class="mdot"></i>Decision</span><span>now</span></div>
-            <div class="mtitle">Totals stay in cents</div>
-            <div class="mfoot"><span class="tool">memory_write</span></div>
-          </div>
-          <div class="card" id="card-b" data-deco style="left: 1160px">
-            <div class="mtop"><span class="mkind"><i class="mdot"></i>Decision</span><span>now</span></div>
-            <div class="mtitle">Totals stay in cents</div>
-            <div class="mfoot">
-              <span class="tool">memory_search</span>
-              <span class="badge" data-deco><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>recalled 1×</span>
+          <div id="kg-graph">
+            <svg id="kg-edges" viewBox="0 0 1920 1080">
+              <line id="wline" data-deco-line stroke-linecap="round" />
+              <line id="rline" data-deco-line stroke-linecap="round" />
+              <line id="fline" data-deco-line stroke-linecap="round" />
+            </svg>
+            <div id="kg-nodes"></div>
+            <div class="hub" id="hub-billing" data-deco><span class="hk">about:</span><span>billing</span><div class="hglow"></div></div>
+            <div class="hub" id="hub-file" data-deco><span class="hk">cites:</span><span>src/billing/total.ts</span><div class="hglow"></div></div>
+            <div class="hub" id="hub-release" data-deco><span class="hk">tag:</span><span>release</span><div class="hglow"></div></div>
+            <div id="brain" data-deco>
+              <div id="brain-ring"></div>
+              <div id="brain-hot"></div>
+              <svg><use href="#px-db" /></svg>
             </div>
+            <div id="brain-label">~/.buracle/brain/brain.db</div>
+          </div>
+          <div class="card" id="card-a" data-deco>
+            <div class="mtop"><span class="mkind"><i class="mdot"></i>Decision</span><span class="tool">memory_write</span></div>
+            <div class="mtitle">Totals stay in cents</div>
+          </div>
+          <div class="kcard" id="ki-search" data-deco>
+            <div class="kl tool">memory_search</div>
+            <div class="kl" id="ki-q"><span class="typed"></span><span class="rest"></span></div>
+            <div class="kl dim" id="ki-about"><span class="typed"></span><span class="rest"></span></div>
+          </div>
+          <div class="card card-r" id="card-b" data-deco>
+            <div class="mtop"><span class="mkind"><i class="mdot" style="background: #fb7185"></i>Gotcha</span><span class="tool">memory_write</span></div>
+            <div class="mtitle">sumItems skips the last item</div>
           </div>
         </div>
 
-        <!-- scene 4: the loops -->
+        <!-- scene 4: the workflows. /plan-build runs for real in two panels (the plan file and a terminal, built by script),
+             the other three workflows wait as cards under them and run once the plan is VERIFIED. -->
         <div id="loop">
-          <svg id="track" viewBox="0 0 1920 1080">
-            <path id="track-base" data-deco-line fill="none" stroke="rgba(148,163,184,0.3)" stroke-width="4" />
-            <path id="track-prog" data-deco-line fill="none" stroke="#c4b5fd" stroke-width="6" stroke-linecap="round" />
-          </svg>
+          <svg id="track" viewBox="0 0 1920 1080"><path id="track-base" data-deco-line /><path id="track-prog" data-deco-line /></svg>
           <div id="loop-nodes"></div>
-          <div id="loop-chips"></div>
-          <div id="loop-cmd">/plan-build</div>
+          <div id="token" data-deco></div>
+          <div id="rail"></div>
+          <div class="pcard" id="lcard" data-deco></div>
           <div class="row" id="bug"></div>
           <div class="row" id="goal"></div>
           <div class="row" id="req"></div>
@@ -419,46 +433,6 @@ and the user has not allowed that in this session.</div>
           </div>
         </div>
 
-        <!-- scene 3b: the knowledge graph (distil, interpret, expand) -->
-        <div id="kg">
-          <div id="kg-graph">
-            <svg id="kg-edges" viewBox="0 0 1920 1080"></svg>
-            <div id="kg-nodes"></div>
-            <div class="hub" id="hub-billing" data-deco><span class="hk">about:</span><span>billing</span><div class="hglow"></div></div>
-            <div class="hub" id="hub-file" data-deco><span class="hk">cites:</span><span>src/billing/total.ts</span><div class="hglow"></div></div>
-            <div class="hub" id="hub-release" data-deco><span class="hk">tag:</span><span>release</span><div class="hglow"></div></div>
-          </div>
-          <div id="kd">
-            <div class="kcard" id="kd-session" data-deco><div class="kh"></div><div class="kl"></div><div class="kl"></div><div class="kl"></div></div>
-            <div class="knote" id="kd-note"></div>
-            <div class="krow" id="kr-0" style="top: 548px"><i class="kd"></i><span class="kt"></span><span class="kp" data-deco></span></div>
-            <div class="krow" id="kr-1" style="top: 618px"><i class="kd"></i><span class="kt"></span><span class="kp" data-deco></span></div>
-            <div class="krow" id="kr-2" style="top: 688px"><i class="kd"></i><span class="kt"></span><span class="kp" data-deco></span></div>
-          </div>
-          <div id="ki">
-            <div class="kcard" id="ki-search" data-deco>
-              <div class="kl tool">memory_search</div>
-              <div class="kl" id="ki-q"><span class="typed"></span><span class="rest"></span></div>
-              <div class="kl dim" id="ki-about"><span class="typed"></span><span class="rest"></span></div>
-            </div>
-            <div class="kchip stop" id="kc-0" data-deco style="top: 452px"></div>
-            <div class="kchip" id="kc-1" data-deco style="top: 452px"></div>
-            <div class="kchip" id="kc-2" data-deco style="top: 518px"></div>
-            <div class="krow" id="kx-0" style="top: 604px"><i class="kd"></i><span class="kt"></span><span class="kp" data-deco></span></div>
-            <div class="krow" id="kx-1" style="top: 674px"><i class="kd"></i><span class="kt"></span><span class="kp" data-deco></span></div>
-          </div>
-        </div>
-
-        <!-- scene 7: and more -->
-        <div id="more">
-          <div class="fcard" id="fc-0" data-deco><div class="fglow"></div><div class="ftitle"></div><div class="fcode"></div></div>
-          <div class="fcard" id="fc-1" data-deco><div class="fglow"></div><div class="ftitle"></div><div class="fcode"></div></div>
-          <div class="fcard" id="fc-2" data-deco><div class="fglow"></div><div class="ftitle"></div><div class="fcode"></div></div>
-          <div class="fcard" id="fc-3" data-deco><div class="fglow"></div><div class="ftitle"></div><div class="fcode"></div></div>
-          <div class="fcard" id="fc-4" data-deco><div class="fglow"></div><div class="ftitle"></div><div class="fcode"></div></div>
-          <div class="fcard" id="fc-5" data-deco><div class="fglow"></div><div class="ftitle"></div><div class="fcode"></div></div>
-        </div>
-
         <!-- harness tiles (the same seven objects in scenes 1, 2, 3 and 8) -->
         <div id="tiles">
           <!-- logos:tiles -->
@@ -499,16 +473,13 @@ and the user has not allowed that in this session.</div>
         <div class="head" id="h1b" data-block></div>
         <div class="head" id="h2" data-block></div>
         <div class="head" id="h3" data-block></div>
-        <div class="head" id="h3b" data-block></div>
-        <div class="head" id="h3c" data-block></div>
         <div class="head" id="h4" data-block></div>
         <div class="head" id="h5" data-block></div>
         <div class="head" id="h6" data-block></div>
-        <div class="head" id="h7" data-block></div>
       </div>
 
       <!-- music: music/score.py (original, synthesized, CC0) -->
-      <audio id="music" class="clip" src="assets/music/buracle-drive.m4a" data-start="0" data-duration="55" data-volume="0.62" data-track-index="1" data-audio-group="music"></audio>
+      <audio id="music" class="clip" src="assets/music/buracle-drive.m4a" data-start="0" data-duration="40" data-volume="0.62" data-track-index="1" data-audio-group="music"></audio>
       <!-- sound effects: one CC0 sound per cue, written by tools/write-sfx.mjs from its cue list (sources in CREDITS.md) -->
       <!-- sfx -->
       <audio id="sfx-01" class="clip" src="assets/sound/pop-kenney-interface-pluck-001.ogg" data-start="0.250" data-duration="0.1" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- Claude Code pops -->
@@ -521,95 +492,84 @@ and the user has not allowed that in this session.</div>
       <audio id="sfx-08" class="clip" src="assets/sound/impact-kenney-impact-impactsoft-heavy-001.ogg" data-start="1.250" data-duration="0.569" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- "7 setups." lands -->
       <audio id="sfx-09" class="clip" src="assets/sound/whoosh-fs830856.ogg" data-start="4.280" data-duration="0.4" data-volume="0.38" data-track-index="3" data-audio-group="sfx"></audio><!-- the logos gather into a row -->
       <audio id="sfx-10" class="clip" src="assets/sound/transition-kenney-interface-maximize-006.ogg" data-start="5.000" data-duration="0.368" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- the layer rises -->
-      <audio id="sfx-11" class="clip" src="assets/sound/impact-fs524817.ogg" data-start="6.000" data-duration="0.749" data-volume="0.72" data-track-index="3" data-audio-group="sfx"></audio><!-- lock onto the layer (the drop) -->
+      <audio id="sfx-11" class="clip" src="assets/sound/impact-fs524817.ogg" data-start="6.000" data-duration="0.749" data-volume="0.72" data-track-index="3" data-audio-group="sfx"></audio><!-- lock onto the layer (drop 1) -->
       <audio id="sfx-12" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="6.000" data-duration="0.076" data-volume="0.22" data-track-index="4" data-audio-group="sfx"></audio><!-- connector 1 -->
       <audio id="sfx-13" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="6.060" data-duration="0.077" data-volume="0.22" data-track-index="5" data-audio-group="sfx"></audio><!-- connector 3 -->
-      <audio id="sfx-14" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="6.120" data-duration="0.022" data-volume="0.22" data-track-index="4" data-audio-group="sfx"></audio><!-- connector 5 -->
-      <audio id="sfx-15" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="6.180" data-duration="0.076" data-volume="0.22" data-track-index="4" data-audio-group="sfx"></audio><!-- connector 7 -->
-      <audio id="sfx-16" class="clip" src="assets/sound/pop-fs-447910-plop.ogg" data-start="6.250" data-duration="0.243" data-volume="0.45" data-track-index="5" data-audio-group="sfx"></audio><!-- your projects -->
-      <audio id="sfx-17" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="7.000" data-duration="0.05" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Setup lights -->
-      <audio id="sfx-18" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="7.250" data-duration="0.066" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Memory lights -->
-      <audio id="sfx-19" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover4.ogg" data-start="7.500" data-duration="0.066" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Guards lights -->
-      <audio id="sfx-20" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="7.750" data-duration="0.05" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Workflows lights -->
-      <audio id="sfx-21" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="8.000" data-duration="0.066" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Tools lights -->
-      <audio id="sfx-22" class="clip" src="assets/sound/whoosh-fs-683101-quick-woosh.ogg" data-start="8.450" data-duration="0.282" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- zoom through the Memory module -->
-      <audio id="sfx-23" class="clip" src="assets/sound/whoosh-fs810485.ogg" data-start="9.380" data-duration="0.569" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- Codex CLI and Claude Code slide in -->
-      <audio id="sfx-24" class="clip" src="assets/sound/pop-kenney-interface-drop-002.ogg" data-start="10.400" data-duration="0.188" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- the Decision is written in Codex -->
-      <audio id="sfx-25" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="10.780" data-duration="0.172" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- the line to brain.db fills -->
-      <audio id="sfx-26" class="clip" src="assets/sound/ding-fs-634690-lil-pip.ogg" data-start="11.250" data-duration="0.058" data-volume="0.55" data-track-index="3" data-audio-group="sfx"></audio><!-- saved in brain.db -->
-      <audio id="sfx-27" class="clip" src="assets/sound/whoosh-fs-127197-fast-simple-chop-5-aif.ogg" data-start="11.330" data-duration="0.48" data-volume="0.28" data-track-index="3" data-audio-group="sfx"></audio><!-- the line to Claude Code fills -->
-      <audio id="sfx-28" class="clip" src="assets/sound/ding-kenney-interface-confirmation-001.ogg" data-start="12.000" data-duration="0.287" data-volume="0.55" data-track-index="3" data-audio-group="sfx"></audio><!-- recalled in Claude Code -->
-      <audio id="sfx-29" class="clip" src="assets/sound/transition-fs-702773-swipe-wav.ogg" data-start="13.950" data-duration="0.839" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- the memory scene slides out, the graph slides in -->
-      <audio id="sfx-30" class="clip" src="assets/sound/pop-kenney-interface-drop-001.ogg" data-start="15.000" data-duration="0.109" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- the session card -->
-      <audio id="sfx-31" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="15.600" data-duration="0.076" data-volume="0.35" data-track-index="3" data-audio-group="sfx"></audio><!-- one model call -->
-      <audio id="sfx-32" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="15.900" data-duration="0.05" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- candidate: gotcha -->
-      <audio id="sfx-33" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="16.150" data-duration="0.276" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- new -->
-      <audio id="sfx-34" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="16.200" data-duration="0.066" data-volume="0.4" data-track-index="4" data-audio-group="sfx"></audio><!-- candidate: decision -->
-      <audio id="sfx-35" class="clip" src="assets/sound/ding-kenney-interface-confirmation-002.ogg" data-start="16.450" data-duration="0.526" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- update -->
-      <audio id="sfx-36" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover4.ogg" data-start="16.500" data-duration="0.066" data-volume="0.4" data-track-index="4" data-audio-group="sfx"></audio><!-- candidate: procedure -->
-      <audio id="sfx-37" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="16.750" data-duration="0.077" data-volume="0.35" data-track-index="4" data-audio-group="sfx"></audio><!-- known -->
-      <audio id="sfx-38" class="clip" src="assets/sound/pop-fs527522.ogg" data-start="17.000" data-duration="0.082" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- the new gotcha joins the graph -->
-      <audio id="sfx-39" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="17.200" data-duration="0.022" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- edge to about: billing -->
-      <audio id="sfx-40" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="17.300" data-duration="0.076" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- edge to cites: src/billing/total.ts -->
-      <audio id="sfx-41" class="clip" src="assets/sound/kit-whoosh.ogg" data-start="19.450" data-duration="0.426" data-volume="0.3" data-track-index="3" data-audio-group="sfx"></audio><!-- the distillation leaves -->
-      <audio id="sfx-42" class="clip" src="assets/sound/pop-kenney-interface-maximize-002.ogg" data-start="19.600" data-duration="0.254" data-volume="0.35" data-track-index="4" data-audio-group="sfx"></audio><!-- the search card -->
-      <audio id="sfx-43" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="19.750" data-duration="0.4" data-volume="0.36" data-media-start="0.2" data-fade-out="0.05" data-track-index="5" data-audio-group="sfx"></audio><!-- the query types -->
-      <audio id="sfx-44" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="20.250" data-duration="0.2" data-volume="0.32" data-media-start="1.2" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- about types -->
-      <audio id="sfx-45" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="20.600" data-duration="0.05" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- stopword struck -->
-      <audio id="sfx-46" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="20.750" data-duration="0.066" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- stem 1 -->
-      <audio id="sfx-47" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover4.ogg" data-start="20.900" data-duration="0.066" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- stem 2 -->
-      <audio id="sfx-48" class="clip" src="assets/sound/transition-kenney-interface-maximize-006.ogg" data-start="21.300" data-duration="0.368" data-volume="0.34" data-track-index="3" data-audio-group="sfx"></audio><!-- the walk leaves the billing hub -->
-      <audio id="sfx-49" class="clip" src="assets/sound/ding-kenney-interface-glass-002.ogg" data-start="21.500" data-duration="0.122" data-volume="0.32" data-track-index="4" data-audio-group="sfx"></audio><!-- found by its words -->
-      <audio id="sfx-50" class="clip" src="assets/sound/ding-kenney-interface-confirmation-001.ogg" data-start="21.750" data-duration="0.287" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- found through the graph -->
-      <audio id="sfx-51" class="clip" src="assets/sound/whoosh-fs-683101-quick-woosh.ogg" data-start="24.200" data-duration="0.282" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- the graph leaves -->
-      <audio id="sfx-52" class="clip" src="assets/sound/pop-kenney-interface-maximize-002.ogg" data-start="25.000" data-duration="0.254" data-volume="0.35" data-track-index="3" data-audio-group="sfx"></audio><!-- the loop draws -->
-      <audio id="sfx-53" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="25.500" data-duration="0.076" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- Plan -->
-      <audio id="sfx-54" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="26.000" data-duration="0.077" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- Review -->
-      <audio id="sfx-55" class="clip" src="assets/sound/click-kenney-interface-click-001.ogg" data-start="26.500" data-duration="0.097" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- Approve -->
-      <audio id="sfx-56" class="clip" src="assets/sound/glitch-kenney-interface-glitch-002.ogg" data-start="27.000" data-duration="0.027" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- RED -->
-      <audio id="sfx-57" class="clip" src="assets/sound/ding-kenney-interface-confirmation-003.ogg" data-start="27.500" data-duration="0.316" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- GREEN -->
-      <audio id="sfx-58" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="28.000" data-duration="0.022" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- Verify -->
-      <audio id="sfx-59" class="clip" src="assets/sound/impact-kenney-impact-impactpunch-heavy-000.ogg" data-start="28.500" data-duration="0.527" data-volume="0.68" data-track-index="3" data-audio-group="sfx"></audio><!-- VERIFIED stamp -->
-      <audio id="sfx-60" class="clip" src="assets/sound/pop-fs527522.ogg" data-start="28.600" data-duration="0.082" data-volume="0.38" data-track-index="4" data-audio-group="sfx"></audio><!-- /bugfix, /goal-build and /requirements rows -->
-      <audio id="sfx-61" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="29.750" data-duration="0.276" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- proof -->
-      <audio id="sfx-62" class="clip" src="assets/sound/ding-kenney-interface-confirmation-002.ogg" data-start="30.350" data-duration="0.526" data-volume="0.3" data-track-index="3" data-audio-group="sfx"></audio><!-- judged -->
-      <audio id="sfx-63" class="clip" src="assets/sound/ding-kenney-interface-glass-002.ogg" data-start="30.950" data-duration="0.122" data-volume="0.3" data-track-index="3" data-audio-group="sfx"></audio><!-- approved -->
-      <audio id="sfx-64" class="clip" src="assets/sound/kit-whoosh.ogg" data-start="32.180" data-duration="0.426" data-volume="0.38" data-track-index="3" data-audio-group="sfx"></audio><!-- scene out -->
-      <audio id="sfx-65" class="clip" src="assets/sound/pop-kenney-interface-maximize-001.ogg" data-start="32.800" data-duration="0.253" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- the nine servers pop in -->
-      <audio id="sfx-66" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="33.300" data-duration="0.3" data-volume="0.38" data-media-start="0.2" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- question 1 types -->
-      <audio id="sfx-67" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="33.630" data-duration="0.172" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- routed to context7 -->
-      <audio id="sfx-68" class="clip" src="assets/sound/pop-kenney-interface-pluck-001.ogg" data-start="33.850" data-duration="0.1" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- context7 lights -->
-      <audio id="sfx-69" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="33.950" data-duration="0.3" data-volume="0.38" data-media-start="1" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- question 2 types -->
-      <audio id="sfx-70" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="34.280" data-duration="0.172" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- routed to codegraph -->
-      <audio id="sfx-71" class="clip" src="assets/sound/pop-kenney-interface-pluck-002.ogg" data-start="34.500" data-duration="0.117" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- codegraph lights -->
-      <audio id="sfx-72" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="34.600" data-duration="0.3" data-volume="0.38" data-media-start="1.8" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- question 3 types -->
-      <audio id="sfx-73" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="34.930" data-duration="0.172" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- routed to semble -->
-      <audio id="sfx-74" class="clip" src="assets/sound/pop-kenney-interface-drop-001.ogg" data-start="35.150" data-duration="0.109" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- semble lights -->
-      <audio id="sfx-75" class="clip" src="assets/sound/whoosh-fs-683101-quick-woosh.ogg" data-start="37.680" data-duration="0.282" data-volume="0.38" data-track-index="3" data-audio-group="sfx"></audio><!-- scene out -->
-      <audio id="sfx-76" class="clip" src="assets/sound/transition-kenney-interface-maximize-006.ogg" data-start="38.150" data-duration="0.368" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- the terminal rises -->
-      <audio id="sfx-77" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="38.600" data-duration="0.12" data-volume="0.38" data-media-start="0.2" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- rm -rf ~ types -->
-      <audio id="sfx-78" class="clip" src="assets/sound/impact-kenney-impact-impactsoft-heavy-001.ogg" data-start="38.800" data-duration="0.569" data-volume="0.62" data-track-index="3" data-audio-group="sfx"></audio><!-- DENIED -->
-      <audio id="sfx-79" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="38.950" data-duration="0.35" data-volume="0.38" data-media-start="1" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- git push --force types -->
-      <audio id="sfx-80" class="clip" src="assets/sound/ding-kenney-interface-bong-001.ogg" data-start="39.400" data-duration="0.12" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- ASK -->
-      <audio id="sfx-81" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="39.650" data-duration="0.15" data-volume="0.38" data-media-start="2" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- gh auth token types -->
-      <audio id="sfx-82" class="clip" src="assets/sound/glitch-kenney-interface-glitch-002.ogg" data-start="40.000" data-duration="0.027" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- the token scrambles -->
-      <audio id="sfx-83" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="40.300" data-duration="0.276" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- MASKED -->
-      <audio id="sfx-84" class="clip" src="assets/sound/transition-kenney-interface-minimize-002.ogg" data-start="42.720" data-duration="0.255" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- the terminal leaves -->
-      <audio id="sfx-85" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="43.400" data-duration="0.05" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- card: second opinion -->
-      <audio id="sfx-86" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="43.600" data-duration="0.066" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- card: handoff -->
-      <audio id="sfx-87" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover4.ogg" data-start="43.800" data-duration="0.066" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- card: skills add -->
-      <audio id="sfx-88" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="44.000" data-duration="0.05" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- card: Console -->
-      <audio id="sfx-89" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="44.200" data-duration="0.066" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- card: doctor -->
-      <audio id="sfx-90" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover4.ogg" data-start="44.400" data-duration="0.066" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- card: uninstall -->
-      <audio id="sfx-91" class="clip" src="assets/sound/transition-kenney-interface-minimize-002.ogg" data-start="48.600" data-duration="0.255" data-volume="0.48" data-track-index="3" data-audio-group="sfx"></audio><!-- the cards leave -->
-      <audio id="sfx-92" class="clip" src="assets/sound/transition-fs-786514-swoosh-v2.ogg" data-start="48.980" data-duration="0.3" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- the logos slam into a row -->
-      <audio id="sfx-93" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="49.120" data-duration="0.076" data-volume="0.22" data-track-index="4" data-audio-group="sfx"></audio><!-- logo 2 lands -->
-      <audio id="sfx-94" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="49.240" data-duration="0.077" data-volume="0.22" data-track-index="4" data-audio-group="sfx"></audio><!-- logo 4 lands -->
-      <audio id="sfx-95" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="49.360" data-duration="0.022" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- logo 6 lands -->
-      <audio id="sfx-96" class="clip" src="assets/sound/impact-fs-177242-cinematic-impact.ogg" data-start="49.500" data-duration="2.2" data-volume="0.62" data-fade-out="0.8" data-track-index="3" data-audio-group="sfx"></audio><!-- wordmark slam (the end drop) -->
-      <audio id="sfx-97" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="50.500" data-duration="0.8" data-volume="0.34" data-media-start="0.2" data-fade-out="0.06" data-track-index="4" data-audio-group="sfx"></audio><!-- the install command types -->
-      <audio id="sfx-98" class="clip" src="assets/sound/ding-fs-571513-soft-notifications-bell-ding-d.ogg" data-start="51.500" data-duration="0.695" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- stack.buracle.dev -->
-      <audio id="sfx-99" class="clip" src="assets/sound/pop-fs-447910-plop.ogg" data-start="52.300" data-duration="0.243" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- the colophon: Built by Burak Arslan -->
+      <audio id="sfx-14" class="clip" src="assets/sound/pop-fs-447910-plop.ogg" data-start="6.100" data-duration="0.243" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- your projects -->
+      <audio id="sfx-15" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="6.120" data-duration="0.022" data-volume="0.22" data-track-index="6" data-audio-group="sfx"></audio><!-- connector 5 -->
+      <audio id="sfx-16" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="6.180" data-duration="0.076" data-volume="0.22" data-track-index="5" data-audio-group="sfx"></audio><!-- connector 7 -->
+      <audio id="sfx-17" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="6.600" data-duration="0.05" data-volume="0.4" data-track-index="4" data-audio-group="sfx"></audio><!-- module Setup lights -->
+      <audio id="sfx-18" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="6.850" data-duration="0.066" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Memory lights -->
+      <audio id="sfx-19" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover4.ogg" data-start="7.100" data-duration="0.066" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Guards lights -->
+      <audio id="sfx-20" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover2.ogg" data-start="7.350" data-duration="0.05" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Workflows lights -->
+      <audio id="sfx-21" class="clip" src="assets/sound/ui-blip-kenney-ui-rollover3.ogg" data-start="7.600" data-duration="0.066" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- module Tools lights -->
+      <audio id="sfx-22" class="clip" src="assets/sound/whoosh-fs-683101-quick-woosh.ogg" data-start="7.900" data-duration="0.282" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- zoom through the Memory module -->
+      <audio id="sfx-23" class="clip" src="assets/sound/whoosh-fs810485.ogg" data-start="8.950" data-duration="0.569" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- Codex CLI slides in -->
+      <audio id="sfx-24" class="clip" src="assets/sound/pop-kenney-interface-drop-002.ogg" data-start="9.400" data-duration="0.188" data-volume="0.5" data-track-index="4" data-audio-group="sfx"></audio><!-- the Decision is written in Codex -->
+      <audio id="sfx-25" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="10.000" data-duration="0.172" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- the write line draws to the graph -->
+      <audio id="sfx-26" class="clip" src="assets/sound/ding-fs-634690-lil-pip.ogg" data-start="10.450" data-duration="0.058" data-volume="0.55" data-track-index="3" data-audio-group="sfx"></audio><!-- saved in brain.db, the decision joins the graph -->
+      <audio id="sfx-27" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="10.650" data-duration="0.022" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- edge to about: billing -->
+      <audio id="sfx-28" class="clip" src="assets/sound/kit-whoosh.ogg" data-start="11.250" data-duration="0.426" data-volume="0.3" data-track-index="3" data-audio-group="sfx"></audio><!-- Claude Code slides in -->
+      <audio id="sfx-29" class="clip" src="assets/sound/pop-kenney-interface-maximize-002.ogg" data-start="11.700" data-duration="0.254" data-volume="0.35" data-track-index="3" data-audio-group="sfx"></audio><!-- the search card -->
+      <audio id="sfx-30" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="12.100" data-duration="0.4" data-volume="0.36" data-media-start="0.2" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- the query types -->
+      <audio id="sfx-31" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="12.550" data-duration="0.2" data-volume="0.32" data-media-start="1.2" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- about types -->
+      <audio id="sfx-32" class="clip" src="assets/sound/transition-kenney-interface-maximize-006.ogg" data-start="12.900" data-duration="0.368" data-volume="0.34" data-track-index="3" data-audio-group="sfx"></audio><!-- the walk leaves the billing hub -->
+      <audio id="sfx-33" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="13.200" data-duration="0.172" data-volume="0.3" data-track-index="4" data-audio-group="sfx"></audio><!-- the memory is read from the graph -->
+      <audio id="sfx-34" class="clip" src="assets/sound/ding-kenney-interface-glass-002.ogg" data-start="13.500" data-duration="0.122" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- found -->
+      <audio id="sfx-35" class="clip" src="assets/sound/pop-fs527522.ogg" data-start="13.700" data-duration="0.082" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- Claude Code's finding -->
+      <audio id="sfx-36" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="14.200" data-duration="0.172" data-volume="0.3" data-track-index="3" data-audio-group="sfx"></audio><!-- the finding is written to the graph -->
+      <audio id="sfx-37" class="clip" src="assets/sound/ding-kenney-interface-confirmation-001.ogg" data-start="14.600" data-duration="0.287" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- the gotcha joins the graph -->
+      <audio id="sfx-38" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="14.800" data-duration="0.022" data-volume="0.22" data-track-index="4" data-audio-group="sfx"></audio><!-- edge to about: billing -->
+      <audio id="sfx-39" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="14.900" data-duration="0.076" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- edge to cites: src/billing/total.ts -->
+      <audio id="sfx-40" class="clip" src="assets/sound/whoosh-fs-683101-quick-woosh.ogg" data-start="16.150" data-duration="0.282" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- the memory scene leaves -->
+      <audio id="sfx-41" class="clip" src="assets/sound/pop-kenney-interface-maximize-002.ogg" data-start="16.850" data-duration="0.254" data-volume="0.35" data-track-index="3" data-audio-group="sfx"></audio><!-- the two panels rise -->
+      <audio id="sfx-42" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="17.500" data-duration="0.076" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- Plan -->
+      <audio id="sfx-43" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="17.600" data-duration="0.35" data-volume="0.3" data-media-start="0.2" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- buracle plan validate types -->
+      <audio id="sfx-44" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="18.200" data-duration="0.077" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- Review -->
+      <audio id="sfx-45" class="clip" src="assets/sound/pop-kenney-interface-pluck-001.ogg" data-start="18.250" data-duration="0.1" data-volume="0.3" data-track-index="4" data-audio-group="sfx"></audio><!-- the review report lands -->
+      <audio id="sfx-46" class="clip" src="assets/sound/click-kenney-interface-click-001.ogg" data-start="18.800" data-duration="0.097" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- Approve -->
+      <audio id="sfx-47" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="18.850" data-duration="0.3" data-volume="0.3" data-media-start="1" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- buracle plan set approved types -->
+      <audio id="sfx-48" class="clip" src="assets/sound/glitch-kenney-interface-glitch-002.ogg" data-start="19.300" data-duration="0.027" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- RED, task 1 -->
+      <audio id="sfx-49" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="19.300" data-duration="0.2" data-volume="0.3" data-media-start="1.8" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- bun test types -->
+      <audio id="sfx-50" class="clip" src="assets/sound/ding-kenney-interface-confirmation-003.ogg" data-start="20.000" data-duration="0.316" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- GREEN, task 1 -->
+      <audio id="sfx-51" class="clip" src="assets/sound/glitch-kenney-interface-glitch-002.ogg" data-start="20.150" data-duration="0.027" data-volume="0.35" data-track-index="4" data-audio-group="sfx"></audio><!-- RED again, task 2 -->
+      <audio id="sfx-52" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="20.700" data-duration="0.276" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- GREEN again, task 2 -->
+      <audio id="sfx-53" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="21.200" data-duration="0.022" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- Verify -->
+      <audio id="sfx-54" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="21.400" data-duration="0.3" data-volume="0.3" data-media-start="1.4" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- buracle plan verify types -->
+      <audio id="sfx-55" class="clip" src="assets/sound/impact-kenney-impact-impactpunch-heavy-000.ogg" data-start="22.000" data-duration="0.527" data-volume="0.68" data-track-index="3" data-audio-group="sfx"></audio><!-- VERIFIED stamp (drop 2) -->
+      <audio id="sfx-56" class="clip" src="assets/sound/pop-fs527522.ogg" data-start="22.300" data-duration="0.082" data-volume="0.38" data-track-index="4" data-audio-group="sfx"></audio><!-- /bugfix, /goal-build and /requirements start -->
+      <audio id="sfx-57" class="clip" src="assets/sound/ding-kenney-interface-confirmation-002.ogg" data-start="23.000" data-duration="0.526" data-volume="0.3" data-track-index="3" data-audio-group="sfx"></audio><!-- judged -->
+      <audio id="sfx-58" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="23.100" data-duration="0.276" data-volume="0.32" data-track-index="4" data-audio-group="sfx"></audio><!-- proof -->
+      <audio id="sfx-59" class="clip" src="assets/sound/ding-kenney-interface-glass-002.ogg" data-start="23.300" data-duration="0.122" data-volume="0.3" data-track-index="5" data-audio-group="sfx"></audio><!-- approved -->
+      <audio id="sfx-60" class="clip" src="assets/sound/kit-whoosh.ogg" data-start="25.200" data-duration="0.426" data-volume="0.38" data-track-index="3" data-audio-group="sfx"></audio><!-- scene out -->
+      <audio id="sfx-61" class="clip" src="assets/sound/pop-kenney-interface-maximize-001.ogg" data-start="25.650" data-duration="0.253" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- the nine servers pop in -->
+      <audio id="sfx-62" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="25.800" data-duration="0.25" data-volume="0.38" data-media-start="0.2" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- question 1 types -->
+      <audio id="sfx-63" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="26.000" data-duration="0.172" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- routed to context7 -->
+      <audio id="sfx-64" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="26.100" data-duration="0.25" data-volume="0.38" data-media-start="1" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- question 2 types -->
+      <audio id="sfx-65" class="clip" src="assets/sound/pop-kenney-interface-pluck-001.ogg" data-start="26.250" data-duration="0.1" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- context7 lights -->
+      <audio id="sfx-66" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="26.300" data-duration="0.172" data-volume="0.32" data-track-index="5" data-audio-group="sfx"></audio><!-- routed to codegraph -->
+      <audio id="sfx-67" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="26.400" data-duration="0.25" data-volume="0.38" data-media-start="1.8" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- question 3 types -->
+      <audio id="sfx-68" class="clip" src="assets/sound/pop-kenney-interface-pluck-002.ogg" data-start="26.550" data-duration="0.117" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- codegraph lights -->
+      <audio id="sfx-69" class="clip" src="assets/sound/whoosh-fs393811.ogg" data-start="26.600" data-duration="0.172" data-volume="0.32" data-track-index="5" data-audio-group="sfx"></audio><!-- routed to semble -->
+      <audio id="sfx-70" class="clip" src="assets/sound/pop-kenney-interface-drop-001.ogg" data-start="26.850" data-duration="0.109" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- semble lights -->
+      <audio id="sfx-71" class="clip" src="assets/sound/whoosh-fs-683101-quick-woosh.ogg" data-start="29.200" data-duration="0.282" data-volume="0.38" data-track-index="3" data-audio-group="sfx"></audio><!-- scene out -->
+      <audio id="sfx-72" class="clip" src="assets/sound/transition-kenney-interface-maximize-006.ogg" data-start="29.600" data-duration="0.368" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- the terminal rises -->
+      <audio id="sfx-73" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="29.900" data-duration="0.12" data-volume="0.38" data-media-start="0.2" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- rm -rf ~ types -->
+      <audio id="sfx-74" class="clip" src="assets/sound/impact-kenney-impact-impactsoft-heavy-001.ogg" data-start="30.100" data-duration="0.569" data-volume="0.62" data-track-index="3" data-audio-group="sfx"></audio><!-- DENIED -->
+      <audio id="sfx-75" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="30.150" data-duration="0.25" data-volume="0.38" data-media-start="1" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- git push --force types -->
+      <audio id="sfx-76" class="clip" src="assets/sound/ding-kenney-interface-bong-001.ogg" data-start="30.450" data-duration="0.12" data-volume="0.5" data-track-index="4" data-audio-group="sfx"></audio><!-- ASK -->
+      <audio id="sfx-77" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="30.500" data-duration="0.1" data-volume="0.38" data-media-start="2" data-fade-out="0.05" data-track-index="5" data-audio-group="sfx"></audio><!-- gh auth token types -->
+      <audio id="sfx-78" class="clip" src="assets/sound/glitch-kenney-interface-glitch-002.ogg" data-start="30.620" data-duration="0.027" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- the token scrambles -->
+      <audio id="sfx-79" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="30.800" data-duration="0.276" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- MASKED -->
+      <audio id="sfx-80" class="clip" src="assets/sound/transition-kenney-interface-minimize-002.ogg" data-start="33.280" data-duration="0.255" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- the terminal leaves -->
+      <audio id="sfx-81" class="clip" src="assets/sound/transition-fs-786514-swoosh-v2.ogg" data-start="33.480" data-duration="0.3" data-volume="0.42" data-track-index="4" data-audio-group="sfx"></audio><!-- the logos slam into a row -->
+      <audio id="sfx-82" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="33.620" data-duration="0.076" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- logo 2 lands -->
+      <audio id="sfx-83" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="33.740" data-duration="0.077" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- logo 4 lands -->
+      <audio id="sfx-84" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="33.860" data-duration="0.022" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- logo 6 lands -->
+      <audio id="sfx-85" class="clip" src="assets/sound/impact-fs-177242-cinematic-impact.ogg" data-start="34.000" data-duration="2.2" data-volume="0.62" data-fade-out="0.8" data-track-index="3" data-audio-group="sfx"></audio><!-- wordmark slam (the end drop) -->
+      <audio id="sfx-86" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="35.000" data-duration="0.8" data-volume="0.34" data-media-start="0.2" data-fade-out="0.06" data-track-index="4" data-audio-group="sfx"></audio><!-- the install command types -->
+      <audio id="sfx-87" class="clip" src="assets/sound/ding-fs-571513-soft-notifications-bell-ding-d.ogg" data-start="36.000" data-duration="0.695" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- stack.buracle.dev -->
+      <audio id="sfx-88" class="clip" src="assets/sound/pop-fs-447910-plop.ogg" data-start="36.800" data-duration="0.243" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- the colophon: Built by Burak Arslan -->
       <!-- /sfx -->
     </div>
 
@@ -621,28 +581,12 @@ and the user has not allowed that in this session.</div>
           h2: ["One", "layer", "under", "all", "of", "them."], h2hero: 1,
           modules: ["Setup", "Memory", "Guards", "Workflows", "Tools"], projects: "your projects",
           h3: ["One", "memory", "for", "every", "agent."], h3hero: 1,
-          h3b: ["Distilled", "into", "a", "knowledge", "graph."], h3bhero: [3, 4],
-          h3c: ["Search", "interprets,", "then", "expands."], h3chero: [1, 3],
-          session: ["session · Claude Code", "› fix the off-by-one in sumItems", "› keep totals in cents", "› release: build, test, tag"],
-          distil: "1 model call · up to 3 candidates",
-          verdicts: ["new", "update", "known"],
           query: '"decisions on totals"',
-          chips: ["on", "decisions → decision", "totals → total"],
-          via: ["words", "graph"],
           h4: ["Workflows", "that", "end", "in", "proof."], h4hero: 4,
           h5: ["9", "MCP", "servers,", "routed."], h5hero: 3,
           q: [["How do I tag cache entries", "in Next.js 15?"], ["Who calls sumItems?"], ["Where do we parse dates?"]],
           r: ["→ current docs", "→ callers, impact", "→ semantic search"],
           h6: ["Guards", "answer", "first."], h6hero: 0,
-          h7: ["And", "more", "under", "the", "hood."], h7hero: 1,
-          cards: [
-            "A second agent reviews the plan",
-            "Work resumes after a context reset",
-            "One skill, installed in all 7 agents",
-            "Memory and plan reviews on one local page",
-            "Health checks that name the fix",
-            "Uninstall removes only what it wrote",
-          ],
           tagline: ["One", "engineering", "setup,", "one", "memory,", "every", "coding", "agent"],
           maker: "Built by Burak Arslan",
         },
@@ -651,39 +595,26 @@ and the user has not allowed that in this session.</div>
           h2: ["Hepsinin", "altında", "tek", "katman."], h2hero: 3,
           modules: ["Kurulum", "Hafıza", "Korumalar", "İş akışları", "Araçlar"], projects: "projelerin",
           h3: ["Bütün", "ajanlara", "tek", "hafıza."], h3hero: 3,
-          h3b: ["Bilgi", "grafına", "damıtılır."], h3bhero: [0, 1],
-          h3c: ["Arama", "yorumlar,", "sonra", "genişler."], h3chero: [1, 3],
-          session: ["oturum · Claude Code", "› sumItems hatasını düzelt", "› toplamlar kuruşta kalsın", "› sürüm: build, test, tag"],
-          distil: "1 model çağrısı · en fazla 3 aday",
-          verdicts: ["yeni", "güncelle", "zaten var"],
           query: '"toplamlar için kararlar"',
-          chips: ["için", "toplamlar → toplam", "kararlar → karar"],
-          via: ["kelime", "graf"],
           h4: ["Kanıtla", "biten", "iş", "akışları."], h4hero: 0,
           h5: ["9", "MCP", "sunucusu,", "yönlendirmeli."], h5hero: 3,
           q: [["Next.js 15'te cache", "nasıl etiketlenir?"], ["sumItems'ı kim çağırıyor?"], ["Tarihleri nerede ayrıştırıyoruz?"]],
           r: ["→ güncel belgeler", "→ çağıranlar, etki", "→ anlamsal arama"],
           h6: ["Korumalar", "önce", "yanıtlar."], h6hero: 0,
-          h7: ["Dahası", "da", "var."], h7hero: 0,
-          cards: [
-            "Planı ikinci bir ajan da inceler",
-            "Bağlam sıfırlansa da iş kaldığı yerden sürer",
-            "Bir skill, yedi ajanın hepsine kurulur",
-            "Hafıza ve plan incelemesi tek yerel sayfada",
-            "Sorunu çözümüyle söyleyen sağlık kontrolü",
-            "Kaldırınca yalnızca kendi yazdığını siler",
-          ],
           tagline: ["Tek", "mühendislik", "kurulumu,", "tek", "hafıza,", "bütün", "kodlama", "ajanların"],
           maker: "Geliştiren Burak Arslan",
         },
       };
-      // what each feature card shows from the product itself: a setting (buracle config get plan), the first words of the
-      // session-start handoff line (src/core/memory/brain.ts), commands of the buracle CLI and the Console's address
-      const CARD_CODE = ["reviews.companion: codex", "Handoff (under 24 h old)", "buracle skills add <repo>", "http://localhost:41777", "buracle doctor", "buracle uninstall"];
       const vars = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
       const LANG = vars.lang === "tr" ? "tr" : "en";
       const C = COPY[LANG];
       document.documentElement.lang = LANG;
+
+      // ---------- the beat sheet in numbers (film seconds, 120 BPM: one beat 0.5 s, one bar 2 s) ----------
+      // The three big moments, each one an exact drop of the music (music/score.py reads the same numbers):
+      const LOCK_T = 6.0;   // the logos lock onto the layer
+      const T_V = 22.0;     // /plan-build ends VERIFIED
+      const T_WORD = 34.0;  // the wordmark slams onto the end card
 
       // ---------- helpers: pure functions of time ----------
       const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -719,6 +650,8 @@ and the user has not allowed that in this session.</div>
         set(el, { opacity: px(u * (1 - v)), transform: y ? `translateY(${y}px)` : "" });
         return u * (1 - v);
       }
+      // the same, for a value that is in a state from `since` on: the colour flashes to the accent for 0.5 s
+      const flashMix = (t, since) => (since == null ? 0 : 1 - seg(t, since, since + 0.5));
 
       // ---------- harness tiles ----------
       const HARNESS = [
@@ -772,12 +705,9 @@ and the user has not allowed that in this session.</div>
         h1b: words($("h1b"), C.h1b, 0),
         h2: words($("h2"), C.h2, C.h2hero),
         h3: words($("h3"), C.h3, C.h3hero),
-        h3b: words($("h3b"), C.h3b, C.h3bhero),
-        h3c: words($("h3c"), C.h3c, C.h3chero),
         h4: words($("h4"), C.h4, C.h4hero),
         h5: words($("h5"), C.h5, C.h5hero),
         h6: words($("h6"), C.h6, C.h6hero),
-        h7: words($("h7"), C.h7, C.h7hero),
       };
       const HEAD_IDS = Object.keys(HEADS);
       // words fade and rise in with a short stagger and rest dead still; all words leave together
@@ -796,7 +726,7 @@ and the user has not allowed that in this session.</div>
       function layout() {
         if (laidOut || document.fonts.status !== "loaded") return;
         // measure with every scene shown: render() hides the ones that are off at this time right after
-        for (const id of ["stack", "mem", "kg", "kd", "ki", "loop", "tools", "guards", "more", "end", ...HEAD_IDS]) $(id).style.display = "";
+        for (const id of ["stack", "mem", "loop", "tools", "guards", "end", ...HEAD_IDS]) $(id).style.display = "";
         for (const id of HEAD_IDS) {
           const el = $(id);
           let size = 104;
@@ -806,7 +736,7 @@ and the user has not allowed that in this session.</div>
         // "your projects" sits just left of the first project chip
         const pl = $("proj-label"), p0 = $("proj-0");
         pl.style.left = ip(PROJ_X[0] - p0.offsetWidth / 2 - 36 - pl.offsetWidth) + "px";
-        layLoop();
+        layRail();
         layRows();
         layTools();
         layTerm();
@@ -814,8 +744,35 @@ and the user has not allowed that in this session.</div>
         laidOut = true;
       }
 
-      // ---------- workflows: a stadium track with six nodes; the chips sit outside the track ----------
-      const ST = { cx: 960, cy: 470, w: 1240, h: 280 };
+      // ---------- workflows (scene 4): /plan-build runs for real, in two panels, under a rail of its six phases ----------
+      // Real commands and output: `buracle plan validate --strict`, `buracle plan set approved true`, bun test (the TTY
+      // reporter), `buracle plan complete` / `verify` (src/cli/commands/plan.ts), the plan file's frontmatter and task
+      // line (canonical/skills/plan-build/references/plan.md) and the review agent's verdict (canonical/agents/partials).
+      const PHASES = ["Plan", "Review", "Approve", "RED", "GREEN", "Verify"];
+      const PH_T = [17.5, 18.2, 18.8, 19.3, 20.0, 21.2]; // a phase lights on this beat or eighth
+      const S4_IN = 16.5, S4_OUT = 25.25;
+      const RAIL = PHASES.map((label, k) => {
+        const d = document.createElement("div");
+        d.className = "chip" + (k === 3 || k === 4 ? " code" : "");
+        d.setAttribute("data-deco", "");
+        d.textContent = label;
+        $("rail").appendChild(d);
+        return d;
+      });
+      const RAIL_ARROWS = [];
+      function layRail() {
+        RAIL.forEach((el, k) => {
+          const q = stPoint(NODE_S[k]);
+          const w = el.offsetWidth, h = el.offsetHeight;
+          set(el, { left: ip(q.x - w / 2) + "px", top: ip(k < 3 ? q.y - 24 - h : q.y + 24) + "px" });
+        });
+        const st = $("stamp");
+        set(st, { left: ip(1705 - st.offsetWidth / 2) + "px", top: ip(246 - st.offsetHeight / 2) + "px" });
+      }
+      // The loop: a stadium track with the six phases. A token runs along it; after GREEN it runs back to RED for the second
+      // task and forward again (the loop of the implement phase). In the middle a Claude Code session does the work, and
+      // one card shows the command it runs and what comes back.
+      const ST = { cx: 960, cy: 470, w: 1240, h: 340 };
       ST.r = ST.h / 2; ST.sl = ST.w - ST.h; ST.x0 = ST.cx - ST.sl / 2; ST.x1 = ST.cx + ST.sl / 2;
       ST.P = 2 * ST.sl + 2 * Math.PI * ST.r;
       function stPoint(s) {
@@ -833,45 +790,62 @@ and the user has not allowed that in this session.</div>
       {
         const { cy, r, x0, x1 } = ST;
         const d = `M${x0} ${cy - r}H${x1}A${r} ${r} 0 0 1 ${x1} ${cy + r}H${x0}A${r} ${r} 0 0 1 ${x0} ${cy - r}Z`;
-        $("track-base").setAttribute("d", d);
-        $("track-prog").setAttribute("d", d);
-        $("track-prog").setAttribute("stroke-dasharray", `${ST.P} ${ST.P}`);
-        $("track-base").setAttribute("stroke-dasharray", `${ST.P} ${ST.P}`);
+        for (const [id, col, w] of [["track-base", "rgba(148,163,184,0.28)", 4], ["track-prog", "#c4b5fd", 6]]) {
+          const el = $(id);
+          el.setAttribute("d", d); el.setAttribute("fill", "none"); el.setAttribute("stroke", col); el.setAttribute("stroke-width", w);
+          el.setAttribute("stroke-linecap", "round"); el.setAttribute("stroke-dasharray", `${ST.P} ${ST.P}`);
+        }
       }
-      const PLAN = ["Plan", "Review", "Approve", "RED", "GREEN", "Verify"];
       const NODE_S = [0, ST.sl / 2, ST.sl, ST.sl + Math.PI * ST.r, 1.5 * ST.sl + Math.PI * ST.r, 2 * ST.sl + Math.PI * ST.r];
-      const NODE_T = [25.5, 26.0, 26.5, 27.0, 27.5, 28.0]; // the progress line reaches node k on this beat
-      const VERIFIED_T = 28.5;
-      const NODES = PLAN.map((_, k) => {
+      const NODES = PHASES.map((_, k) => {
         const d = document.createElement("div");
         d.className = "node";
         d.setAttribute("data-deco", "");
-        const p = stPoint(NODE_S[k]);
-        set(d, { left: px(p.x) + "px", top: px(p.y) + "px" });
+        const q = stPoint(NODE_S[k]);
+        set(d, { left: px(q.x) + "px", top: px(q.y) + "px" });
         $("loop-nodes").appendChild(d);
         return d;
       });
-      const PLAN_CHIPS = PLAN.map((label, k) => {
-        const d = document.createElement("div");
-        d.className = "chip" + (k === 3 || k === 4 ? " code" : "");
-        d.setAttribute("data-deco", "");
-        d.textContent = label;
-        $("loop-chips").appendChild(d);
-        return d;
-      });
-      function layLoop() {
-        PLAN_CHIPS.forEach((el, k) => {
-          const p = stPoint(NODE_S[k]);
-          const w = el.offsetWidth, h = el.offsetHeight;
-          const top = k < 3 ? p.y - 24 - h : p.y + 24;
-          set(el, { left: ip(p.x - w / 2) + "px", top: ip(top) + "px" });
-        });
-        const cmd = $("loop-cmd");
-        set(cmd, { left: ip(ST.cx - cmd.offsetWidth / 2) + "px", top: ip(ST.cy - cmd.offsetHeight / 2) + "px" });
-        const st = $("stamp");
-        set(st, { left: ip(ST.cx - st.offsetWidth / 2) + "px", top: ip(ST.cy - st.offsetHeight / 2) + "px" });
+      // where the token is: [time, node]; it runs back from GREEN to RED for the second task
+      const TOKEN_KEYS = [[17.5, 0], [18.2, 1], [18.8, 2], [19.3, 3], [20.0, 4], [20.15, 3], [20.7, 4], [21.2, 5]];
+      function tokenS(t) {
+        if (t <= TOKEN_KEYS[0][0]) return { s: NODE_S[0], max: 0 };
+        let max = 0;
+        for (let i = 0; i < TOKEN_KEYS.length; i++) { if (t >= TOKEN_KEYS[i][0]) max = Math.max(max, NODE_S[TOKEN_KEYS[i][1]]); }
+        for (let i = 1; i < TOKEN_KEYS.length; i++) {
+          const [t0, n0] = TOKEN_KEYS[i - 1], [t1, n1] = TOKEN_KEYS[i];
+          if (t < t1) { const s = lerp(NODE_S[n0], NODE_S[n1], io2(seg(t, t1 - 0.3 < t0 ? t0 : t1 - 0.3, t1))); return { s, max: Math.max(max, s) }; }
+        }
+        const k = io3(seg(t, 21.4, 21.95));
+        const s = lerp(NODE_S[5], ST.P, k);
+        return { s, max: Math.max(max, s) };
       }
-      // /bugfix, /goal-build and /requirements: a command and its steps on one row each, under the loop
+      // the card in the middle: a log. A command types, its result lands, a test line starts red and flips to green.
+      const LROWS = [
+        { cmd: "buracle plan validate --strict", t0: 17.5, td: 0.35 },
+        { parts: [["plan-build-review", "a"], [": 1 should_fix", ""]], t0: 18.2 },
+        { cmd: "buracle plan set approved true", t0: 18.8, td: 0.3 },
+        { cmd: "bun test", t0: 19.3, td: 0.2 },
+        { flip: "Task 1 · blocks the 101st request", t0: 19.5, tf: 20.0 },
+        { flip: "Task 2 · 401 without a key", t0: 20.15, tf: 20.7 },
+        { parts: [["changes-review", "a"], [": pass, 0 findings", ""]], t0: 21.2 },
+        { cmd: "buracle plan verify", t0: 21.4, td: 0.3, res: "→ VERIFIED", rt: T_V },
+      ].map((r, i) => {
+        const el = document.createElement("div");
+        el.className = "tr";
+        el.style.top = 16 + 34 * i + "px";
+        el.innerHTML = r.cmd
+          ? `<span class="p">$ </span><span class="typed"></span><span class="res g"></span>`
+          : r.flip ? `<span class="sym r">✗</span><span class="txt"> ${r.flip}</span>`
+          : r.parts.map(([x, c]) => `<span${c ? ` class="${c}"` : ""}>${x}</span>`).join("");
+        if (r.cmd) el.querySelector(".res").textContent = r.res ? " " + r.res : "";
+        $("lcard").appendChild(el);
+        return { ...r, el };
+      });
+      // RED and GREEN light again for the second task: the loop of the implement phase
+      const RED_HOT = [[19.3, 19.9], [20.15, 20.65]], GREEN_HOT = [[20.0, 20.15], [20.7, 21.0]];
+      const inWin = (t, w) => w.some(([a, b]) => t >= a && t < b);
+      // the other three workflows: only their flow, one row each, run once the plan is VERIFIED
       function makeRow(host, cmd, labels, y, lits) {
         host.style.top = y - 32 + "px";
         const c = document.createElement("div");
@@ -895,11 +869,10 @@ and the user has not allowed that in this session.</div>
         });
         return { host, cmd: c, els, arrows, lits };
       }
-      const ROWS_IN = 28.6;
       const ROWS = [
-        makeRow($("bug"), "/bugfix", ["repro", "root cause", "RED", "fix", "proof"], 790, [28.95, 29.15, 29.35, 29.55, 29.75]),
-        makeRow($("goal"), "/goal-build", ["criteria", "rounds", "judged"], 875, [29.95, 30.15, 30.35]),
-        makeRow($("req"), "/requirements", ["research", "PRD", "approved"], 960, [30.55, 30.75, 30.95]),
+        makeRow($("bug"), "/bugfix", ["repro", "root cause", "RED", "fix", "proof"], 770, [22.3, 22.5, 22.7, 22.9, 23.1]),
+        makeRow($("goal"), "/goal-build", ["criteria", "rounds", "judged"], 850, [22.6, 22.8, 23.0]),
+        makeRow($("req"), "/requirements", ["research", "PRD", "approved"], 930, [22.9, 23.1, 23.3]),
       ];
       function layRows() {
         const cmdW = Math.max(...ROWS.map((row) => row.cmd.offsetWidth));
@@ -915,17 +888,26 @@ and the user has not allowed that in this session.</div>
           });
         }
       }
+      // chip colours: lit = accent, RED = rose, GREEN and Verify = green
+      function chipStyle(el, lit, red, green) {
+        set(el, {
+          borderColor: red ? "var(--alert)" : green ? "var(--ok)" : lit ? "var(--accent)" : "rgba(148,163,184,0.3)",
+          color: red ? "var(--alert)" : green ? "var(--ok)" : lit ? "var(--ink)" : "var(--ink-2)",
+          background: red ? "#2a1220" : green ? "#0f2219" : lit ? "#221c3a" : "#120f20",
+        });
+      }
 
-      // ---------- tools: a 3x3 grid of servers on the right, the questions on the left ----------
+      // ---------- tools (scene 5): a 3x3 grid of servers on the right, the questions on the left ----------
       const ORBS = ["context7", "chrome-devtools", "lsp", "codegraph", "web-fetch", "buracle-memory", "semble", "web-search", "grep"];
       const ORB_EL = ORBS.map((id) => $("o-" + id)); // static markup with inlined logos (tools/inline-logos.mjs)
       const GRID = ORBS.map((_, k) => ({ x: 1050 + (k % 3) * 300, y: 330 + Math.floor(k / 3) * 230 }));
       ORB_EL.forEach((el, k) => set(el, { left: GRID[k].x - 60 + "px", top: GRID[k].y - 60 + "px" }));
-      // each question types into its bubble over [tq, tq + 0.3], then a line routes it to its server (column 1 of its row)
+      // each question types into its bubble over [tq, tq + 0.25], then a line routes it to its server (column 1 of its row)
+      const S5_IN = 25.5, S5_OUT = 29.25;
       const ROUTE = [
-        { orb: 0, tq: 33.3, tl: 33.65, ta: 33.85 },
-        { orb: 3, tq: 33.95, tl: 34.3, ta: 34.5 },
-        { orb: 6, tq: 34.6, tl: 34.95, ta: 35.15 },
+        { orb: 0, tq: 25.8, tl: 26.05, ta: 26.25 },
+        { orb: 3, tq: 26.1, tl: 26.35, ta: 26.55 },
+        { orb: 6, tq: 26.4, tl: 26.65, ta: 26.85 },
       ];
       const BUB = ROUTE.map((r, i) => {
         const el = $("q-" + i);
@@ -947,15 +929,16 @@ and the user has not allowed that in this session.</div>
         });
       }
 
-      // ---------- guards terminal ----------
+      // ---------- guards terminal (scene 6) ----------
+      const S6_IN = 29.5, S6_OUT = 33.5;
       const TL = [
-        { el: $("tl-0"), text: "rm -rf ~", t0: 38.6, t1: 38.7, tv: 38.8 },
-        { el: $("tl-1"), text: "git push --force origin feature-x", t0: 38.95, t1: 39.3, tv: 39.4 },
-        { el: $("tl-2"), text: "gh auth token", t0: 39.65, t1: 39.8, tv: 40.3 },
-        { el: $("tl-3"), text: "", t0: 40.3, t1: 40.3, tv: 99 },
+        { el: $("tl-0"), text: "rm -rf ~", t0: 29.9, t1: 30.0, tv: 30.1 },
+        { el: $("tl-1"), text: "git push --force origin feature-x", t0: 30.15, t1: 30.4, tv: 30.45 },
+        { el: $("tl-2"), text: "gh auth token", t0: 30.5, t1: 30.58, tv: 30.8 },
+        { el: $("tl-3"), text: "", t0: 30.8, t1: 30.8, tv: 99 },
       ];
-      const PROMPT_T = [38.5, 38.8, 39.4, 40.3]; // each prompt line appears when the previous verdict lands
-      const TOKEN_T = 39.85, SCRAMBLE = [40.0, 40.2];
+      const PROMPT_T = [29.85, 30.1, 30.45, 30.8]; // each prompt line appears when the previous verdict lands
+      const TOKEN_T = 30.6, SCRAMBLE = [30.62, 30.74];
       const TOKEN = "[REDACTED:github]";
       const MASK = "[REDACTED:github]";
       function layTerm() {
@@ -969,64 +952,52 @@ and the user has not allowed that in this session.</div>
         });
       }
 
-      // ---------- and more: six feature cards in a 3x2 grid ----------
-      const CARDS = C.cards.map((title, k) => {
-        const el = $("fc-" + k);
-        el.querySelector(".ftitle").textContent = title;
-        el.querySelector(".fcode").textContent = CARD_CODE[k];
-        set(el, { left: 130 + (k % 3) * 560 + "px", top: 326 + Math.floor(k / 3) * 276 + "px" });
-        return { el, glow: el.querySelector(".fglow"), a0: 43.4 + 0.2 * k };
-      });
-      const MORE_OUT = 48.6;
-
-      // ---------- end card ----------
+      // ---------- end card (scene 7) ----------
+      const T_LOGOS = 33.5; // the seven logos slam into one row, a beat before the wordmark
       const TAG = words($("tagline"), C.tagline, -1);
       const CMD = "curl -fsSL https://stack.buracle.dev/install.sh | bash";
       $("maker-name").textContent = C.maker;
-      const MAKER_T = 52.3;
+      const MAKER_T = 36.8;
 
       // ---------- the layer camera: screen = (world - w) * s + c ----------
+      const T_ZOOM = 7.95; // the camera enters the Memory module; its light floods the frame (8.12-8.45)
       function stackCam(t) {
-        const k = in3(seg(t, 8.45, 8.9));
-        const m = io2(seg(t, 8.4, 8.85));
+        const k = in3(seg(t, T_ZOOM, T_ZOOM + 0.45));
+        const m = io2(seg(t, T_ZOOM - 0.05, T_ZOOM + 0.4));
         return { s: lerp(1, 7, k), wx: lerp(960, MEM_C.x, m), wy: lerp(540, MEM_C.y, m), cx: 960, cy: 540 };
       }
       const camPt = (cam, x, y) => ({ x: (x - cam.wx) * cam.s + cam.cx, y: (y - cam.wy) * cam.s + cam.cy });
       const riseY = (t) => ip(640 * (1 - out4(seg(t, 5.0, 5.9))));
-      const LOCK_T = 6.0;
 
       // ---------- tile positions per scene (screen px, tile centre) ----------
       const S1POS = [[330, 470], [750, 470], [1170, 470], [1590, 470], [540, 760], [960, 760], [1380, 760]];
       const POP = (i) => 0.25 + 0.125 * i;
-      const S3POS = { codex: 450, claude: 1470 };
-      const S3_Y = 440;
-      const S3_S = 1.35; // logo boxes are larger in scene 3; their names sit under the scaled box
       const ENDX = (k) => 960 + (k - 3) * 168;
       const END_Y = 142;
       const ENTRY = [[-220, 60], [300, -260], [960, -300], [1620, -260], [2140, 60], [-240, -120], [2160, -120]];
-      const WRITE_T = 10.4, SAVED_T = 11.25, RECALL_T = 12.0;
-      const s3slide = (t) => spring(t - 9.4, 9, 0.86);
-      const s3out = (t) => io3(seg(t, 14.0, 14.5)) * -1920;
 
-      // ---------- knowledge graph (scene 3b): one distillation, then one search over the same graph ----------
-      // Real logic, shown with real outputs: distillDecision (src/memory/distill.ts) files the three candidates as new,
-      // update (similarity 0.67 to A) and known (1.0 to C); memQueryWords + memStemForms (src/core/memory/query.ts,
-      // stem.ts) drop the stopword and give the stems; `about` sends entity_names with retrieval_mode "graph"
-      // (cortexAbout in src/core/memory/brain.ts), so D is found through the billing hub although no query word is in it.
-      const KD_IN = 15.0, KD_OUT = 19.2, KG_BORN = 17.0, KG_WALK = 21.3, KG_OUT = 24.2;
+      // ---------- scene 3: one memory and its knowledge graph, one canvas ----------
+      // Codex CLI writes a Decision into the graph from the left (memory_write), Claude Code reads from the right
+      // (memory_search with about: ["billing"]: memQueryWords and memStemForms, src/core/memory/query.ts and stem.ts;
+      // `about` sends entity_names with retrieval_mode "graph", cortexAbout in src/core/memory/brain.ts, so the walk
+      // starts at the billing hub) and writes a finding of its own, a gotcha, that joins the graph as a new node.
+      const S3_IN = 8.45, S3_OUT = 16.2;
+      const CODEX_T = 9.0, WRITE_T = 9.4, LINE_T = [10.0, 10.35], SAVED_T = 10.45;
+      const CLAUDE_T = 11.3, QRY_T = 11.7, KG_WALK = 12.9, RLINE_T = [13.2, 13.5];
+      const FIND_T = 13.7, FLINE_T = [14.2, 14.5], KG_BORN = 14.6;
+      const S3_TILE = { codex: [340, 330], claude: [1580, 330], s: 0.8 };
       const KIND_COL = { decision: "#c4b5fd", gotcha: "#fb7185", procedure: "#4ade80", knowledge: "#60a5fa", reference: "#94a3b8" };
-      const HUB = { billing: { el: $("hub-billing"), x: 1290, y: 560 }, file: { el: $("hub-file"), x: 1350, y: 840 }, release: { el: $("hub-release"), x: 1620, y: 360 } };
-      // A is the decision of scene 3, C the release procedure, D the gotcha the distillation adds; the rest fill the network
+      const HUB = { billing: { el: $("hub-billing"), x: 960, y: 560 }, file: { el: $("hub-file"), x: 960, y: 850 }, release: { el: $("hub-release"), x: 1160, y: 400 } };
+      // A is the decision Codex writes, D the gotcha Claude Code writes; the rest is the network that was already there
+      let popIdx = 0;
       const KN = [
-        { id: "A", kind: "decision", x: 1000, y: 420, hubs: ["billing"] },
-        { id: "B", kind: "knowledge", x: 1580, y: 545, hubs: ["billing"] },
-        { id: "C", kind: "procedure", x: 1770, y: 480, hubs: ["release"] },
-        { id: "D", kind: "gotcha", x: 1000, y: 700, hubs: ["billing", "file"], born: KG_BORN },
-        { id: "E", kind: "decision", x: 1190, y: 330, hubs: ["billing"] },
-        { id: "F", kind: "reference", x: 960, y: 900, hubs: ["file"] },
-        { id: "G", kind: "knowledge", x: 1720, y: 720, hubs: ["file"] },
-        { id: "H", kind: "procedure", x: 1420, y: 290, hubs: ["release"] },
-        { id: "I", kind: "gotcha", x: 1620, y: 970, hubs: ["file"] },
+        { id: "A", kind: "decision", x: 700, y: 480, hubs: ["billing"], born: SAVED_T },
+        { id: "B", kind: "knowledge", x: 1240, y: 560, hubs: ["billing"] },
+        { id: "C", kind: "procedure", x: 1250, y: 330, hubs: ["release"] },
+        { id: "D", kind: "gotcha", x: 1180, y: 730, hubs: ["billing", "file"], born: KG_BORN },
+        { id: "E", kind: "decision", x: 830, y: 350, hubs: ["billing"] },
+        { id: "F", kind: "reference", x: 700, y: 850, hubs: ["file"] },
+        { id: "G", kind: "knowledge", x: 1250, y: 910, hubs: ["file"] },
       ].map((n) => {
         const el = document.createElement("div");
         el.className = "kdot";
@@ -1036,51 +1007,23 @@ and the user has not allowed that in this session.</div>
         ring.className = "kring";
         el.appendChild(ring);
         $("kg-nodes").appendChild(el);
-        return { ...n, el, ring };
+        const born = n.born != null ? n.born : S3_IN + 0.25 + 0.07 * popIdx++; // the network pops in as the scene opens
+        return { ...n, el, ring, born };
       });
       const KN_BY = Object.fromEntries(KN.map((n) => [n.id, n]));
-      const KWALK = ["A", "E", "B", "D"]; // the memories the walk reaches from the billing hub, in order
+      const KWALK = ["A", "E", "B"]; // the memories the walk reaches from the billing hub, in order
       let KE = []; // edges, built by layKg() once the hub pills have their measured size
-      const CANDS = [
-        { kind: "gotcha", title: "sumItems skipped the last item", verdict: 0, a0: 15.9 },
-        { kind: "decision", title: "Totals stay in cents, never floats", verdict: 1, a0: 16.2 },
-        { kind: "procedure", title: "Release: build, test, tag", verdict: 2, a0: 16.5 },
-      ];
-      const PILL = [
-        { color: "var(--ok)", border: "rgba(74, 222, 128, 0.6)", bg: "#0f2219" },
-        { color: "var(--accent)", border: "rgba(196, 181, 253, 0.6)", bg: "#221c3a" },
-        { color: "var(--ink-2)", border: "rgba(148, 163, 184, 0.4)", bg: "#141824" },
-      ];
-      const HITS = [
-        { kind: "decision", title: "Totals stay in cents", via: 0, a0: 21.5 },
-        { kind: "gotcha", title: "sumItems skipped the last item", via: 1, a0: 21.75 },
-      ];
-      function fillRow(el, kind, title, pill, style) {
-        el.querySelector(".kd").style.background = KIND_COL[kind];
-        el.querySelector(".kt").textContent = title;
-        const p = el.querySelector(".kp");
-        p.textContent = pill;
-        set(p, { color: style.color, borderColor: style.border, background: style.bg });
-      }
-      {
-        const sess = $("kd-session");
-        sess.querySelector(".kh").textContent = C.session[0];
-        [...sess.querySelectorAll(".kl")].forEach((l, k) => (l.textContent = C.session[k + 1]));
-        $("kd-note").textContent = C.distil;
-        CANDS.forEach((c, k) => fillRow($("kr-" + k), c.kind, c.title, C.verdicts[c.verdict], PILL[c.verdict]));
-        HITS.forEach((h, k) => fillRow($("kx-" + k), h.kind, h.title, C.via[h.via], PILL[h.via === 0 ? 2 : 1]));
-        C.chips.forEach((c, k) => ($("kc-" + k).textContent = c));
-      }
       const KQ = [
-        { el: $("ki-q"), text: C.query, t0: 19.75, t1: 20.15 },
-        { el: $("ki-about"), text: 'about: ["billing"]', t0: 20.25, t1: 20.45 },
+        { el: $("ki-q"), text: C.query, t0: QRY_T + 0.4, t1: QRY_T + 0.8 },
+        { el: $("ki-about"), text: 'about: ["billing"]', t0: QRY_T + 0.85, t1: QRY_T + 1.05 },
       ];
-      const KCHIP_T = [20.6, 20.75, 20.9];
+      // the three lines that carry the memory: Codex's card to A, B to Claude Code's search, Claude Code's finding to D
+      const MLINES = { wline: [584, 548, 698, 484], rline: [1242, 560, 1336, 560], fline: [1338, 772, 1184, 732] };
       // where the line from (x, y) towards a pill's centre meets the pill: edges stop at the pill's border, off its text
       function boxHit(x, y, r) {
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         const dx = x - cx, dy = y - cy;
-        const k = Math.min(dx === 0 ? Infinity : (r.width / 2 + 4) / Math.abs(dx), dy === 0 ? Infinity : (r.height / 2 + 4) / Math.abs(dy));
+        const k = Math.min(dx === 0 ? Infinity : (r.width / 2 - 8) / Math.abs(dx), dy === 0 ? Infinity : (r.height / 2 - 8) / Math.abs(dy));
         return { x: cx + dx * k, y: cy + dy * k };
       }
       function layKg() {
@@ -1102,57 +1045,64 @@ and the user has not allowed that in this session.</div>
           svg.appendChild(line);
           KE.push({ line, node: n, hub: hid, len, walk: hid === "billing" ? KWALK.indexOf(n.id) : -1 });
         }
-        $("kc-1").style.left = 120 + $("kc-0").offsetWidth + 12 + "px";
+        for (const [id, [x1, y1, x2, y2]] of Object.entries(MLINES)) {
+          const w = $(id), len = Math.hypot(x2 - x1, y2 - y1);
+          for (const [k, v] of [["x1", x1], ["y1", y1], ["x2", x2], ["y2", y2]]) w.setAttribute(k, v);
+          w.setAttribute("stroke-dasharray", `${px(len)} ${px(len)}`);
+          w.setAttribute("stroke", "#c4b5fd");
+          w.setAttribute("stroke-width", 4);
+          w.len = len;
+        }
       }
 
       function tileState(i, t) {
         const h = HARNESS[i];
-        if (t < 9.0) {
+        if (t < 8.0) {
           // scene 1: pop where they stand; scene 2: gather into one row, lock onto the layer, ride the zoom
           const [sx, sy] = S1POS[i];
           const p = POP(i);
           const g = spring(t - (4.3 + 0.05 * i), 9, 0.86);
           let x = lerp(sx, ROW_X(i), g), y = lerp(sy, ROW_Y, g), s = spring(t - p, 15, 0.6);
-          if (t >= 8.4) { const cam = stackCam(t); const q = camPt(cam, ROW_X(i), ROW_Y); x = q.x; y = q.y; s *= cam.s; }
+          if (t >= T_ZOOM - 0.05) { const cam = stackCam(t); const q = camPt(cam, ROW_X(i), ROW_Y); x = q.x; y = q.y; s *= cam.s; }
           const path = t < 4.0 ? textIn(t, p + 0.1, 0.25) * (1 - textOut(t, 3.75)) : 0;
           const glow = pulse(t, p + 0.04, 0.12) * 0.9 + pulse(t, LOCK_T + 0.03 * i, 0.14) * 0.9;
           return { x, y, s, op: t < p ? 0 : 1, path, name: 0, glow };
         }
-        if (t < 14.5) {
-          // scene 3: Codex CLI and Claude Code face each other across brain.db
-          if (h.id !== "codex" && h.id !== "claude") return null;
-          const k = s3slide(t);
-          const x = (h.id === "codex" ? lerp(-200, S3POS.codex, k) : lerp(2120, S3POS.claude, k)) + s3out(t);
-          const name = textIn(t, 9.9, 0.25);
-          const glow = (h.id === "codex" ? pulse(t, WRITE_T + 0.02, 0.16) : pulse(t, RECALL_T + 0.02, 0.16)) * 0.9;
-          return { x, y: S3_Y, s: S3_S, op: 1, path: 0, name, glow };
+        if (t < S3_OUT + 0.3) {
+          // scene 3: Codex CLI writes from the left of the graph, Claude Code reads from the right
+          const fo = 1 - textOut(t, S3_OUT);
+          if (h.id === "codex") {
+            const k = spring(t - CODEX_T, 9, 0.86);
+            return { x: lerp(-200, S3_TILE.codex[0], k), y: S3_TILE.codex[1], s: S3_TILE.s, op: fo, path: 0, name: textIn(t, CODEX_T + 0.35, 0.25) * fo, glow: pulse(t, WRITE_T + 0.02, 0.16) * 0.9 };
+          }
+          if (h.id === "claude" && t >= CLAUDE_T - 0.1) {
+            const k = spring(t - CLAUDE_T, 9, 0.86);
+            return { x: lerp(2120, S3_TILE.claude[0], k), y: S3_TILE.claude[1], s: S3_TILE.s, op: fo, path: 0, name: textIn(t, CLAUDE_T + 0.35, 0.25) * fo, glow: (pulse(t, QRY_T + 0.45, 0.16) + pulse(t, FIND_T + 0.02, 0.16)) * 0.9 };
+          }
+          return null;
         }
-        if (t >= 48.95) {
-          // scene 8: the seven logos slam into one row
-          const k = spring(t - (49.0 + 0.06 * i), 13, 0.78);
-          return { x: lerp(ENTRY[i][0], ENDX(i), k), y: lerp(ENTRY[i][1], END_Y, k), s: lerp(1.3, 1, k), op: 1, path: 0, name: 0, glow: pulse(t, 49.2 + 0.06 * i, 0.12) * 0.8 };
+        if (t >= T_LOGOS - 0.05) {
+          // scene 7: the seven logos slam into one row
+          const k = spring(t - (T_LOGOS + 0.06 * i), 13, 0.78);
+          return { x: lerp(ENTRY[i][0], ENDX(i), k), y: lerp(ENTRY[i][1], END_Y, k), s: lerp(1.3, 1, k), op: 1, path: 0, name: 0, glow: pulse(t, T_LOGOS + 0.2 + 0.06 * i, 0.12) * 0.8 };
         }
         return null;
       }
 
-      // chip colours: lit = accent, RED = rose, the finishing step = green
-      function chipStyle(el, lit, red, green) {
-        set(el, {
-          borderColor: red ? "var(--alert)" : green ? "var(--ok)" : lit ? "var(--accent)" : "rgba(148,163,184,0.3)",
-          color: red ? "var(--alert)" : green ? "var(--ok)" : lit ? "var(--ink)" : "var(--ink-2)",
-          background: red ? "#2a1220" : green ? "#0f2219" : lit ? "#221c3a" : "#120f20",
-        });
-      }
-
       // ---------- render ----------
+      const hexRgb = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+      // the ground flashes towards a colour on each drop, and fades back within 0.6 s (it sits behind every letter)
+      const FLASH = [[LOCK_T, [96, 72, 200]], [T_V, [44, 150, 96]], [T_WORD, [96, 72, 200]]];
       function render(t) {
         layout();
 
-        // ground: tint per scene, a slow drifting dot grid that breathes on the beat
-        const grounds = [[0, "#05060a"], [8.95, "#0b0d24"], [14.25, "#0c0a24"], [24.25, "#110a22"], [32.45, "#070c1b"], [37.95, "#160a10"], [42.95, "#0a0c18"], [48.9, "#06070d"]];
+        // ground: tint per scene, a slow drifting dot grid that breathes on the beat, a flash on each of the three drops
+        const grounds = [[0, "#05060a"], [8.4, "#0b0d24"], [16.45, "#110a22"], [25.45, "#070c1b"], [29.45, "#160a10"], [33.4, "#06070d"]];
         let gcol = grounds[0][1];
         for (const [a, c] of grounds) if (t >= a) gcol = c;
-        set($("ground"), { background: gcol });
+        let gr = hexRgb(gcol);
+        for (const [tf, col] of FLASH) if (t >= tf && t < tf + 0.7) { const k = 0.5 * Math.exp(-(t - tf) / 0.16); gr = gr.map((v, i) => lerp(v, col[i], k)); }
+        set($("ground"), { background: `rgb(${gr.map(Math.round).join(",")})` });
         const gm = (t * 10) % 48;
         const beatGlow = pulse(t % BEAT, 0, 0.09);
         set($("grid"), { transform: `translate(${px(-gm)}px, ${px(-gm * 0.5)}px)`, opacity: px(0.5 + 0.25 * beatGlow) });
@@ -1160,25 +1110,23 @@ and the user has not allowed that in this session.</div>
         // lights
         let a = { x: 960, y: 560, o: 0.5, s: 1 }, b = { x: 960, y: 560, o: 0, s: 1 }, rr = 0;
         if (t < 4.0) a = { x: 960, y: 600, o: 0.45, s: 1 };
-        else if (t < 9.0) { a = { x: 960, y: 620 + riseY(t), o: 0.85 + 0.45 * pulse(t, LOCK_T, 0.3), s: 1.1 }; b = { x: 960, y: 380, o: 0.55, s: 0.9 }; }
-        else if (t < 14.5) { a = { x: 960, y: 460, o: 0.8 + 0.4 * pulse(t, SAVED_T, 0.25), s: 0.9 }; b = { x: 960, y: 760, o: 0.4, s: 0.7 }; }
-        else if (t < 24.5) { a = { x: 1300, y: 600, o: 0.7 + 0.35 * pulse(t, KG_BORN, 0.3) + 0.35 * pulse(t, KG_WALK, 0.3), s: 1.0 }; b = { x: 440, y: 560, o: 0.3, s: 0.7 }; }
-        else if (t < 32.5) { a = { x: 960, y: 500, o: 0.8 + 0.4 * pulse(t, VERIFIED_T, 0.3), s: 1.1 }; b = { x: 960, y: 470, o: 0.35 + 0.5 * pulse(t, VERIFIED_T, 0.4), s: 0.6 }; }
-        else if (t < 38.0) { a = { x: 1350, y: 560, o: 0.8, s: 1.0 }; b = { x: 480, y: 560, o: 0.35, s: 0.7 }; }
-        else if (t < 43.0) { rr = 0.75 + 0.4 * pulse(t, 38.8, 0.25); a = { x: 960, y: 600, o: 0.15, s: 1 }; }
-        else if (t < 48.95) { a = { x: 960, y: 560, o: 0.7, s: 1.15 }; b = { x: 960, y: 300, o: 0.4, s: 0.9 }; }
-        else { a = { x: 960, y: 420, o: 0.85 + 0.35 * pulse(t, 49.5, 0.35), s: 1.15 }; b = { x: 960, y: 470, o: 0.55, s: 0.8 }; }
+        else if (t < 8.0) { a = { x: 960, y: 620 + riseY(t), o: 0.85 + 0.45 * pulse(t, LOCK_T, 0.3), s: 1.1 }; b = { x: 960, y: 380, o: 0.55, s: 0.9 }; }
+        else if (t < 16.5) { a = { x: 1300, y: 600, o: 0.7 + 0.35 * pulse(t, SAVED_T, 0.3) + 0.35 * pulse(t, KG_WALK, 0.3), s: 1.0 }; b = { x: 440, y: 560, o: 0.3, s: 0.7 }; }
+        else if (t < 25.5) { a = { x: 960, y: 500, o: 0.8 + 0.4 * pulse(t, T_V, 0.3), s: 1.1 }; b = { x: 960, y: 470, o: 0.35 + 0.5 * pulse(t, T_V, 0.4), s: 0.6 }; }
+        else if (t < 29.5) { a = { x: 1350, y: 560, o: 0.8, s: 1.0 }; b = { x: 480, y: 560, o: 0.35, s: 0.7 }; }
+        else if (t < 33.5) { rr = 0.75 + 0.4 * pulse(t, 30.1, 0.25); a = { x: 960, y: 600, o: 0.15, s: 1 }; }
+        else { a = { x: 960, y: 420, o: 0.85 + 0.35 * pulse(t, T_WORD, 0.35), s: 1.15 }; b = { x: 960, y: 470, o: 0.55, s: 0.8 }; }
         const kick = 1 + 0.12 * pulse(t % BEAT, 0, 0.1);
         set($("light-a"), { opacity: px(clamp(a.o * 0.8 * kick)), transform: `translate(${px(a.x)}px, ${px(a.y)}px) scale(${a.s})` });
         set($("light-b"), { opacity: px(clamp(b.o * 0.8 * kick)), transform: `translate(${px(b.x)}px, ${px(b.y)}px) scale(${b.s})` });
         set($("light-r"), { opacity: px(clamp(rr * 0.8 * kick)), transform: "translate(960px, 600px) scale(1.2)" });
 
-        // flood: an iris of the Memory module's light opens as the camera enters it (8.62-8.95)
+        // flood: an iris of the Memory module's light opens as the camera enters it (7.62-7.95)
         const fl = $("flood");
-        if (t >= 8.62 && t < 8.95) {
+        if (t >= T_ZOOM + 0.17 && t < T_ZOOM + 0.5) {
           const cam = stackCam(t);
           const c = camPt(cam, MEM_C.x, MEM_C.y);
-          const k = in2(seg(t, 8.62, 8.95));
+          const k = in2(seg(t, T_ZOOM + 0.17, T_ZOOM + 0.5));
           const rmax = Math.hypot(Math.max(c.x, 1920 - c.x), Math.max(c.y, 1080 - c.y)) * 1.05;
           const R = lerp(60 * cam.s, rmax, k);
           // a disc of the module's lit colour that dims to the next scene's ground as it opens
@@ -1190,37 +1138,38 @@ and the user has not allowed that in this session.</div>
         // headlines (one slot): in, hold, out before the next scene's headline
         if (show($("h1a"), t < 4.0)) headline(HEADS.h1a, t, 0, 3.75);
         if (show($("h1b"), t >= 1.25 && t < 4.0)) headline(HEADS.h1b, t, 1.25, 3.75);
-        if (show($("h2"), t >= 4.0 && t < 8.45)) headline(HEADS.h2, t, 4.0, 8.15);
-        if (show($("h3"), t >= 9.0 && t < 14.2)) headline(HEADS.h3, t, 9.0, 13.9);
-        if (show($("h3b"), t >= 14.5 && t < 19.5)) headline(HEADS.h3b, t, 14.5, KD_OUT);
-        if (show($("h3c"), t >= 19.5 && t < 24.5)) headline(HEADS.h3c, t, 19.5, KG_OUT);
-        if (show($("h4"), t >= 24.5 && t < 32.45)) headline(HEADS.h4, t, 24.5, 32.15);
-        if (show($("h5"), t >= 32.5 && t < 37.95)) headline(HEADS.h5, t, 32.5, 37.65);
-        if (show($("h6"), t >= 38.0 && t < 42.95)) headline(HEADS.h6, t, 38.0, 42.65);
-        if (show($("h7"), t >= 43.0 && t < 48.9)) headline(HEADS.h7, t, 43.0, MORE_OUT);
+        if (show($("h2"), t >= 4.0 && t < T_ZOOM)) headline(HEADS.h2, t, 4.0, T_ZOOM - 0.3);
+        if (show($("h3"), t >= S3_IN && t < 16.3)) headline(HEADS.h3, t, S3_IN, 16.0);
+        if (show($("h4"), t >= S4_IN && t < 25.3)) headline(HEADS.h4, t, S4_IN, 25.0);
+        if (show($("h5"), t >= S5_IN && t < 29.35)) headline(HEADS.h5, t, S5_IN, 29.05);
+        if (show($("h6"), t >= S6_IN && t < 33.4)) headline(HEADS.h6, t, S6_IN, 33.1);
 
         // scene 2: the layer
-        if (show($("stack"), t >= 4.9 && t < 8.96)) {
+        if (show($("stack"), t >= 4.9 && t < S3_IN - 0.04)) {
           const cam = stackCam(t);
-          set($("stack"), { transform: cam.s === 1 ? "" : `translate(${px(cam.cx - cam.wx * cam.s)}px, ${px(cam.cy - cam.wy * cam.s)}px) scale(${px(cam.s)})` });
+          const sh = t >= LOCK_T && t < LOCK_T + 0.5 && cam.s === 1 ? 16 * Math.exp(-(t - LOCK_T) / 0.12) : 0;
+          set($("stack"), { transform: cam.s === 1 ? (sh > 0.2 ? `translate(${px(sh * Math.sin(70 * (t - LOCK_T)))}px, ${px(sh * Math.cos(53 * (t - LOCK_T)))}px)` : "") : `translate(${px(cam.cx - cam.wx * cam.s)}px, ${px(cam.cy - cam.wy * cam.s)}px) scale(${px(cam.s)})` });
           const ry = riseY(t);
           set($("rise"), { transform: ry ? `translateY(${ry}px)` : "", opacity: px(clamp(seg(t, 5.0, 5.3))) });
-          set($("layer-glow"), { opacity: px(0.9 * pulse(t, LOCK_T, 0.22)) });
+          set($("layer-glow"), { opacity: px(clamp(1.1 * pulse(t, LOCK_T, 0.26))) });
+          // the wordmark is not there until the lock: it slams in from a larger size while the whole layer shakes
+          const wk = out4(seg(t, LOCK_T, LOCK_T + 0.3)), wsc = lerp(1.35, 1, wk);
+          set($("layer-wm"), { opacity: t >= LOCK_T ? 1 : 0, transform: wsc - 1 < 0.001 ? "" : `scale(${px(wsc)})` });
           for (let k = 0; k < 5; k++) {
-            const on = seg(t, 7.0 + 0.25 * k, 7.1 + 0.25 * k);
+            const on = seg(t, 6.6 + 0.25 * k, 6.7 + 0.25 * k);
             const c = $("cell-" + k);
             c.querySelector(".cfill").style.opacity = px(on);
             c.style.color = on > 0.5 ? "var(--ink)" : "var(--ink-2)";
           }
           conns.forEach((c, i) => { const k = out3(seg(t, LOCK_T + 0.03 * i, LOCK_T + 0.2 + 0.03 * i)); set(c, { transform: `scaleY(${px(k)})`, opacity: k > 0 ? 1 : 0 }); });
-          pconns.forEach((c, i) => { const k = out3(seg(t, 6.15 + 0.05 * i, 6.35 + 0.05 * i)); set(c, { transform: `scaleY(${px(k)})`, opacity: k > 0 ? 1 : 0 }); });
+          pconns.forEach((c, i) => { const k = out3(seg(t, 6.0 + 0.03 * i, 6.2 + 0.03 * i)); set(c, { transform: `scaleY(${px(k)})`, opacity: k > 0 ? 1 : 0 }); });
           PROJ_X.forEach((x, i) => {
             const el = $("proj-" + i);
-            const u = textIn(t, 6.25 + 0.05 * i, 0.3);
+            const u = textIn(t, 6.0 + 0.03 * i, 0.25);
             const y = ip((1 - u) * 16);
             set(el, { left: ip(x - el.offsetWidth / 2) + "px", opacity: px(u), transform: y ? `translateY(${y}px)` : "" });
           });
-          textState($("proj-label"), t, 6.15, null);
+          textState($("proj-label"), t, 6.0, null);
         }
 
         // tiles
@@ -1238,45 +1187,35 @@ and the user has not allowed that in this session.</div>
           el.querySelector(".tglow").style.opacity = px(clamp(st.glow));
         });
 
-        // scene 3: memory. The line to brain.db fills, brain.db turns green (saved), the line to Claude Code fills.
-        if (show($("mem"), t >= 9.3 && t < 14.5)) {
-          const out = s3out(t);
-          const bin = spring(t - 9.5, 10, 0.85);
-          const saved = pulse(t, SAVED_T, 0.35);
-          set($("brain"), { transform: `translateX(${px(out)}px) scale(${px(lerp(0.4, 1.2, bin))})`, opacity: px(clamp(bin * 1.6)) });
-          $("brain-hot").style.opacity = px(saved);
-          const bl = $("brain-label");
-          const lu = textIn(t, 9.9, 0.25);
-          set(bl, { opacity: px(lu), transform: `translateX(-50%) translate(${ip(out)}px, ${ip((1 - lu) * 10)}px)` });
-          set($("mline-a"), { transform: `translateX(${px(out)}px) scaleX(${px(out3(seg(t, 9.9, 10.2)))})` });
-          set($("mline-b"), { transform: `translateX(${px(out)}px) scaleX(${px(out3(seg(t, 9.95, 10.25)))})` });
-          set($("mfill-a"), { transform: `translateX(${px(out)}px) scaleX(${px(io2(seg(t, 10.8, 11.2)))})` });
-          set($("mfill-b"), { transform: `translateX(${px(out)}px) scaleX(${px(io2(seg(t, 11.35, 11.75)))})` });
-          for (const [id, a0] of [["card-a", WRITE_T], ["card-b", RECALL_T]]) {
-            const u = textIn(t, a0, 0.3);
-            const y = ip((1 - u) * 18);
-            set($(id), { opacity: px(u), transform: `translate(${ip(out)}px, ${y}px)` });
-          }
-        }
-
-        // scene 3b: the knowledge graph slides in after the memory scene, then a distillation and a search run over it
-        if (show($("kg"), t >= 14.0 && t < 24.5)) {
-          const slide = t < 14.5 ? s3out(t) + 1920 : 0;
-          const fo = 1 - textOut(t, KG_OUT);
-          set($("kg-graph"), { transform: slide ? `translateX(${px(slide)}px)` : "", opacity: px(fo) });
+        // scene 3: one memory and its knowledge graph. Codex CLI writes a Decision, it joins the graph and brain.db turns
+        // green (saved); Claude Code searches, the walk through the billing hub reaches the memories, and Claude Code
+        // writes a gotcha of its own that joins the graph as a new node.
+        if (show($("mem"), t >= S3_IN - 0.05 && t < S3_OUT + 0.3)) {
+          const fo = 1 - textOut(t, S3_OUT);
+          set($("kg-graph"), { opacity: px(fo) });
+          const bin = spring(t - (S3_IN + 0.1), 10, 0.85);
+          set($("brain"), { transform: `scale(${px(lerp(0.4, 1, bin))})`, opacity: px(clamp(bin * 1.6)) });
+          $("brain-hot").style.opacity = px(pulse(t, SAVED_T, 0.35) + pulse(t, KG_BORN, 0.35));
+          textState($("brain-label"), t, S3_IN + 0.35, null, 10);
+          for (const h of Object.values(HUB)) set(h.el, { opacity: px(textIn(t, S3_IN + 0.2, 0.3)) });
+          // the three lines that carry the memory
+          const ln = (id, a, b, out) => {
+            const w = $(id), k = out3(seg(t, a, b));
+            w.setAttribute("stroke-dashoffset", px(w.len * (1 - k)));
+            w.style.opacity = px((k > 0 ? 1 : 0) * (out ? 1 - seg(t, out, out + 0.3) : 1) * fo);
+          };
+          ln("wline", LINE_T[0], LINE_T[1], SAVED_T + 0.25);
+          ln("rline", RLINE_T[0], RLINE_T[1], null);
+          ln("fline", FLINE_T[0], FLINE_T[1], KG_BORN + 0.3);
+          // nodes: the network pops in, the written decision (A) and Claude Code's gotcha (D) arrive when they are written
           KN.forEach((n) => {
-            const b = n.born ? spring(t - n.born, 14, 0.62) : 1;
-            set(n.el, { opacity: px(n.born ? clamp(b * 3) : 1), transform: b < 1 ? `scale(${px(Math.max(0, b))})` : "" });
+            const b = spring(t - n.born, 14, 0.62);
+            set(n.el, { opacity: px(clamp(b * 3)), transform: b < 1 ? `scale(${px(Math.max(0, b))})` : "" });
           });
-          // rings: the update lands on A, the known one on C, the query's words match A, the graph walk reaches D
-          const rings = { A: pulse(t, 16.47, 0.3) + pulse(t, 20.95, 0.3), C: pulse(t, 16.77, 0.3), D: pulse(t, KG_WALK + 0.4, 0.35) };
-          for (const [id, v] of Object.entries(rings)) {
-            const r = KN_BY[id].ring;
-            r.style.opacity = px(clamp(v));
-            r.style.borderColor = id === "C" ? "var(--ink-3)" : "var(--accent)";
-          }
+          const rings = { A: pulse(t, SAVED_T + 0.05, 0.3) + pulse(t, KG_WALK + 0.3, 0.3), B: pulse(t, RLINE_T[0] + 0.1, 0.3), D: pulse(t, KG_BORN + 0.05, 0.35) };
+          for (const [id, v] of Object.entries(rings)) KN_BY[id].ring.style.opacity = px(clamp(v));
           KE.forEach((e) => {
-            const drawn = e.node.born ? out3(seg(t, e.node.born + 0.2, e.node.born + 0.5)) : 1;
+            const drawn = out3(seg(t, e.node.born + 0.2, e.node.born + 0.5));
             const lit = e.walk >= 0 && t >= KG_WALK + 0.05 + 0.1 * e.walk;
             e.line.setAttribute("stroke-dashoffset", px(e.len * (1 - drawn)));
             e.line.setAttribute("stroke", lit ? "#c4b5fd" : "rgba(148,163,184,0.38)");
@@ -1284,56 +1223,62 @@ and the user has not allowed that in this session.</div>
             e.line.style.opacity = drawn > 0 ? 1 : 0;
           });
           HUB.billing.el.querySelector(".hglow").style.opacity = px(0.9 * seg(t, KG_WALK, KG_WALK + 0.15));
-          // the distillation: the session, one bounded model call, three candidates and what happened to each
-          if (show($("kd"), t >= 14.9 && t < 19.5)) {
-            textState($("kd-session"), t, KD_IN, KD_OUT, 18);
-            textState($("kd-note"), t, 15.6, KD_OUT, 12);
-            CANDS.forEach((c, k) => {
-              const row = $("kr-" + k);
-              const u = textIn(t, c.a0, 0.3), o = textOut(t, KD_OUT);
-              const dim = c.verdict === 2 ? 1 - 0.35 * seg(t, 17.0, 17.3) : 1;
-              const y = ip((1 - u) * 16 - o * 10);
-              set(row, { opacity: px(u * (1 - o) * dim), transform: y ? `translateY(${y}px)` : "" });
-              row.querySelector(".kp").style.opacity = px(out3(seg(t, c.a0 + 0.25, c.a0 + 0.45)));
-            });
-          }
-          // the search: the query is typed, interpreted into stems, then expanded through the graph
-          if (show($("ki"), t >= 19.5 && t < 24.5)) {
-            textState($("ki-search"), t, 19.6, KG_OUT, 18);
-            KQ.forEach((q) => {
-              const n = Math.round(q.text.length * seg(t, q.t0, q.t1));
-              q.el.querySelector(".typed").textContent = q.text.slice(0, n);
-              q.el.querySelector(".rest").textContent = q.text.slice(n);
-            });
-            C.chips.forEach((_, k) => textState($("kc-" + k), t, KCHIP_T[k], KG_OUT, 12));
-            HITS.forEach((h, k) => textState($("kx-" + k), t, h.a0, KG_OUT, 16));
-          }
+          // Codex's card, Claude Code's search and Claude Code's finding
+          textState($("card-a"), t, WRITE_T, S3_OUT, 18);
+          textState($("ki-search"), t, QRY_T, S3_OUT, 18);
+          KQ.forEach((q) => {
+            const n = Math.round(q.text.length * seg(t, q.t0, q.t1));
+            q.el.querySelector(".typed").textContent = q.text.slice(0, n);
+            q.el.querySelector(".rest").textContent = q.text.slice(n);
+          });
+          textState($("card-b"), t, FIND_T, S3_OUT, 18);
         }
 
-        // scene 4: workflows
-        if (show($("loop"), t >= 24.9 && t < 32.46)) {
-          const fo = 1 - textOut(t, 32.15);
-          const draw = io2(seg(t, 25.0, 25.35));
+        // scene 4: the workflows. /plan-build is one loop: the token runs along the six phases, a Claude Code session in the
+        // middle does the work and one card shows the command and what comes back.
+        if (show($("loop"), t >= S4_IN + 0.1 && t < S4_OUT + 0.3)) {
+          const fo = 1 - textOut(t, S4_OUT);
+          const tk = tokenS(t);
+          const draw = io2(seg(t, 16.75, 17.25));
           $("track-base").setAttribute("stroke-dashoffset", px(ST.P * (1 - draw)));
-          // the progress line runs node to node on the beats, and closes the loop before VERIFIED
-          let s = 0;
-          for (let k = 1; k < 6; k++) s = lerp(s, NODE_S[k], io3(seg(t, NODE_T[k] - 0.3, NODE_T[k])));
-          s = lerp(s, ST.P, io3(seg(t, 28.05, 28.45)));
-          $("track-prog").setAttribute("stroke-dashoffset", px(ST.P - (t < NODE_T[0] ? 0 : s)));
+          $("track-prog").setAttribute("stroke-dashoffset", px(ST.P - (t < TOKEN_KEYS[0][0] ? 0 : tk.max)));
           set($("track"), { opacity: px(fo) });
-          PLAN_CHIPS.forEach((el, k) => {
-            const lit = t >= NODE_T[k] - 0.02;
+          const q = stPoint(tk.s);
+          set($("token"), { left: px(q.x) + "px", top: px(q.y) + "px", opacity: px((t >= TOKEN_KEYS[0][0] && t < 22.0 ? 1 : 0) * fo) });
+          RAIL.forEach((el, k) => {
+            const lit = t >= PH_T[k] - 0.02;
             const red = k === 3 && lit, green = (k === 4 || k === 5) && lit;
-            set(el, { opacity: px(textIn(t, 25.05 + 0.05 * k, 0.25) * fo) });
+            const u = textIn(t, 16.75 + 0.06 * k, 0.25) * fo;
+            set(el, { opacity: px(u), transform: `translateY(${ip((1 - textIn(t, 16.75 + 0.06 * k, 0.25)) * 14)}px)` });
             chipStyle(el, lit, red, green);
-            set(NODES[k], { opacity: px(textIn(t, 25.05 + 0.05 * k, 0.25) * fo), background: lit ? (red ? "var(--alert)" : green ? "var(--ok)" : "var(--accent)") : "#1d1838" });
+            el.style.boxShadow = (k === 3 && inWin(t, RED_HOT)) ? "0 0 28px rgba(251,113,133,0.7)" : (k === 4 && inWin(t, GREEN_HOT)) ? "0 0 28px rgba(74,222,128,0.7)" : "";
+            set(NODES[k], { opacity: px(u), background: lit ? (red ? "var(--alert)" : green ? "var(--ok)" : "var(--accent)") : "#1d1838" });
           });
-          set($("loop-cmd"), { opacity: px(textIn(t, 25.1, 0.3) * (1 - seg(t, 28.0, 28.25))) });
-          const sa = seg(t, VERIFIED_T, VERIFIED_T + 0.22), so = seg(t, 32.15, 32.4);
-          const sc = lerp(1.6, 1, out4(sa)) * lerp(1, 0.05, in3(so));
-          set($("stamp"), { opacity: px((t >= VERIFIED_T ? clamp(sa * 3) : 0) * (1 - so)), transform: Math.abs(sc - 1) < 1e-4 ? "" : `scale(${px(sc)})` });
+          // the log in the middle
+          textState($("lcard"), t, 17.0, S4_OUT, 10);
+          LROWS.forEach((r) => {
+            const o = 1 - textOut(t, S4_OUT);
+            if (!r.parts) r.el.style.transform = textOut(t, S4_OUT) > 0 ? `translateY(${-ip(textOut(t, S4_OUT) * 10)}px)` : "";
+            if (r.cmd) {
+              const n = Math.round(r.cmd.length * seg(t, r.t0, r.t0 + r.td));
+              r.el.querySelector(".typed").textContent = r.cmd.slice(0, n);
+              r.el.style.opacity = t >= r.t0 ? px(o) : 0;
+              if (r.res) r.el.querySelector(".res").style.opacity = px(seg(t, r.rt, r.rt + 0.15));
+            } else if (r.flip) {
+              const g = t >= r.tf, sym = r.el.querySelector(".sym");
+              sym.textContent = g ? "✓" : "✗";
+              sym.className = "sym " + (g ? "g" : "r");
+              r.el.querySelector(".txt").style.color = g ? "var(--ok)" : "var(--alert-ink)";
+              r.el.style.opacity = t >= r.t0 ? px(o) : 0;
+            } else textState(r.el, t, r.t0, S4_OUT, 8);
+          });
+          // the VERIFIED stamp slams in at the drop and stays
+          const sa = seg(t, T_V, T_V + 0.22);
+          const sc = lerp(1.2, 1, out4(sa));
+          set($("stamp"), { opacity: px((t >= T_V ? clamp(sa * 3) : 0) * fo), transform: Math.abs(sc - 1) < 1e-4 ? "" : `scale(${px(sc)})` });
+          // the other three workflows: only their flow, step by step
           for (const row of ROWS) {
-            textState(row.host, t, ROWS_IN, 32.15, 18);
+            textState(row.host, t, 22.2, S4_OUT, 18);
             row.els.forEach((el, k) => {
               const lit = t >= row.lits[k];
               chipStyle(el, lit, el.textContent === "RED" && lit, k === row.els.length - 1 && lit);
@@ -1343,26 +1288,26 @@ and the user has not allowed that in this session.</div>
         }
 
         // scene 5: tools
-        if (show($("tools"), t >= 32.7 && t < 37.95)) {
-          const fo = 1 - textOut(t, 37.65);
+        if (show($("tools"), t >= S5_IN + 0.05 && t < S5_OUT + 0.2)) {
+          const fo = 1 - textOut(t, S5_OUT);
           ORB_EL.forEach((el, k) => {
-            const a0 = 32.8 + 0.05 * k;
-            const u = out4(seg(t, a0, a0 + 0.35));
+            const a0 = 25.65 + 0.04 * k;
+            const u = out4(seg(t, a0, a0 + 0.3));
             const routed = ROUTE.find((r) => r.orb === k);
             const lit = routed ? seg(t, routed.ta - 0.02, routed.ta + 0.08) : 0;
             set(el, { opacity: px(clamp(u * 2) * fo) });
             el.querySelector(".obox").style.transform = u >= 1 ? "" : `scale(${px(lerp(0.6, 1, u))})`;
             el.querySelector(".oglow").style.opacity = px(lit);
             const nm = el.querySelector(".oname");
-            if (nm) nm.style.opacity = px(textIn(t, 33.2, 0.25));
+            if (nm) nm.style.opacity = px(textIn(t, 25.9, 0.25));
           });
           ROUTE.forEach((r, i) => {
             const b = BUB[i];
             const u = textIn(t, r.tq - 0.05, 0.2);
             set(b.el, { opacity: px(u * fo) });
-            // type the lines one after another over [tq, tq + 0.3]
+            // type the lines one after another over [tq, tq + 0.25]
             const total = b.lines.reduce((n, l) => n + l.length, 0);
-            let n = Math.round(total * seg(t, r.tq, r.tq + 0.3));
+            let n = Math.round(total * seg(t, r.tq, r.tq + 0.25));
             b.lines.forEach((l, k) => {
               const m = Math.min(l.length, n);
               n -= m;
@@ -1371,14 +1316,14 @@ and the user has not allowed that in this session.</div>
             });
             const lk = out3(seg(t, r.tl, r.ta));
             set($("ql-" + i), { transform: `scaleX(${px(lk)})`, opacity: px((lk > 0 ? 1 : 0) * fo) });
-            textState($("r-" + i), t, r.ta, 37.65, 12);
+            textState($("r-" + i), t, r.ta, S5_OUT, 12);
           });
         }
 
         // scene 6: guards
-        if (show($("guards"), t >= 38.1 && t < 43.0)) {
-          const tin = out3(seg(t, 38.15, 38.5));
-          const tout = in2(seg(t, 42.72, 42.98));
+        if (show($("guards"), t >= S6_IN + 0.05 && t < S6_OUT)) {
+          const tin = out3(seg(t, 29.6, 29.9));
+          const tout = in2(seg(t, 33.3, 33.5));
           set($("term"), { opacity: px(tin * (1 - tout)), transform: `translateY(${ip((1 - tin) * 40 + tout * 40)}px)` });
           TL.forEach((l, i) => {
             const n = Math.round(l.text.length * seg(t, l.t0, l.t1));
@@ -1408,35 +1353,24 @@ and the user has not allowed that in this session.</div>
           } else set(tok, { opacity: 0 });
         }
 
-        // scene 7: and more. Cards rise in on eighths, their border flashes once, then they hold still.
-        if (show($("more"), t >= 43.3 && t < 48.9)) {
-          const fo = 1 - textOut(t, MORE_OUT);
-          CARDS.forEach((c) => {
-            const u = out3(seg(t, c.a0, c.a0 + 0.3));
-            const y = ip((1 - u) * 28 + (1 - fo) * 14);
-            set(c.el, { opacity: px(u * fo), transform: y ? `translateY(${y}px)` : "" });
-            c.glow.style.opacity = px(0.9 * pulse(t, c.a0 + 0.12, 0.2));
-          });
-        }
-
-        // scene 8: end card
-        if (show($("end"), t >= 48.95)) {
-          const line = out4(seg(t, 49.2, 49.5));
+        // scene 7: end card
+        if (show($("end"), t >= T_LOGOS - 0.05)) {
+          const line = out4(seg(t, T_WORD - 0.3, T_WORD));
           set($("end-line"), { transform: `scaleX(${px(line)})`, opacity: px(clamp(line * 2)) });
           // the wordmark wipes in by pixel columns, then settles from a small slam
-          $("wm-clip-rect").setAttribute("width", Math.round(92 * seg(t, 49.42, 49.6)));
-          const slam = out4(seg(t, 49.5, 49.85));
-          set($("wordmark"), { transform: t >= 49.5 && slam < 1 ? `scale(${px(lerp(1.08, 1, slam))})` : "" });
+          $("wm-clip-rect").setAttribute("width", Math.round(92 * seg(t, T_WORD - 0.08, T_WORD + 0.1)));
+          const slam = out4(seg(t, T_WORD, T_WORD + 0.35));
+          set($("wordmark"), { transform: t >= T_WORD && slam < 1 ? `scale(${px(lerp(1.08, 1, slam))})` : "" });
           TAG.forEach((w, i) => {
-            const a0 = 50.0 + i * 0.04, u = out3(seg(t, a0, a0 + 0.3));
+            const a0 = 34.5 + i * 0.04, u = out3(seg(t, a0, a0 + 0.3));
             const y = ip((1 - u) * 16);
             set(w, { opacity: px(t < a0 ? 0 : u), transform: y ? `translateY(${y}px)` : "" });
           });
-          const iu = textIn(t, 50.4, 0.3);
+          const iu = textIn(t, 34.9, 0.3);
           set($("install"), { opacity: px(iu), transform: `translateX(-50%) translateY(${ip((1 - iu) * 18)}px)` });
-          $("install-tx").textContent = CMD.slice(0, Math.round(CMD.length * seg(t, 50.5, 51.3)));
-          $("install-caret").style.opacity = t < 51.3 || Math.floor((t - 51.3) / 0.5) % 2 === 0 ? 1 : 0;
-          textState($("url"), t, 51.5, null, 16);
+          $("install-tx").textContent = CMD.slice(0, Math.round(CMD.length * seg(t, 35.0, 35.8)));
+          $("install-caret").style.opacity = t < 35.8 || Math.floor((t - 35.8) / 0.5) % 2 === 0 ? 1 : 0;
+          textState($("url"), t, 36.0, null, 16);
           // the colophon rises in under the URL and holds to the last frame
           textState($("maker"), t, MAKER_T, null, 18);
         }
@@ -1448,7 +1382,7 @@ and the user has not allowed that in this session.</div>
       render(0);
       const clock = { t: 0 };
       const tl = gsap.timeline({ paused: true });
-      tl.to(clock, { t: 55, duration: 55, ease: "none", onUpdate: () => render(clock.t) }, 0);
+      tl.to(clock, { t: 40, duration: 40, ease: "none", onUpdate: () => render(clock.t) }, 0);
       window.__timelines["main"] = tl;
     </script>
   </body>

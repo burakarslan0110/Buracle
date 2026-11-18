@@ -197,7 +197,7 @@ describe('landing: the router and the guards', () => {
   })
 })
 
-describe('landing: the page stays short and the film is 55 seconds', () => {
+describe('landing: the page stays short and the film is 40 seconds', () => {
   test('no terminal windows: the install command is the only shell line above the footer', () => {
     for (const l of LANGS) {
       const main = between(page(l), '<main id="main">', '</main>')
@@ -206,9 +206,9 @@ describe('landing: the page stays short and the film is 55 seconds', () => {
     }
   })
 
-  test('the film is 55 seconds in every word the page says about it', () => {
-    expect(homes.en.video.label).toContain('55 seconds')
-    expect(homes.tr.video.label).toContain('55 saniye')
-    for (const l of LANGS) expect(JSON.stringify(homes[l])).not.toMatch(/(30|45) (seconds|saniye)/)
+  test('the film is 40 seconds in every word the page says about it', () => {
+    expect(homes.en.video.label).toContain('40 seconds')
+    expect(homes.tr.video.label).toContain('40 saniye')
+    for (const l of LANGS) expect(JSON.stringify(homes[l])).not.toMatch(/(30|45|55) (seconds|saniye)/)
   })
 })

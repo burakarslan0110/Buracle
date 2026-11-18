@@ -7,7 +7,7 @@ Every file in `assets/` that the film uses, with its source and licence. The sit
 
 | File | Source | Licence |
 | --- | --- | --- |
-| `assets/music/buracle-drive.m4a` | Original 55 s track for this film, synthesized from code by `music/score.py` (120 BPM, A minor, one chord per bar, numpy and scipy, seeded noise). No samples or third-party recordings. | CC0 1.0 (dedicated to the public domain with the film) |
+| `assets/music/buracle-drive.m4a` | Original 40 s track for this film, synthesized from code by `music/score.py` (120 BPM, A minor, one chord per bar, numpy and scipy, seeded noise; its three drops are on the exact frames 6.0, 22.0 and 34.0 s, see `tools/check-sync.mjs`). No samples or third-party recordings. | CC0 1.0 (dedicated to the public domain with the film) |
 
 Rebuild it with `python3 music/score.py /tmp/score.wav` (needs numpy and scipy; without a local install,
 `uv run --with numpy --with scipy python music/score.py /tmp/score.wav`), then
@@ -117,9 +117,16 @@ Lucide (ISC license, https://lucide.dev), drawn inline.
 - Config folders: `configDir.under` of each profile in `src/core/harness/` (`~/.claude`, `~/.codex`,
   `~/.config/opencode`, `~/.omp/agent`, `~/.qwen`, `~/.pi/agent`, `~/.gemini/config`).
 - The memory card follows `memoryRow` in `src/memory/ui/panel.js` (kind with dot, time, title, `recalled 1×` badge).
-- The loop phases and the VERIFIED end state follow the `/plan-build` workflow (`PlanStatus` of `src/core/plan/format.ts`
-  ends in VERIFIED); the `/bugfix`, `/goal-build` and `/requirements` steps follow the workflows on the landing page
-  (`site/content/en/home.json`, `loops`).
+- The workflows scene shows what the phases of `/plan-build` do. The plan file is the example of
+  `canonical/skills/plan-build/references/plan.md` (the frontmatter `status` and `approved`, `# Rate-limit the public API`,
+  `### Task 1`, the task line `- [ ] Task 1 done`); its `status` goes PENDING, APPROVED, IN_PROGRESS, COMPLETE and
+  VERIFIED as `PlanStatus` of `src/core/plan/format.ts` and `buracle plan set` / `complete` / `verify` do. The commands
+  are `buracle plan validate --strict`, `buracle plan set approved true` and `buracle plan verify`
+  (`src/cli/commands/plan.ts`); the review line is the verdict of `plan-build-review` and `changes-review` with its
+  severities (`canonical/agents/partials/review-shared.md`); `bun test` prints `✗` and `✓` for a failing and a passing
+  test in a terminal. The test name, the counts and the line numbers are made up. The `/bugfix`, `/goal-build` and
+  `/requirements` cards follow the steps of their skills (`canonical/skills/bugfix`, `goal-build`, `requirements`: reproduce
+  and root cause, criteria and at most four judge rounds, research and a PRD that is approved).
 - Guard texts are real output: `checkBash('rm -rf ~')` of `src/core/policy/bash-guard.ts` with the `Buracle Stack H01:`
   prefix of `denyReason` in `src/adapters/shared/pipeline/types.ts`; the first sentence of `consentVerdict` for
   `git push --force origin feature-x` in `src/core/policy/consent.ts` (hook H20 in `pre-tool.ts`); `maskToolOutput` and
@@ -129,11 +136,11 @@ Lucide (ISC license, https://lucide.dev), drawn inline.
   hubs). The distillation follows `distillSession` and `distillDecision` in `src/memory/distill.ts` and `DISTILL_BUDGET`
   in `src/core/memory/budgets.ts` (one bounded model call, at most 3 candidates; the three outcomes were computed with
   `distillDecision` on the titles the film shows). The search follows `memQueryWords`, `memStemForms` and `cortexAbout`
-  (`src/core/memory/query.ts`, `stem.ts`, `brain.ts`); the stems on screen are their output for the two queries.
-- The feature cards show product text: `reviews.companion` as `buracle config get plan` prints it (`canonical/buracle.yaml`;
-  the values are `off`, `auto` or a harness, `src/core/config.ts`), the first words of the session-start handoff line
-  (`src/core/memory/brain.ts`), `buracle skills add`, `buracle doctor` and `buracle uninstall` from the CLI help, and
-  the Console address `http://localhost:41777` from `buracle help mem`.
+  (`src/core/memory/query.ts`, `stem.ts`, `brain.ts`). In the memory scene, the memory is one canvas: the Decision that
+  Codex writes is node A of the graph, the session is distilled into candidates (the third one lands on C, a known
+  memory), and the search from Claude Code walks from the `about: billing` hub to A by its words and to D, the new gotcha,
+  through the graph.
 
-`assets/sound/impact-kenney-impact-impactpunch-heavy-001.ogg` and `riser-kenney-digital-phaserup1.ogg` (both Kenney,
-CC0 1.0) are not placed by the round-5 cut; they can be deleted.
+`assets/sound/impact-kenney-impact-impactpunch-heavy-001.ogg`, `riser-kenney-digital-phaserup1.ogg`,
+`transition-fs-702773-swipe-wav.ogg` and `whoosh-fs-127197-fast-simple-chop-5-aif.ogg` (Kenney and Freesound, CC0 1.0)
+are not placed by the round-6 cut; they can be deleted.

@@ -28,7 +28,7 @@ const opt = (name, def) => { const i = args.indexOf(`--${name}`); return i >= 0 
 const LANGS = (opt("lang", "all") === "all" ? "en,tr" : opt("lang")).split(",");
 const STEP = parseFloat(opt("step", "0.1"));
 const FROM = parseFloat(opt("from", "0"));
-const DURATION = 55;
+const DURATION = 40;
 const TO = parseFloat(opt("to", String(DURATION)));
 const SHOTS = opt("shots", null);
 const OUT = opt("out", null);

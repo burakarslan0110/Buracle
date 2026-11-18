@@ -11,7 +11,7 @@ The first stable release and the public launch.
 
 - The guide at [stack.buracle.dev](https://stack.buracle.dev), in English and Turkish. It covers installing, the
   workflows, the memory, the Console, the guards, the tools, what each harness gets, the `buracle` command and updating.
-- A 55-second introduction video on the guide's home page.
+- A 40-second introduction video on the guide's home page.
 - A one-time notice after `buracle update` that points to the guide.
 
 ### Changed
