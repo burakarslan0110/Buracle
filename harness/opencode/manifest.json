@@ -33,7 +33,7 @@
     "agents/plan-build-review.md": "c56b4be7074357e197dcb0bedc996c3eacab0cc5f7b979a2091bdf49321c70a6",
     "config/cli.fragment.jsonc": "8b6addae15ea78d5ee53bb45802cf1fa389906a20e1a44610accbc8640bf79b3",
     "config/opencode.fragment.jsonc": "5e8263702f38f19683f791501335218b96f536ce90b01757857c9541f2bf9a8a",
-    "plugins/buracle/index.js": "505e59e59ace3a44e1702e0d1459166f7acfcde5dcd7ce8caa374d535cbc020e",
+    "plugins/buracle/index.js": "1b7082f4091da9e7cd6a1ccf13149ac8b672317632caffe617ced09e356e763d",
     "plugins/buracle/tui.js": "8e3ffbf49ea11f730c18689bdc21b343b1093348fbb1b944fa0c17718db31f02"
   }
 }

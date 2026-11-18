@@ -35392,7 +35392,7 @@ function createPiExtras(host) {
 
 // src/adapters/pi/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "1.0.1",
+  buracleVersion: "1.0.2",
   config: {
     agents: {
       teams: true
