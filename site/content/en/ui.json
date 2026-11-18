@@ -14,10 +14,6 @@
     "label": "Türkçe",
     "hint": "Bu sayfayı Türkçe oku"
   },
-  "theme": {
-    "toDark": "Switch to the dark theme",
-    "toLight": "Switch to the light theme"
-  },
   "copy": "Copy",
   "copied": "Copied",
   "copyFailed": "Select the text and copy it",

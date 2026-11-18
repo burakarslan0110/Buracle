@@ -108,14 +108,14 @@ describe('site build: pages', () => {
     expect(loops).toContain('role="tablist"')
   })
 
-  test('every logo comes from SOURCES.json; a mark that is dark itself is served from its mono file in a light ink', () => {
+  test('every logo comes from SOURCES.json and is served from its own file on the light site (Qwen Code stays blue)', () => {
     const html = read(OUT, 'index.html')
-    const sources = JSON.parse(read(join(REPO, 'site', 'assets', 'logos'), 'SOURCES.json')) as Array<{ id: string, name: string, kind: string, onDark: string, monoFile?: string | null }>
-    for (const s of sources.filter(x => /NOT visible|dim/i.test(x.onDark) && typeof x.monoFile === 'string')) {
-      const derived = `assets/logos/${(s.monoFile as string).replace(/\.svg$/, '-ondark.svg')}`
-      expect({ id: s.id, written: existsSync(join(OUT, derived)) }).toEqual({ id: s.id, written: true })
-      expect(read(OUT, derived)).not.toContain('currentColor')
+    const sources = JSON.parse(read(join(REPO, 'site', 'assets', 'logos'), 'SOURCES.json')) as Array<{ id: string, name: string, kind: string, logoFile?: string | null }>
+    for (const s of sources.filter(x => typeof x.logoFile === 'string')) {
+      expect({ id: s.id, ondark: existsSync(join(OUT, 'assets/logos', (s.logoFile as string).replace(/\.svg$/, '-mono-ondark.svg'))) }).toEqual({ id: s.id, ondark: false })
     }
+    expect(html).toContain('/assets/logos/qwen-code.svg')
+    expect(html).not.toContain('-ondark.svg')
     // The open source band lists every project that is not a harness, by name, linked to its repository.
     const band = html.slice(html.indexOf('class="oss"'))
     for (const s of sources.filter(x => x.kind !== 'harness')) expect(band).toContain(`<span>${escapeHtml(s.kind === 'lsp' ? s.name : s.name.split(' (')[0] as string)}</span>`)

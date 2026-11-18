@@ -117,7 +117,6 @@ const UI_SHAPE: Shape = {
   lang: 'string', locale: 'string', name: 'string', siteName: 'string', skip: 'string', home: 'string',
   nav: { label: 'string', docs: 'string', github: 'string' },
   language: { label: 'string', hint: 'string' },
-  theme: { toDark: 'string', toLight: 'string' },
   copy: 'string', copied: 'string', copyFailed: 'string', copyLabel: 'string',
   motion: { pause: 'string', play: 'string' },
   docs: { label: 'string', menu: 'string', onThisPage: 'string', edit: 'string', pager: 'string', prev: 'string', next: 'string', table: 'string', code: 'string' },
@@ -210,12 +209,10 @@ function loadUi(content: string, lang: Lang, problems: string[]): UiData | undef
 
 // ---------------------------------------------------------------------------------------------------------------
 // Logos: site/assets/logos/SOURCES.json lists every harness and upstream project with its logo files. Logo tiles are
-// dark in both themes, so a mark that does not read on dark (its `onDark` note says "NOT visible" or "dim") is shown
-// from its mono file, which the build writes a second time with `currentColor` set to the dark theme's ink.
+// light, so every mark is shown from its own file in its own colours (Qwen Code in its blue); the mono files stay in
+// site/assets/logos for a dark surface but the site no longer uses them.
 
 const LOGO_DIR = join(SITE_DIR, 'assets', 'logos')
-const NEEDS_MONO = /NOT visible|dim/i
-const INK_ON_DARK = '#e7edf5'
 
 interface Logos { logos: Map<string, Logo>, credits: Logo[], derived: Map<string, string> }
 
@@ -237,13 +234,8 @@ function loadLogos(problems: string[]): Logos {
     const file = typeof e.logoFile === 'string' ? e.logoFile : undefined
     const mono = typeof e.monoFile === 'string' ? e.monoFile : undefined
     if (file !== undefined) {
-      const pick = NEEDS_MONO.test(e.onDark ?? '') && mono !== undefined ? mono : file
-      if (!existsSync(join(LOGO_DIR, pick))) problems.push(`${label}[${i}]: ${pick} is missing from site/assets/logos`)
-      else if (pick === mono) {
-        const derived = mono.replace(/\.svg$/, '-ondark.svg')
-        out.derived.set(`assets/logos/${derived}`, readFileSync(join(LOGO_DIR, mono), 'utf8').replaceAll('currentColor', INK_ON_DARK))
-        logo.src = `/assets/logos/${derived}`
-      } else logo.src = `/assets/logos/${pick}`
+      if (!existsSync(join(LOGO_DIR, file))) problems.push(`${label}[${i}]: ${file} is missing from site/assets/logos`)
+      else logo.src = `/assets/logos/${file}`
     }
     if (out.logos.has(e.id)) problems.push(`${label}[${i}]: the id "${e.id}" is listed twice`)
     out.logos.set(e.id, logo)

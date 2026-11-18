@@ -78,7 +78,6 @@ export interface UiData {
   home: string
   nav: { label: string, docs: string, github: string }
   language: { label: string, hint: string }
-  theme: { toDark: string, toLight: string }
   copy: string
   copied: string
   copyFailed: string

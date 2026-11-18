@@ -1,27 +1,8 @@
-// Buracle Stack site: the theme toggle, the copy buttons and the tabs, on every page. Everything on the page reads and
+// Buracle Stack site: the copy buttons and the tabs, on every page. Everything on the page reads and
 // works without this file; it only shows the controls it wires (they carry `hidden` in the HTML). The landing page's
 // motion and players live in home.js and graph.js.
 (() => {
   const root = document.documentElement
-  const KEY = 'buracle-theme'
-
-  // Theme: the system setting until the visitor picks one; the pick is kept in localStorage.
-  const system = window.matchMedia('(prefers-color-scheme: dark)')
-  const current = () => root.getAttribute('data-theme') || (system.matches ? 'dark' : 'light')
-  const toggle = document.querySelector('[data-theme-toggle]')
-  if (toggle) {
-    const label = () => toggle.setAttribute('aria-label', current() === 'dark' ? toggle.dataset.toLight : toggle.dataset.toDark)
-    toggle.hidden = false
-    label()
-    toggle.addEventListener('click', () => {
-      const next = current() === 'dark' ? 'light' : 'dark'
-      root.setAttribute('data-theme', next)
-      try { localStorage.setItem(KEY, next) } catch { /* private mode: the pick lasts for this page */ }
-      label()
-    })
-    system.addEventListener('change', label)
-  }
-
   // Copy buttons: a command carries its text in data-copy; a code block copies its own text.
   const status = document.querySelector('[data-copy-status]')
   const say = (text) => {

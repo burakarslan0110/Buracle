@@ -14,10 +14,6 @@
     "label": "English",
     "hint": "Read this page in English"
   },
-  "theme": {
-    "toDark": "Koyu temaya geç",
-    "toLight": "Açık temaya geç"
-  },
   "copy": "Kopyala",
   "copied": "Kopyalandı",
   "copyFailed": "Metni seçip kopyala",

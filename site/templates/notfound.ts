@@ -21,10 +21,10 @@ export function notFoundPage(en: UiData, tr: UiData, docs: { en: string, tr: str
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(en.notFound.title)} | ${escapeHtml(en.siteName)}</title>
 <meta name="robots" content="noindex">
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="light">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/site.css">
-<script>(function(){var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('buracle-theme');if(t==='light'||t==='dark')d.setAttribute('data-theme',t)}catch(e){}})()</script>
+<script>(function(){var d=document.documentElement;d.classList.add('js');})()</script>
 </head>
 <body>
 <header class="top">

@@ -10,7 +10,7 @@
 /* Tokens: the colours of src/memory/ui/tokens.css (dark first, light second). light-dark() follows the colour scheme of
    the element, so the terminal panes set `color-scheme: dark` and stay dark in the light theme. */
 :root {
-  color-scheme: dark light;
+  color-scheme: light;
   --color-paper: light-dark(#f4f5f9, #05060a);
   --color-paper-2: light-dark(#ffffff, #0b0f17);
   --color-paper-3: light-dark(#eceef4, #04060a);
@@ -63,8 +63,6 @@
   --container: 1360px; --gutter: 64px; --gap-columns: 32px; --section-pad: 128px; --bar: 64px;
   --z-raised: 10; --z-sticky-nav: 300;
 }
-:root[data-theme="dark"] { color-scheme: dark; }
-:root[data-theme="light"] { color-scheme: light; }
 
 @media (max-width: 60rem) { :root { --gutter: 32px; --section-pad: 96px; } }
 @media (max-width: 40rem) { :root { --gutter: 16px; --section-pad: 64px; --gap-columns: 16px; } }
@@ -90,13 +88,7 @@ button { font: inherit; color: inherit; }
 
 /* The wordmark: the dark or the light file, by the scheme in use. */
 .wm { display: block; height: auto; image-rendering: pixelated; }
-.wm-light { display: none; }
-:root[data-theme="light"] .wm-dark { display: none; }
-:root[data-theme="light"] .wm-light { display: block; }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .wm-dark { display: none; }
-  :root:not([data-theme="dark"]) .wm-light { display: block; }
-}
+.wm-dark { display: none; }
 
 /* Skip link */
 .skip { position: absolute; left: var(--space-md); top: var(--space-xs); z-index: calc(var(--z-sticky-nav) + 1); padding: var(--space-xs) var(--space-md); background: var(--color-accent); color: var(--color-accent-ink); border-radius: var(--radius-control); font-weight: 600; transform: translateY(-200%); }
@@ -111,17 +103,6 @@ button { font: inherit; color: inherit; }
 .top-nav a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--space-sm); border-radius: var(--radius-control); color: var(--color-ink-2); text-decoration: none; white-space: nowrap; transition: color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out); }
 .top-nav a:hover { color: var(--color-ink); background: var(--color-hover); }
 .top-nav a[aria-current] { color: var(--color-ink); }
-.theme { display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: transparent; cursor: pointer; transition: background-color var(--dur-micro) var(--ease-out); }
-.theme:hover { background: var(--color-hover); }
-.theme:active { transform: translateY(1px); }
-.theme .i-sun { display: block; }
-.theme .i-moon { display: none; }
-:root[data-theme="light"] .theme .i-sun { display: none; }
-:root[data-theme="light"] .theme .i-moon { display: block; }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .theme .i-sun { display: none; }
-  :root:not([data-theme="dark"]) .theme .i-moon { display: block; }
-}
 :root[data-page="docs"] .top { position: sticky; top: 0; z-index: var(--z-sticky-nav); }
 @media (max-width: 40rem) {
   .top-in { gap: var(--space-xs); }

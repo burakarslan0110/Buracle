@@ -30,10 +30,8 @@ export function wordmark(cls: string, width: number): string {
 }
 
 // `m-enter` marks the hero's entrance for the first 700 ms (the CSS entrance runs with or without it).
-const THEME_INIT = "(function(){var d=document.documentElement;d.classList.add('js','m-enter');setTimeout(function(){d.classList.add('m-enter-done')},700);try{var t=localStorage.getItem('buracle-theme');if(t==='light'||t==='dark')d.setAttribute('data-theme',t)}catch(e){}})()"
+const THEME_INIT = "(function(){var d=document.documentElement;d.classList.add('js','m-enter');setTimeout(function(){d.classList.add('m-enter-done')},700);})()"
 
-const SUN = '<svg class="icon i-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>'
-const MOON = '<svg class="icon i-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/></svg>'
 
 function head(ctx: PageContext, kind: 'home' | 'docs'): string {
   const en = ctx.lang === 'en' ? ctx.path : ctx.twinPath
@@ -56,10 +54,9 @@ function head(ctx: PageContext, kind: 'home' | 'docs'): string {
     `<meta property="og:locale" content="${ctx.ui.locale}">`,
     `<meta property="og:locale:alternate" content="${ctx.twinUi.locale}">`,
     '<meta name="twitter:card" content="summary_large_image">',
-    '<meta name="color-scheme" content="dark light">',
-    // The browser bar colour: the page background of each theme (tokens.css --bg).
-    '<meta name="theme-color" content="#05060a" media="(prefers-color-scheme: dark)">',
-    '<meta name="theme-color" content="#f4f5f9" media="(prefers-color-scheme: light)">',
+    '<meta name="color-scheme" content="light">',
+    // The browser bar colour: the page background (tokens.css --bg).
+    '<meta name="theme-color" content="#f4f5f9">',
     '<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">',
     '<link rel="preload" href="/assets/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>',
     '<link rel="stylesheet" href="/assets/site.css">',
@@ -84,7 +81,6 @@ export function topBar(ctx: PageContext, current: 'home' | 'docs'): string {
         <li><a href="${ctx.twinPath}" hreflang="${ctx.twinUi.lang}" lang="${ctx.twinUi.lang}" title="${escapeHtml(ui.language.hint)}">${escapeHtml(ui.language.label)}</a></li>
       </ul>
     </nav>
-    <button class="theme" type="button" data-theme-toggle data-to-dark="${escapeHtml(ui.theme.toDark)}" data-to-light="${escapeHtml(ui.theme.toLight)}" aria-label="${escapeHtml(ui.theme.toLight)}" hidden>${SUN}${MOON}</button>
   </div>
 </header>`
 }
