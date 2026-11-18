@@ -450,10 +450,18 @@ for d in DROPS:
 L *= mask
 R *= mask
 
-# tail fade over the last 0.4 s, gentle saturation, peak normalise to -6 dBFS
-fade = np.ones(N)
-fn = idx(0.4)
-fade[-fn:] = np.linspace(1, 0, fn) ** 2
+# one continuous level curve, so the music never jumps in loudness: it rises in steps of a smooth ramp from silence over
+# the first FADE_IN seconds, keeps climbing (INTRO_DB below the full level at 0 s) until the first drop so that the drop
+# is not a step in loudness, and falls smoothly to silence from FADE_OUT_START to the end of the film
+FADE_IN = 4.0
+INTRO_DB = -4.0
+FADE_OUT_START = 35.5
+tg = np.arange(N) / SR
+fade = 10 ** ((INTRO_DB * np.clip(1 - tg / LOCK, 0, 1)) / 20)
+u = np.clip(tg / FADE_IN, 0, 1)
+fade *= u * u * (3 - 2 * u)  # smoothstep from silence
+v = np.clip((tg - FADE_OUT_START) / (DUR - FADE_OUT_START), 0, 1)
+fade *= 0.5 * (1 + np.cos(np.pi * v))  # raised cosine down to silence
 L *= fade
 R *= fade
 L = np.tanh(L * 1.1)

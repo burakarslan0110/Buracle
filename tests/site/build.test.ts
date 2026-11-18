@@ -213,7 +213,7 @@ describe('site build: links and headings', () => {
 
   test('the share image is the poster when the media folder has it', () => {
     expect(read(WITH_MEDIA, 'index.html')).toContain(`<meta property="og:image" content="${SITE}/media/poster-en.jpg">`)
-    expect(read(WITH_MEDIA, 'tr/index.html')).toContain(`<meta property="og:image" content="${SITE}/media/poster-tr.jpg">`)
+    expect(read(WITH_MEDIA, 'tr/index.html')).toContain(`<meta property="og:image" content="${SITE}/media/poster-en.jpg">`)
   })
 
   test('every root-relative href and src in every page names a file the build wrote', () => {
@@ -256,14 +256,14 @@ describe('site build: files', () => {
     expect(read(OUT, 'robots.txt')).toBe(`User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`)
   })
 
-  test('the video plays the language\'s film with its poster when the media is there, and is left out when it is not', () => {
+  test('the video plays the film with its poster in both languages when the media is there, and is left out when it is not', () => {
     // The film comes right after the hero, before the memory.
     const withFilm = read(WITH_MEDIA, 'index.html')
     expect(withFilm.indexOf('class="film-sec"')).toBeGreaterThan(withFilm.indexOf('class="hero"'))
     expect(withFilm.indexOf('class="film-sec"')).toBeLessThan(withFilm.indexOf('class="memory"'))
     expect(read(WITH_MEDIA, 'index.html')).toMatch(/<video [^>]*poster="\/media\/poster-en\.jpg"[^>]*>\s*<source src="\/media\/buracle-stack-en\.mp4" type="video\/mp4">/)
-    expect(read(WITH_MEDIA, 'tr/index.html')).toMatch(/<video [^>]*poster="\/media\/poster-tr\.jpg"[^>]*>\s*<source src="\/media\/buracle-stack-tr\.mp4" type="video\/mp4">/)
-    for (const f of ['buracle-stack-en.mp4', 'buracle-stack-tr.mp4', 'poster-en.jpg', 'poster-tr.jpg']) {
+    expect(read(WITH_MEDIA, 'tr/index.html')).toMatch(/<video [^>]*poster="\/media\/poster-en\.jpg"[^>]*>\s*<source src="\/media\/buracle-stack-en\.mp4" type="video\/mp4">/)
+    for (const f of ['buracle-stack-en.mp4', 'poster-en.jpg']) {
       expect(Buffer.compare(readFileSync(join(WITH_MEDIA, 'media', f)), readFileSync(join(FIXTURES, 'media', f)))).toBe(0)
     }
     expect(read(OUT, 'index.html')).not.toContain('<video')

@@ -50,6 +50,10 @@ a frame, which is audible on a drop. `render.sh` delays the audio by the same am
 node tools/check-sync.mjs ../media/buracle-stack-en.mp4
 ```
 
+The music has no sudden jump in loudness: `music/score.py` fades it in from silence over the first 4 s (and raises the
+intro by 4 dB up to the first drop), and fades it out with a raised cosine over the last 4.5 s (`FADE_IN`, `INTRO_DB`,
+`FADE_OUT_START`).
+
 proves it: for each drop it prints the audio edge (the first loud sample after the silence) in ms against the drop time and
 whether the picture flashes on the drop frame. It exits 1 when the audio is more than 3 ms off.
 
@@ -84,12 +88,12 @@ Needs Node 22 or newer, ffmpeg and ffprobe. From this folder:
 ./render.sh
 ```
 
-The script runs the legibility gate, renders English and Turkish with the CLI version that `package.json` pins
+The script runs the legibility gate, renders English with the CLI version that `package.json` pins
 (`hyperframes@0.9.65`) at 3840x2160 (device scale 2), downscales to 1920x1080 with Lanczos (H.264 CRF 18, so letters
 stay sharp on the dark gradients), masters the audio (two-pass loudnorm to -16 LUFS, true peak target -7.0 dBFS so the
 AAC file stays under -4 dBFS), adds `+faststart` and writes into `../media/`: `buracle-stack-en.mp4`,
-`buracle-stack-tr.mp4`, `poster-en.jpg`, `poster-tr.jpg` (the end card at 39.0 s) and `preview.gif` (10 fps, 720 px,
-six windows of the English film). It ends by printing each MP4's codec, size, duration and measured loudness, and runs `tools/check-sync.mjs` on both. Intermediate renders go to a temporary folder; set `WORK=<folder>` to keep them,
+`poster-en.jpg` (the end card at 39.0 s) and `preview.gif` (10 fps, 720 px,
+six windows of the English film). It ends by printing each MP4's codec, size, duration and measured loudness, and runs `tools/check-sync.mjs` on it. Intermediate renders go to a temporary folder; set `WORK=<folder>` to keep them,
 `CRF=<n>` to change the video quality, `REUSE_RAW=1` to master the raw renders already in `$WORK` without rendering again, `SKIP_GATE=1` to skip the gate and `HYPERFRAMES_BIN=<launcher>` to use another
 CLI.
 

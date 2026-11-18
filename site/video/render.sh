@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Renders the launch film in English and Turkish and writes the deliverables into site/media/:
-#   buracle-stack-en.mp4, buracle-stack-tr.mp4  1920x1080, 30 fps, 40.0 s, H.264 + AAC, +faststart; captured at
+# Renders the launch film in English and writes the deliverables into site/media/:
+#   buracle-stack-en.mp4                        1920x1080, 30 fps, 40.0 s, H.264 + AAC, +faststart; captured at
 #                                               3840x2160 (device scale 2) and downscaled with Lanczos so letters stay
 #                                               sharp, CRF 18; audio at -16 LUFS, true peak under -4 dBFS
-#   poster-en.jpg, poster-tr.jpg                the end card at 39.0 s (logos, wordmark, tagline, command, URL, colophon)
+#   poster-en.jpg                               the end card at 39.0 s (logos, wordmark, tagline, command, URL, colophon)
 #   preview.gif                                 a silent 720 px loop: the logos lock onto the layer, the memory write and
 #                                               the distillation, the search over the knowledge graph, /plan-build from
 #                                               RED to VERIFIED, the MCP routing, the end card
@@ -50,7 +50,7 @@ master() { # $1 raw 4K render, $2 output: Lanczos downscale to 1080p, two-pass l
     -c:a aac -b:a 192k -ar 48000 -t "$DUR" -movflags +faststart "$2"
 }
 
-for lang in en tr; do
+for lang in en; do
   if [ "${REUSE_RAW:-0}" = "1" ] && [ -f "$WORK/raw-$lang.mp4" ]; then
     echo "reusing $WORK/raw-$lang.mp4"
   else
@@ -74,13 +74,13 @@ ffmpeg -hide_banner -v error -y -i "$SRC" -filter_complex "\
   -loop 0 "$MEDIA/preview.gif"
 
 # check every MP4: H.264 video, 40.0 s, and the loudness (integrated and true peak) of what was written
-for lang in en tr; do
+for lang in en; do
   f="$MEDIA/buracle-stack-$lang.mp4"
   echo "$f: $(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of csv=p=0 "$f") $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f") s"
   ffmpeg -hide_banner -nostats -i "$f" -af ebur128=peak=true -f null - 2>&1 | grep -E '^\s+(I|Peak):' | tr -s ' '
 done
 # the drops of the music land on the exact frame of the picture (21 ms is two thirds of a frame, so it is audible)
-for lang in en tr; do
+for lang in en; do
   node tools/check-sync.mjs "$MEDIA/buracle-stack-$lang.mp4"
 done
 ls -l "$MEDIA"
