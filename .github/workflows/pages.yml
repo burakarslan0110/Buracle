@@ -44,6 +44,12 @@ jobs:
       - name: Build site/dist
         run: bun site/build.ts --out site/dist
 
+      # While the site is served from https://<user>.github.io/<repo>/ the repository variable PAGES_BASE holds the sub-path
+      # (for example /Buracle-Stack). Delete the variable when the custom domain is live.
+      - name: Move the site under the sub-path
+        if: vars.PAGES_BASE != ''
+        run: bun site/rebase.ts site/dist "${{ vars.PAGES_BASE }}"
+
       - name: Upload the site
         uses: actions/upload-pages-artifact@v5
         with:
