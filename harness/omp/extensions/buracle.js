@@ -37452,7 +37452,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.19",
+  buracleVersion: "1.0.0",
   commands: [
     "ab-test",
     "bugfix",
@@ -37724,6 +37724,12 @@ var GENERATED = {
     "web-search"
   ],
   notices: [
+    {
+      id: "1.0.0-guide-site",
+      message: "Buracle Stack 1.0.0 is out. The full guide, in English and Turkish, now lives at https://stack.buracle.dev, and the README is a short start page. A new install uses `curl -fsSL https://stack.buracle.dev/install.sh | bash`; your installed copy keeps updating with `buracle update` as before.",
+      since: "1.0.0",
+      until: "1.1.0"
+    },
     {
       id: "0.8.10-buracle-stack",
       message: "Buracle is now called Buracle Stack; Buracle becomes the name of a product family. Nothing changes for you: the `buracle` command, ~/.buracle, the BURACLE_* variables, the memory and your settings stay the same. The repository moved to github.com/burakarslan0110/Buracle-Stack, and the old address redirects.",

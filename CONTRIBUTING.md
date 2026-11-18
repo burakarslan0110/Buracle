@@ -19,7 +19,10 @@ welcome. For a larger change, open an issue first.
   `src/`, plus `canonical/skills/buracle/references/commands.md` when the CLI help changed (`build` refreshes it).
 - `src/core/` stays pure: relative imports only, and no `node:*`, `bun:*`, `process`, timers or randomness
   (`tests/core/purity.test.ts`).
-- Add no dependencies. Write everything in English (`tests/workflow/language-guard.test.ts`).
+- Add no dependencies. Write everything in English (`tests/workflow/language-guard.test.ts`). The Turkish edition of the
+  guide and `README.tr.md` are the exceptions.
+- The guide at stack.buracle.dev is built from `site/`: one Markdown page per topic in `site/content/en/` and the same
+  page in `site/content/tr/`, rendered by `bun site/build.ts` into `site/dist/`. Change both languages together.
 
 [`AGENTS.md`](AGENTS.md) has the full rules and [`ARCHITECTURE.md`](ARCHITECTURE.md) explains the layers.
 
@@ -40,12 +43,13 @@ bun test
 - Memory tests use the fake CortexDB in `tests/fixtures/cortexdb/`; never run the real binary in a test.
 - After a Bun upgrade, rebuild a local `harness/` and update `.bun-version` in the same commit.
 
-Keep a pull request to one change, say what you verified, and update the docs the change affects (`README.md`,
-`README.tr.md`, `ARCHITECTURE.md`, `AGENTS.md`).
+Keep a pull request to one change, say what you verified, and update the docs the change affects (the guide in `site/content/`,
+`README.md`, `README.tr.md`, `ARCHITECTURE.md`, `AGENTS.md`).
 
 ## Releases
 
 When CI passes on `dev` and the released files changed, CI writes the next patch version as one commit on `main`
-(without `tests/` and `bunfig.toml`) and publishes `v<version>` with the install script. Raise the major or minor version
+(without `tests/`, `bunfig.toml` and `site/`), publishes `v<version>` with the install script and deploys the guide to
+GitHub Pages. Raise the major or minor version
 in `package.json` to start a new line. The install script clones `main` and `buracle update` follows it. CI never runs on
 `main`.

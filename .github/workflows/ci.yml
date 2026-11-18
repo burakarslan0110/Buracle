@@ -10,8 +10,9 @@ permissions:
   contents: read
 
 env:
-  # What a release leaves out of the tested commit: the test suite and its Bun config.
-  RELEASE_DROPS: tests bunfig.toml
+  # What a release leaves out of the tested commit: the test suite, its Bun config and the website (site/, which the
+  # pages job deploys from the tested commit).
+  RELEASE_DROPS: tests bunfig.toml site
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -188,6 +189,9 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+    # Whether this run published a release: a new main commit or a new v<version> release. The pages job reads it.
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -201,9 +205,11 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Publish main and the next version
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Every way out of this script writes `published` once: false when main already holds the files, true at the end.
           base=$(jq -r .version package.json)
           # The tree of this commit at version $1, rebuilt, without RELEASE_DROPS.
           release_tree() (
@@ -230,6 +236,7 @@ jobs:
             candidate=$(release_tree "$current")
             if [ "$candidate" = "$(git rev-parse "$parent^{tree}")" ]; then
               echo "main already holds these files as $current"
+              echo "published=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
@@ -252,3 +259,17 @@ jobs:
           fi
           gh release view "v$version" >/dev/null 2>&1 || gh release create "v$version" scripts/install.sh \
             --target "$commit" --title "Buracle Stack $version" --generate-notes
+          # main holds v$version and the release exists: the website goes out with it.
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+  # A published release deploys the website from the same commit (.github/workflows/pages.yml). site/ is left out of
+  # the release tree, so a docs change that releases nothing goes out with a manual run of the Pages workflow.
+  pages:
+    name: Pages
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

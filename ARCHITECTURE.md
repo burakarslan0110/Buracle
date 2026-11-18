@@ -2,7 +2,7 @@
 
 A short map for contributors: where code lives, how one source becomes the configuration of seven harnesses (Claude
 Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY CLI), and which invariants hold it together.
-[README.md](README.md) is the user guide, [COMPATIBILITY.md](COMPATIBILITY.md) lists what each harness supports and
+The user guide is at [stack.buracle.dev](https://stack.buracle.dev) (source in `site/` on the `dev` branch), [COMPATIBILITY.md](COMPATIBILITY.md) lists what each harness supports and
 [AGENTS.md](AGENTS.md) has the rules for changing code. The "DESIGN §n" and "CONTRACTS §n" notes that comments cite are
 not in this repository; the code and tests are the reference.
 

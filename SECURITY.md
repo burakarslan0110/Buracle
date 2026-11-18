@@ -11,8 +11,8 @@ Do not open a public issue for a vulnerability. Use GitHub's private vulnerabili
 (Security, then Report a vulnerability). Include the harness and its version, the command or input that reproduces the
 problem, and what the guard should have done.
 
-This is one developer's project, maintained in spare time. Expect an answer within two weeks and a fix on the default
-branch. Only the newest commit on the default branch is supported.
+This is one developer's project, maintained in spare time. Expect an answer within two weeks and a fix in the next
+release. Only the newest release is supported.
 
 ## Out of scope
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs Buracle Stack on macOS and Linux.
 #
-#   curl -fsSL https://github.com/burakarslan0110/Buracle-Stack/releases/latest/download/install.sh | bash
+#   curl -fsSL https://stack.buracle.dev/install.sh | bash
 #   bash scripts/install.sh [--dir <checkout>] [--no-install]
 #
 # What it does: installs Bun when it is missing, clones the main branch (or updates the

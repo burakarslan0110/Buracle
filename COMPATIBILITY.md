@@ -2,8 +2,8 @@
 
 Buracle Stack generates configuration for seven harnesses (Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY
 CLI) and runs on macOS and native Linux. No harness supports MCP, hooks, skills and the command line in the same way. A
-missing capability is recorded in `src/adapters/shared/host-limits.ts` with its fallback (see the README's
-[Host limits](README.md#host-limits)). Windows and WSL are not supported.
+missing capability is recorded in `src/adapters/shared/host-limits.ts` with its fallback (see the guide's
+[host limits](https://stack.buracle.dev/harnesses/#host-limits)). Windows and WSL are not supported.
 
 Labels: **verified here** means run on the development machine (macOS, Apple silicon, Bun 1.4.3) by a test or script;
 **CI definition** means a job in [.github/workflows/ci.yml](.github/workflows/ci.yml) is written to run it;
@@ -30,7 +30,8 @@ older Codex alone and skips the OpenCode service step. All harnesses map their h
 | MCP servers | all but `lsp` | all but `lsp` | all but `lsp` |
 | Hooks | command hooks in `~/.qwen/settings.json` | in-process extension | command hooks in `hooks.json`; no compaction or end-of-conversation event |
 | Skills | `~/.agents/skills` | `~/.agents/skills` | links in AGY's skills folder |
-| Rules, review agents | none installed | none installed | none installed |
+| Rules | a `QWEN.md` block plus native path rules | an `AGENTS.md` block; a path rule is handed over at the first matching edit | rules in a `buracle` plugin, native path rules |
+| Review agents | 3 | none (Pi has no subagent tool) | 3, in the `buracle` plugin |
 | Status line | a command | widget and footer entry | a command |
 
 Every harness has the CLI twin of each memory tool (`buracle mem`). Always-loaded rules stay under 8,000 bytes
