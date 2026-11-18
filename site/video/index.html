@@ -157,15 +157,15 @@
       #stack { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
       #rise { position: absolute; inset: 0; }
       #layer {
-        position: absolute; left: 240px; top: 520px; width: 1440px; height: 200px; border-radius: 20px;
+        position: absolute; left: 240px; top: 520px; width: 1440px; height: 270px; border-radius: 20px;
         background: linear-gradient(180deg, #1b1438 0%, #100c22 100%);
         box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.7), 0 0 80px rgba(167, 139, 250, 0.45), 0 30px 80px rgba(0, 0, 0, 0.6);
       }
       #layer-edge { position: absolute; left: 24px; right: 24px; top: -1px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--from), var(--to)); }
       #layer-glow { position: absolute; inset: -2px; border-radius: 20px; box-shadow: 0 0 0 3px var(--accent), 0 0 120px rgba(196, 181, 253, 0.6); opacity: 0; }
-      #layer-wm { position: absolute; left: 32px; top: 14px; width: 480px; height: 62px; transform-origin: 0 50%; opacity: 0; }
+      #layer-wm { position: absolute; left: 480px; top: 36px; width: 480px; height: 62px; transform-origin: 50% 50%; opacity: 0; }
       .cell {
-        position: absolute; top: 88px; width: 262px; height: 88px; border-radius: 12px;
+        position: absolute; top: 156px; width: 262px; height: 88px; border-radius: 12px;
         border: 2px solid rgba(148, 163, 184, 0.24); background: rgba(5, 6, 10, 0.35);
         display: flex; align-items: center; justify-content: center; gap: 14px;
         font-size: 34px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
@@ -174,8 +174,8 @@
       .cell .cfill { position: absolute; inset: -2px; border-radius: 12px; border: 2px solid var(--accent); background: rgba(196, 181, 253, 0.16); box-shadow: 0 0 30px rgba(196, 181, 253, 0.4); opacity: 0; }
       .cell span, .cell i { position: relative; }
       .conn { position: absolute; width: 4px; margin-left: -2px; background: linear-gradient(180deg, var(--from), var(--to)); transform-origin: 50% 0; border-radius: 2px; box-shadow: 0 0 12px rgba(196, 181, 253, 0.6); }
-      .proj { position: absolute; top: 770px; height: 60px; padding: 0 22px; border-radius: 10px; border: 2px solid var(--line-2); background: var(--surface-2); font-family: var(--mono); font-size: 32px; color: var(--ink-2); display: flex; align-items: center; white-space: nowrap; }
-      #proj-label { position: absolute; left: 240px; top: 780px; font-family: var(--mono); font-size: 32px; line-height: 40px; color: var(--ink-2); white-space: nowrap; }
+      .proj { position: absolute; top: 840px; height: 60px; padding: 0 22px; border-radius: 10px; border: 2px solid var(--line-2); background: var(--surface-2); font-family: var(--mono); font-size: 32px; color: var(--ink-2); display: flex; align-items: center; white-space: nowrap; }
+      #proj-label { position: absolute; left: 240px; top: 850px; font-family: var(--mono); font-size: 32px; line-height: 40px; color: var(--ink-2); white-space: nowrap; }
 
       /* scene 3: one memory and its knowledge graph, one canvas (the card follows memoryRow in src/memory/ui/panel.js).
          Memories are dots coloured by kind, linked to the topics (about), files (cites) and tags they carry, the hubs of
@@ -489,10 +489,10 @@ and the user has not allowed that in this session.</div>
       <audio id="sfx-05" class="clip" src="assets/sound/pop-fs-824189-pop-in-sfx.ogg" data-start="0.750" data-duration="0.211" data-volume="0.5" data-track-index="4" data-audio-group="sfx"></audio><!-- Qwen Code pops -->
       <audio id="sfx-06" class="clip" src="assets/sound/pop-kenney-interface-drop-003.ogg" data-start="0.875" data-duration="0.188" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- Pi pops -->
       <audio id="sfx-07" class="clip" src="assets/sound/kit-pop.ogg" data-start="1.000" data-duration="0.116" data-volume="0.5" data-track-index="4" data-audio-group="sfx"></audio><!-- AGY CLI pops -->
-      <audio id="sfx-08" class="clip" src="assets/sound/impact-kenney-impact-impactsoft-heavy-001.ogg" data-start="1.250" data-duration="0.569" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- "7 setups." lands -->
+      <audio id="sfx-08" class="clip" src="assets/sound/impact-kenney-impact-impactsoft-heavy-001.ogg" data-start="1.250" data-duration="0.569" data-volume="0.2" data-track-index="3" data-audio-group="sfx"></audio><!-- "7 setups." lands -->
       <audio id="sfx-09" class="clip" src="assets/sound/whoosh-fs830856.ogg" data-start="4.280" data-duration="0.4" data-volume="0.38" data-track-index="3" data-audio-group="sfx"></audio><!-- the logos gather into a row -->
       <audio id="sfx-10" class="clip" src="assets/sound/transition-kenney-interface-maximize-006.ogg" data-start="5.000" data-duration="0.368" data-volume="0.42" data-track-index="3" data-audio-group="sfx"></audio><!-- the layer rises -->
-      <audio id="sfx-11" class="clip" src="assets/sound/impact-fs524817.ogg" data-start="6.000" data-duration="0.749" data-volume="0.72" data-track-index="3" data-audio-group="sfx"></audio><!-- lock onto the layer (drop 1) -->
+      <audio id="sfx-11" class="clip" src="assets/sound/impact-fs524817.ogg" data-start="6.000" data-duration="0.749" data-volume="0.28" data-track-index="3" data-audio-group="sfx"></audio><!-- lock onto the layer (drop 1) -->
       <audio id="sfx-12" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="6.000" data-duration="0.076" data-volume="0.22" data-track-index="4" data-audio-group="sfx"></audio><!-- connector 1 -->
       <audio id="sfx-13" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="6.060" data-duration="0.077" data-volume="0.22" data-track-index="5" data-audio-group="sfx"></audio><!-- connector 3 -->
       <audio id="sfx-14" class="clip" src="assets/sound/pop-fs-447910-plop.ogg" data-start="6.100" data-duration="0.243" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- your projects -->
@@ -536,7 +536,7 @@ and the user has not allowed that in this session.</div>
       <audio id="sfx-52" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="20.700" data-duration="0.276" data-volume="0.36" data-track-index="3" data-audio-group="sfx"></audio><!-- GREEN again, task 2 -->
       <audio id="sfx-53" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="21.200" data-duration="0.022" data-volume="0.45" data-track-index="3" data-audio-group="sfx"></audio><!-- Verify -->
       <audio id="sfx-54" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="21.400" data-duration="0.3" data-volume="0.3" data-media-start="1.4" data-fade-out="0.05" data-track-index="3" data-audio-group="sfx"></audio><!-- buracle plan verify types -->
-      <audio id="sfx-55" class="clip" src="assets/sound/impact-kenney-impact-impactpunch-heavy-000.ogg" data-start="22.000" data-duration="0.527" data-volume="0.68" data-track-index="3" data-audio-group="sfx"></audio><!-- VERIFIED stamp (drop 2) -->
+      <audio id="sfx-55" class="clip" src="assets/sound/impact-kenney-impact-impactpunch-heavy-000.ogg" data-start="22.000" data-duration="0.527" data-volume="0.28" data-track-index="3" data-audio-group="sfx"></audio><!-- VERIFIED stamp (drop 2) -->
       <audio id="sfx-56" class="clip" src="assets/sound/pop-fs527522.ogg" data-start="22.300" data-duration="0.082" data-volume="0.38" data-track-index="4" data-audio-group="sfx"></audio><!-- /bugfix, /goal-build and /requirements start -->
       <audio id="sfx-57" class="clip" src="assets/sound/ding-kenney-interface-confirmation-002.ogg" data-start="23.000" data-duration="0.526" data-volume="0.3" data-track-index="3" data-audio-group="sfx"></audio><!-- judged -->
       <audio id="sfx-58" class="clip" src="assets/sound/ding-kenney-interface-glass-001.ogg" data-start="23.100" data-duration="0.276" data-volume="0.32" data-track-index="4" data-audio-group="sfx"></audio><!-- proof -->
@@ -555,7 +555,7 @@ and the user has not allowed that in this session.</div>
       <audio id="sfx-71" class="clip" src="assets/sound/whoosh-fs-683101-quick-woosh.ogg" data-start="29.200" data-duration="0.282" data-volume="0.38" data-track-index="3" data-audio-group="sfx"></audio><!-- scene out -->
       <audio id="sfx-72" class="clip" src="assets/sound/transition-kenney-interface-maximize-006.ogg" data-start="29.600" data-duration="0.368" data-volume="0.32" data-track-index="3" data-audio-group="sfx"></audio><!-- the terminal rises -->
       <audio id="sfx-73" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="29.900" data-duration="0.12" data-volume="0.38" data-media-start="0.2" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- rm -rf ~ types -->
-      <audio id="sfx-74" class="clip" src="assets/sound/impact-kenney-impact-impactsoft-heavy-001.ogg" data-start="30.100" data-duration="0.569" data-volume="0.62" data-track-index="3" data-audio-group="sfx"></audio><!-- DENIED -->
+      <audio id="sfx-74" class="clip" src="assets/sound/impact-kenney-impact-impactsoft-heavy-001.ogg" data-start="30.100" data-duration="0.569" data-volume="0.25" data-track-index="3" data-audio-group="sfx"></audio><!-- DENIED -->
       <audio id="sfx-75" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="30.150" data-duration="0.25" data-volume="0.38" data-media-start="1" data-fade-out="0.05" data-track-index="4" data-audio-group="sfx"></audio><!-- git push --force types -->
       <audio id="sfx-76" class="clip" src="assets/sound/ding-kenney-interface-bong-001.ogg" data-start="30.450" data-duration="0.12" data-volume="0.5" data-track-index="4" data-audio-group="sfx"></audio><!-- ASK -->
       <audio id="sfx-77" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="30.500" data-duration="0.1" data-volume="0.38" data-media-start="2" data-fade-out="0.05" data-track-index="5" data-audio-group="sfx"></audio><!-- gh auth token types -->
@@ -566,7 +566,7 @@ and the user has not allowed that in this session.</div>
       <audio id="sfx-82" class="clip" src="assets/sound/tick-fs528561.ogg" data-start="33.620" data-duration="0.076" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- logo 2 lands -->
       <audio id="sfx-83" class="clip" src="assets/sound/tick-fs384187.ogg" data-start="33.740" data-duration="0.077" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- logo 4 lands -->
       <audio id="sfx-84" class="clip" src="assets/sound/tick-fs721514.ogg" data-start="33.860" data-duration="0.022" data-volume="0.22" data-track-index="3" data-audio-group="sfx"></audio><!-- logo 6 lands -->
-      <audio id="sfx-85" class="clip" src="assets/sound/impact-fs-177242-cinematic-impact.ogg" data-start="34.000" data-duration="2.2" data-volume="0.62" data-fade-out="0.8" data-track-index="3" data-audio-group="sfx"></audio><!-- wordmark slam (the end drop) -->
+      <audio id="sfx-85" class="clip" src="assets/sound/impact-fs-177242-cinematic-impact.ogg" data-start="34.000" data-duration="2.2" data-volume="0.28" data-fade-out="0.8" data-track-index="3" data-audio-group="sfx"></audio><!-- wordmark slam (the end drop) -->
       <audio id="sfx-86" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="35.000" data-duration="0.8" data-volume="0.34" data-media-start="0.2" data-fade-out="0.06" data-track-index="4" data-audio-group="sfx"></audio><!-- the install command types -->
       <audio id="sfx-87" class="clip" src="assets/sound/ding-fs-571513-soft-notifications-bell-ding-d.ogg" data-start="36.000" data-duration="0.695" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- stack.buracle.dev -->
       <audio id="sfx-88" class="clip" src="assets/sound/pop-fs-447910-plop.ogg" data-start="36.800" data-duration="0.243" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- the colophon: Built by Burak Arslan -->
@@ -688,11 +688,11 @@ and the user has not allowed that in this session.</div>
         const d = document.createElement("div");
         d.className = "conn";
         d.setAttribute("data-deco", "");
-        set(d, { left: x + "px", top: "720px", height: "50px" });
+        set(d, { left: x + "px", top: "790px", height: "50px" });
         $("conns").appendChild(d);
         return d;
       });
-      const MEM_C = { x: CELL_X(1) + 131, y: 652 }; // world centre of the Memory module
+      const MEM_C = { x: CELL_X(1) + 131, y: 722 }; // world centre of the Memory module
 
       // ---------- headlines ----------
       function words(el, list, hero = -1) {

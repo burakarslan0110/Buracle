@@ -258,7 +258,7 @@ VERIFIED = 22.0
 LOGOS = 33.5
 WORD = 34.0
 END_CHORD = 38.0
-GAP = BEAT / 4
+GAP = 0.07  # a short dip, not a hole: the music keeps flowing into the drop
 DROPS = (LOCK, VERIFIED, WORD)
 
 # sections: (start, end, name, the chords of its bars); every start is on a bar line (a multiple of 2 s)
@@ -335,19 +335,19 @@ for t in np.arange(33.0, 33.5, BEAT / 4):
 for t in np.arange(33.5, 34.0, BEAT / 8):
     snare(t, 0.6 + 0.8 * (t - 33.5))
 
-riser(4.0, 6.0, 0.9)
+riser(4.0, 6.0, 0.4)
 riser(15.0, 16.0, 0.3)
-riser(20.0, 22.0, 0.9)
+riser(20.0, 22.0, 0.4)
 riser(25.0, 26.0, 0.3)
-riser(31.5, 34.0, 1.0)
+riser(31.5, 34.0, 0.4)
 
-for t, g in ((6.0, 1.0), (8.0, 0.5), (12.0, 0.4), (16.0, 0.45), (VERIFIED, 0.95), (26.0, 0.6), (30.0, 0.45), (LOGOS, 0.5), (WORD, 1.0), (END_CHORD, 0.9)):
+for t, g in ((6.0, 0.4), (8.0, 0.3), (12.0, 0.4), (16.0, 0.45), (VERIFIED, 0.4), (26.0, 0.3), (30.0, 0.45), (LOGOS, 0.5), (WORD, 0.4), (END_CHORD, 0.4)):
     crash(t, g)
-for t, g in ((LOCK, 1.0), (VERIFIED, 0.9), (WORD, 1.0), (END_CHORD, 0.8)):
+for t, g in ((LOCK, 0.35), (VERIFIED, 0.35), (WORD, 0.35), (END_CHORD, 0.3)):
     boom(t, g)
-for t, g in ((LOCK, 0.9), (VERIFIED, 0.9), (WORD, 1.0)):
+for t, g in ((LOCK, 0.3), (VERIFIED, 0.3), (WORD, 0.3)):
     slam(t, g)
-kick(LOGOS, 0.9)  # the logos slam into a row on the beat before the end drop
+kick(LOGOS, 0.6)  # the logos slam into a row on the beat before the end drop
 
 # harmony: the progression of a section restarts at its start, one chord per bar
 for s, e, name, chord_ids in SECTIONS:
