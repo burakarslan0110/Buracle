@@ -29,10 +29,10 @@ curl -fsSL https://stack.buracle.dev/install.sh | bash
 </div>
 
 <p align="center">
-  <a href="https://stack.buracle.dev"><img src="https://stack.buracle.dev/media/preview.gif" alt="Buracle Stack in 40 seconds: seven coding agents lock onto one layer, a decision saved in Codex is recalled in Claude Code, sessions are distilled into a knowledge graph, and a plan-build loop runs to VERIFIED" width="720"></a>
+  <a href="https://stack.buracle.dev"><img src="https://burakarslan0110.github.io/Buracle-Stack/media/preview.gif" alt="Buracle Stack in 40 seconds: seven coding agents lock onto one layer, a decision saved in Codex is recalled in Claude Code, sessions are distilled into a knowledge graph, and a plan-build loop runs to VERIFIED" width="720"></a>
 </p>
 
-<p align="center"><img src="https://stack.buracle.dev/assets/logos/claude-code.svg" alt="Claude Code" title="Claude Code" height="36"> <img src="https://stack.buracle.dev/assets/logos/codex.svg" alt="Codex CLI" title="Codex CLI" height="36"> <img src="https://stack.buracle.dev/assets/logos/opencode.svg" alt="OpenCode" title="OpenCode" height="36"> <img src="https://stack.buracle.dev/assets/logos/oh-my-pi.svg" alt="Oh My Pi" title="Oh My Pi" height="36"> <img src="https://stack.buracle.dev/assets/logos/qwen-code.svg" alt="Qwen Code" title="Qwen Code" height="36"> <img src="https://stack.buracle.dev/assets/logos/pi.svg" alt="Pi" title="Pi" height="36"> <img src="https://stack.buracle.dev/assets/logos/agy.svg" alt="AGY CLI" title="AGY CLI" height="36"></p>
+<p align="center"><img src="https://burakarslan0110.github.io/Buracle-Stack/assets/logos/claude-code.svg" alt="Claude Code" title="Claude Code" height="36"> <img src="https://burakarslan0110.github.io/Buracle-Stack/assets/logos/codex.svg" alt="Codex CLI" title="Codex CLI" height="36"> <img src="https://burakarslan0110.github.io/Buracle-Stack/assets/logos/opencode.svg" alt="OpenCode" title="OpenCode" height="36"> <img src="https://burakarslan0110.github.io/Buracle-Stack/assets/logos/oh-my-pi.svg" alt="Oh My Pi" title="Oh My Pi" height="36"> <img src="https://burakarslan0110.github.io/Buracle-Stack/assets/logos/qwen-code.svg" alt="Qwen Code" title="Qwen Code" height="36"> <img src="https://burakarslan0110.github.io/Buracle-Stack/assets/logos/pi.svg" alt="Pi" title="Pi" height="36"> <img src="https://burakarslan0110.github.io/Buracle-Stack/assets/logos/agy.svg" alt="AGY CLI" title="AGY CLI" height="36"></p>
 
 ## What it does
 
