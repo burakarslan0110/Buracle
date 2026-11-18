@@ -83,7 +83,8 @@
       S8 end card  49.0-55.0
         48.60 the cards leave; 49.00 the seven logos slam into one row                            · minimize, swoosh, ticks
         49.50 the wordmark wipes in: logo slam                                                    · DROP: impact
-        50.00 tagline · 50.50 the install command types · 51.50 stack.buracle.dev; hold to 55.0  · typing, ding, final chord 53.0
+        50.00 tagline · 50.50 the install command types · 51.50 stack.buracle.dev                · typing, ding
+        52.30 the colophon: photo, "Built by Burak Arslan", role, LinkedIn and GitHub; hold to 55.0 · plop, final chord 53.0
     -->
     <style>
       @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Regular.woff2") format("woff2"); font-weight: 400; }
@@ -242,14 +243,22 @@
 
       /* scene 7: end card */
       #end { position: absolute; inset: 0; }
-      #end-line { position: absolute; left: 380px; top: 330px; width: 1160px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--from), var(--to)); box-shadow: 0 0 26px rgba(196, 181, 253, 0.7), 0 0 80px rgba(139, 92, 246, 0.35); transform-origin: 580px 3px; }
-      #wordmark { position: absolute; left: 408px; top: 386px; width: 1104px; height: 144px; transform-origin: 552px 72px; }
-      #tagline { position: absolute; left: 0; top: 566px; width: 1920px; text-align: center; font-size: 46px; line-height: 58px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+      #end-line { position: absolute; left: 380px; top: 258px; width: 1160px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--from), var(--to)); box-shadow: 0 0 26px rgba(196, 181, 253, 0.7), 0 0 80px rgba(139, 92, 246, 0.35); transform-origin: 580px 3px; }
+      #wordmark { position: absolute; left: 408px; top: 314px; width: 1104px; height: 144px; transform-origin: 552px 72px; }
+      #tagline { position: absolute; left: 0; top: 494px; width: 1920px; text-align: center; font-size: 46px; line-height: 58px; font-weight: 500; color: var(--ink); white-space: nowrap; }
       #tagline .w { display: inline-block; }
-      #install { position: absolute; left: 960px; top: 676px; height: 84px; padding: 0 34px; border-radius: 12px; background: var(--code-bg); border: 2px solid var(--line-2); font-family: var(--mono); font-size: 34px; color: var(--ink); display: flex; align-items: center; white-space: pre; transform: translateX(-50%); }
+      #install { position: absolute; left: 960px; top: 604px; height: 84px; padding: 0 34px; border-radius: 12px; background: var(--code-bg); border: 2px solid var(--line-2); font-family: var(--mono); font-size: 34px; color: var(--ink); display: flex; align-items: center; white-space: pre; transform: translateX(-50%); }
       #install .p { color: var(--ink-2); }
       #install .caret { display: inline-block; width: 16px; height: 38px; background: var(--ink); margin-left: 4px; }
-      #url { position: absolute; left: 0; top: 806px; width: 1920px; text-align: center; font-size: 52px; line-height: 64px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+      #url { position: absolute; left: 0; top: 734px; width: 1920px; text-align: center; font-size: 52px; line-height: 64px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+
+      /* the end card's colophon: who built it, the same block as on wintoolify.app and in the guide's footer */
+      #maker { position: absolute; left: 0; top: 846px; width: 1920px; display: flex; justify-content: center; align-items: center; gap: 28px; }
+      #maker-photo { width: 112px; height: 112px; border-radius: 50%; border: 2px solid var(--line-2); display: block; flex: none; }
+      #maker-text { display: flex; flex-direction: column; gap: 4px; }
+      #maker-name { font-size: 36px; line-height: 44px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+      #maker-role { font-size: 28px; line-height: 38px; color: var(--ink-2); white-space: nowrap; }
+      #maker-links { font-family: var(--mono); font-size: 28px; line-height: 38px; color: var(--accent); white-space: nowrap; }
 
       /* scene 3: the line fills that carry the memory (over .mline) */
       .mfill { position: absolute; top: 438px; height: 5px; border-radius: 3px; background: var(--accent); box-shadow: 0 0 16px rgba(196, 181, 253, 0.7); transform-origin: 0 50%; transform: scaleX(0); }
@@ -476,6 +485,14 @@ and the user has not allowed that in this session.</div>
           <div id="tagline" data-block></div>
           <div id="install" data-deco><span class="p">$ </span><span id="install-tx"></span><span class="caret" id="install-caret"></span></div>
           <div id="url"><span class="grad">stack.buracle.dev</span></div>
+          <div id="maker">
+            <img id="maker-photo" src="assets/burak.jpg" alt="Burak Arslan" data-deco />
+            <div id="maker-text">
+              <div id="maker-name"></div>
+              <div id="maker-role">Backend Developer &amp; AI Consultant at Detaysoft SOA People Türkiye</div>
+              <div id="maker-links">linkedin.com/in/burakarslann0110 · github.com/burakarslan0110</div>
+            </div>
+          </div>
         </div>
 
         <div class="head" id="h1a" data-block></div>
@@ -592,6 +609,7 @@ and the user has not allowed that in this session.</div>
       <audio id="sfx-96" class="clip" src="assets/sound/impact-fs-177242-cinematic-impact.ogg" data-start="49.500" data-duration="2.2" data-volume="0.62" data-fade-out="0.8" data-track-index="3" data-audio-group="sfx"></audio><!-- wordmark slam (the end drop) -->
       <audio id="sfx-97" class="clip" src="assets/sound/typing-fs-447909-keyboard-typing.ogg" data-start="50.500" data-duration="0.8" data-volume="0.34" data-media-start="0.2" data-fade-out="0.06" data-track-index="4" data-audio-group="sfx"></audio><!-- the install command types -->
       <audio id="sfx-98" class="clip" src="assets/sound/ding-fs-571513-soft-notifications-bell-ding-d.ogg" data-start="51.500" data-duration="0.695" data-volume="0.45" data-track-index="4" data-audio-group="sfx"></audio><!-- stack.buracle.dev -->
+      <audio id="sfx-99" class="clip" src="assets/sound/pop-fs-447910-plop.ogg" data-start="52.300" data-duration="0.243" data-volume="0.4" data-track-index="3" data-audio-group="sfx"></audio><!-- the colophon: Built by Burak Arslan -->
       <!-- /sfx -->
     </div>
 
@@ -626,6 +644,7 @@ and the user has not allowed that in this session.</div>
             "Uninstall removes only what it wrote",
           ],
           tagline: ["One", "engineering", "setup,", "one", "memory,", "every", "coding", "agent"],
+          maker: "Built by Burak Arslan",
         },
         tr: {
           h1a: ["7", "kodlama", "ajanı."], h1b: ["7", "ayrı", "kurulum."],
@@ -655,6 +674,7 @@ and the user has not allowed that in this session.</div>
             "Kaldırınca yalnızca kendi yazdığını siler",
           ],
           tagline: ["Tek", "mühendislik", "kurulumu,", "tek", "hafıza,", "bütün", "kodlama", "ajanların"],
+          maker: "Geliştiren Burak Arslan",
         },
       };
       // what each feature card shows from the product itself: a setting (buracle config get plan), the first words of the
@@ -962,6 +982,8 @@ and the user has not allowed that in this session.</div>
       // ---------- end card ----------
       const TAG = words($("tagline"), C.tagline, -1);
       const CMD = "curl -fsSL https://stack.buracle.dev/install.sh | bash";
+      $("maker-name").textContent = C.maker;
+      const MAKER_T = 52.3;
 
       // ---------- the layer camera: screen = (world - w) * s + c ----------
       function stackCam(t) {
@@ -980,7 +1002,7 @@ and the user has not allowed that in this session.</div>
       const S3_Y = 440;
       const S3_S = 1.35; // logo boxes are larger in scene 3; their names sit under the scaled box
       const ENDX = (k) => 960 + (k - 3) * 168;
-      const END_Y = 214;
+      const END_Y = 142;
       const ENTRY = [[-220, 60], [300, -260], [960, -300], [1620, -260], [2140, 60], [-240, -120], [2160, -120]];
       const WRITE_T = 10.4, SAVED_T = 11.25, RECALL_T = 12.0;
       const s3slide = (t) => spring(t - 9.4, 9, 0.86);
@@ -1415,6 +1437,8 @@ and the user has not allowed that in this session.</div>
           $("install-tx").textContent = CMD.slice(0, Math.round(CMD.length * seg(t, 50.5, 51.3)));
           $("install-caret").style.opacity = t < 51.3 || Math.floor((t - 51.3) / 0.5) % 2 === 0 ? 1 : 0;
           textState($("url"), t, 51.5, null, 16);
+          // the colophon rises in under the URL and holds to the last frame
+          textState($("maker"), t, MAKER_T, null, 18);
         }
       }
 

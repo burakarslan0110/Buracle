@@ -23,7 +23,7 @@ its order, then shows what the page does not. Nine scenes of 4 to 10 s each:
 | 32.5–38 | "9 MCP servers, routed.": three questions routed to context7, codegraph and semble; lsp shows four of its language servers, web-search a globe |
 | 38–43 | "Guards answer first.": `rm -rf ~` DENIED, a force push ASK, a token MASKED |
 | 43–49 | "And more under the hood.": six cards that the landing page does not show: a second agent's review (`reviews.companion`), the handoff after a context reset, `buracle skills add` for every agent, the Console, `buracle doctor`, `buracle uninstall` |
-| 49–55 | The end card: the logos, the wordmark, the tagline, the install command and stack.buracle.dev |
+| 49–55 | The end card: the logos, the wordmark, the tagline, the install command and stack.buracle.dev; under them the colophon (photo, "Built by Burak Arslan", role, LinkedIn and GitHub), the same block as in the guide's footer |
 
 The knowledge graph scene shows real outputs, not invented ones: `distillDecision` in `src/memory/distill.ts` gives the
 three candidates new, update (title similarity 0.67 to the cents decision) and noop (1.0 to the release procedure);

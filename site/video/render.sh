@@ -3,7 +3,7 @@
 #   buracle-stack-en.mp4, buracle-stack-tr.mp4  1920x1080, 30 fps, 55.0 s, H.264 + AAC, +faststart; captured at
 #                                               3840x2160 (device scale 2) and downscaled with Lanczos so letters stay
 #                                               sharp, CRF 18; audio at -16 LUFS, true peak under -4 dBFS
-#   poster-en.jpg, poster-tr.jpg                the end card at 54.0 s (logos, wordmark, tagline, command, URL)
+#   poster-en.jpg, poster-tr.jpg                the end card at 54.0 s (logos, wordmark, tagline, command, URL, colophon)
 #   preview.gif                                 a silent 720 px loop: the logos lock onto the layer, the distillation
 #                                               and the search over the knowledge graph, VERIFIED and the workflow
 #                                               rows, the feature cards, the end card
@@ -57,7 +57,7 @@ ffmpeg -hide_banner -v error -y -i "$SRC" -filter_complex "\
 [0:v]trim=20.9:23.5,setpts=PTS-STARTPTS[c];\
 [0:v]trim=28.3:31.1,setpts=PTS-STARTPTS[d];\
 [0:v]trim=44.4:47.0,setpts=PTS-STARTPTS[e];\
-[0:v]trim=49.6:52.4,setpts=PTS-STARTPTS[f];\
+[0:v]trim=51.0:54.0,setpts=PTS-STARTPTS[f];\
 [a][b][c][d][e][f]concat=n=6:v=1:a=0,fps=10,scale=720:-1:flags=lanczos,split[x][y];\
 [x]palettegen=max_colors=72:stats_mode=diff[p];[y][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
   -loop 0 "$MEDIA/preview.gif"

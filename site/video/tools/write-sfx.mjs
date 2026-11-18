@@ -115,6 +115,7 @@ const CUES = [
   [49.5, "impact-fs-177242-cinematic-impact.ogg", 0.62, "wordmark slam (the end drop)", { dur: 2.2, fadeOut: 0.8 }],
   [50.5, "typing-fs-447909-keyboard-typing.ogg", 0.34, "the install command types", { dur: 0.8, mediaStart: 0.2, fadeOut: 0.06 }],
   [51.5, "ding-fs-571513-soft-notifications-bell-ding-d.ogg", 0.45, "stack.buracle.dev"],
+  [52.3, "pop-fs-447910-plop.ogg", 0.4, "the colophon: Built by Burak Arslan"],
 ];
 
 const length = (file) => {

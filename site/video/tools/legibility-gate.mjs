@@ -55,7 +55,7 @@ function chromePath() {
   return line;
 }
 
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".png": "image/png", ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".json": "application/json" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".png": "image/png", ".jpg": "image/jpeg", ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".json": "application/json" };
 function serve() {
   const server = createServer((req, res) => {
     const p = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");

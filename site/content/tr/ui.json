@@ -42,7 +42,9 @@
     "license": "Buracle Stack, MIT lisansıyla açık kaynaklıdır.",
     "source": "Kaynak kodu",
     "issues": "Sorun bildir",
-    "releases": "Sürümler"
+    "releases": "Sürümler",
+    "maker": "Geliştiren Burak Arslan",
+    "role": "Backend Developer & AI Consultant at Detaysoft SOA People Türkiye"
   },
   "notFound": {
     "title": "Sayfa bulunamadı",

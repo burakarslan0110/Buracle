@@ -89,6 +89,19 @@ export function topBar(ctx: PageContext, current: 'home' | 'docs'): string {
 </header>`
 }
 
+/** Who built Buracle Stack: the colophon at the top of the footer on every page, above the wordmark, the links and the licence line. */
+const MAKER = { photo: '/assets/burak.jpg', name: 'Burak Arslan', linkedin: 'https://www.linkedin.com/in/burakarslann0110', github: 'https://github.com/burakarslan0110' }
+
+function maker(ctx: PageContext): string {
+  const ui = ctx.ui
+  return `<div class="maker">
+      <img class="maker-photo" src="${MAKER.photo}" alt="${escapeHtml(MAKER.name)}" width="76" height="76" loading="lazy" decoding="async">
+      <p class="maker-name">${escapeHtml(ui.footer.maker)}</p>
+      <p class="maker-role">${escapeHtml(ui.footer.role)}</p>
+      <p class="maker-links"><a href="${MAKER.linkedin}">LinkedIn</a> <a href="${MAKER.github}">GitHub</a></p>
+    </div>`
+}
+
 /** The closing statement the landing page puts at the top of its footer: one line and the install command. */
 export interface Closing { title: string, command: string }
 
@@ -105,6 +118,7 @@ export function footer(ctx: PageContext, closing?: Closing, band = ''): string {
   return `<footer class="foot">
   <div class="wrap foot-in">
     ${statement}${band}
+    ${maker(ctx)}
     <a class="foot-brand" href="${ctx.lang === 'en' ? '/' : `/${ctx.lang}/`}">${wordmark('wm-foot', 184)}</a>
     <nav class="foot-nav" aria-label="${escapeHtml(ui.footer.label)}">
       <ul>

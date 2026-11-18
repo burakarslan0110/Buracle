@@ -98,6 +98,12 @@ Lucide (ISC license, https://lucide.dev), drawn inline.
 | `assets/logos/go.svg` | Go (gopls) | https://go.dev/images/go-logo-blue.svg | From go.dev; the Go logo is a trademark of Google LLC. |
 | `assets/logos/rust-light.svg` | Rust (rust-analyzer) | https://github.com/simple-icons/simple-icons/blob/develop/icons/rust.svg | CC-BY-SA-4.0 path data via Simple Icons; the copy fills the mark with #e7edf5 instead of black so it shows on the dark tile. Rust is a trademark of the Rust Foundation. |
 
+## Photo
+
+| File | Source | Licence |
+| --- | --- | --- |
+| `assets/burak.jpg` | The author's own photo, 192x192, from the WinToolify site (`site/assets/burak.jpg` of github.com/burakarslan0110/WinToolify); the guide's footer uses the same file (`site/assets/burak.jpg`) | Used by its subject, the author of Buracle Stack |
+
 ## Fonts
 
 | File | Source | Licence |

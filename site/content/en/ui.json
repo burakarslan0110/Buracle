@@ -42,7 +42,9 @@
     "license": "Buracle Stack is open source under the MIT License.",
     "source": "Source code",
     "issues": "Report an issue",
-    "releases": "Releases"
+    "releases": "Releases",
+    "maker": "Built by Burak Arslan",
+    "role": "Backend Developer & AI Consultant at Detaysoft SOA People Türkiye"
   },
   "notFound": {
     "title": "Page not found",

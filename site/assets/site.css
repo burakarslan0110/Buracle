@@ -145,6 +145,14 @@ button { font: inherit; color: inherit; }
 .foot-nav ul { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2xs) var(--space-lg); list-style: none; padding: 0; }
 .foot-nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-ink-2); text-decoration: none; transition: color var(--dur-micro) var(--ease-out); }
 .foot-nav a:hover { color: var(--color-ink); text-decoration: underline; }
+/* The colophon: who built it, one short centred block at the top of the footer, above the wordmark and the links. */
+.maker { grid-column: 1 / -1; display: grid; justify-items: center; text-align: center; padding-bottom: var(--space-xl); border-bottom: 1px solid var(--color-rule); }
+.maker-photo { width: 76px; height: 76px; border-radius: 50%; border: 1px solid var(--color-rule-2); }
+.maker-name { margin-top: var(--space-md); color: var(--color-ink); font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
+.maker-role { max-width: 56ch; margin-top: var(--space-xs); color: var(--color-muted); font-size: var(--text-sm); line-height: 1.6; }
+.maker-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 0 var(--space-lg); margin-top: var(--space-xs); }
+.maker-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-ink-2); text-decoration: none; transition: color var(--dur-micro) var(--ease-out); }
+.maker-links a:hover { color: var(--color-ink); text-decoration: underline; }
 .foot-legal { grid-column: 1 / -1; padding-top: var(--space-lg); border-top: 1px solid var(--color-rule); font-size: var(--text-sm); color: var(--color-ink-2); }
 
 /* Docs */
