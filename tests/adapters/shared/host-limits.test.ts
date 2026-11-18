@@ -148,14 +148,14 @@ describe('host limits (PARITY-10)', () => {
     }
   })
 
-  test('doctor rows: the summary row, then one ok row per limit with its fallback and the README pointer; no row warns; nothing for a harness without limits', () => {
+  test('doctor rows: the summary row, then one ok row per limit with its fallback and the guide pointer; no row warns; nothing for a harness without limits', () => {
     expect(hostLimitsOf('codex').map(l => l.id)).toEqual(expect.arrayContaining(['codex.live-exec-mask', 'codex.failed-mcp-mask', 'codex.custom-status-line']))
     const codex = hostLimitRows('codex')
     expect(codex[0]).toMatchObject({ level: 'ok', check: 'codex.limits' })
     expect(codex.slice(1).map(r => r.check)).toEqual(hostLimitsOf('codex').map(l => l.id))
     for (const r of codex.slice(1)) {
       expect({ check: r.check, level: r.level }).toEqual({ check: r.check, level: 'ok' })
-      expect({ check: r.check, shape: /^.+\. Fallback: .+\. See the Host limits table in README\.md\.$/.test(r.detail) }).toEqual({ check: r.check, shape: true })
+      expect({ check: r.check, shape: /^.+\. Fallback: .+\. See the host limits at https:\/\/stack\.buracle\.dev\/harnesses\/#host-limits\.$/.test(r.detail) }).toEqual({ check: r.check, shape: true })
     }
     expect(codex.find(r => r.check === 'codex.commands-without-turn')?.detail).toContain('. Fallback: `$memory`, the CLI twins')
     expect(codex.filter(r => r.detail.includes('DESIGN'))).toEqual([])

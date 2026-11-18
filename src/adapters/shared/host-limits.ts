@@ -271,7 +271,7 @@ export function probeClosers(text: string, probe: HostProbe): string[] {
 
 export interface HostLimitRow { level: 'ok'; check: string; detail: string }
 
-const README_POINTER = 'See the Host limits table in README.md.'
+const GUIDE_POINTER = 'See the host limits at https://stack.buracle.dev/harnesses/#host-limits.'
 
 /**
  * The doctor rows for a harness's host limits: a summary row first (`<h>.limits`), then one `ok` row per limit or
@@ -283,5 +283,5 @@ export function hostLimitRows(h: Harness): HostLimitRow[] {
   const checkedOn = limits.map(l => l.checkedOn).sort(compareVersions).at(-1) ?? ''
   const ids = limits.map(l => l.id.replace(`${h}.`, '')).join(', ')
   const summary: HostLimitRow = { level: 'ok', check: `${h}.limits`, detail: `${limits.length} host limits recorded, last checked on ${checkedOn} (${ids}); each follows with its fallback` }
-  return [summary, ...limits.map((l): HostLimitRow => ({ level: 'ok', check: l.id, detail: `${l.reason}. Fallback: ${l.fallback}. ${README_POINTER}` }))]
+  return [summary, ...limits.map((l): HostLimitRow => ({ level: 'ok', check: l.id, detail: `${l.reason}. Fallback: ${l.fallback}. ${GUIDE_POINTER}` }))]
 }

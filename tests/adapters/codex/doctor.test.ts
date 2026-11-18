@@ -72,14 +72,14 @@ describe('codex doctor', () => {
     })
   })
 
-  test('host limits (PARITY-10) and the workflow view (PARITY-9): the summary row is ok on every version, each limit is a row with its fallback and the README pointer', () => withSandbox(async () => {
+  test('host limits (PARITY-10) and the workflow view (PARITY-9): the summary row is ok on every version, each limit is a row with its fallback and the guide pointer', () => withSandbox(async () => {
     const limits = () => by(items, 'codex.limits')[0]
     let items = await codexDoctor(ctx(), fake({ version: '0.166.0' }))
     expect(limits()).toMatchObject({ level: 'ok' })
     expect(limits()?.detail).toContain('commands-without-turn')
     const row = by(items, 'codex.commands-without-turn')[0]
     expect(row?.level).toBe('ok')
-    expect(row?.detail).toContain('. Fallback: `$memory`, the CLI twins (`buracle mem ...`, `buracle plan status`) and Codex\'s own `/side`. See the Host limits table in README.md.')
+    expect(row?.detail).toContain('. Fallback: `$memory`, the CLI twins (`buracle mem ...`, `buracle plan status`) and Codex\'s own `/side`. See the host limits at https://stack.buracle.dev/harnesses/#host-limits.')
     expect(items.filter(i => i.check.startsWith('codex.') && hostLimitsOf('codex').some(l => l.id === i.check)).map(i => i.level)).toEqual(hostLimitsOf('codex').map(() => 'ok'))
     expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
     expect(by(items, 'codex.workflow-view')[0]?.detail).toContain('workflow.codexNotices')

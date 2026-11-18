@@ -1,0 +1,70 @@
+name: Pages
+
+# Builds the site at https://stack.buracle.dev (site/build.ts) and deploys it to GitHub Pages. CI calls it after a
+# release; run it by hand to publish a docs change that released nothing. site/ lives on dev only (the release tree
+# leaves it out), so a manual run builds dev unless you name another ref.
+#
+# The custom domain is set in the repository's Pages settings: a deployment from Actions ignores the CNAME file the
+# build writes. The github-pages environment must allow the branch the run comes from (dev).
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The branch, tag or commit to build the site from
+        type: string
+        default: dev
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # A call from CI builds the tested commit; a manual run builds the ref it names.
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      # The generator uses Bun's built-in Markdown parser and no package, so no install step runs.
+      - name: Build site/dist
+        run: bun site/build.ts --out site/dist
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # One deployment at a time; a running one finishes before the next starts.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

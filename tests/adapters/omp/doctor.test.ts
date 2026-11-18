@@ -11,7 +11,7 @@ const REPO = join(import.meta.dir, '..', '..', '..')
 const detect = (version: string | undefined) => async () => (version === undefined ? { installed: false } : { installed: true, version, path: '/nonexistent/omp' })
 
 describe('omp doctor: host limits (PARITY-10)', () => {
-  test('without omp: the skipped-checks warning, and still the version row plus one ok row per limit with its fallback and the README pointer', () => withSandbox(async () => {
+  test('without omp: the skipped-checks warning, and still the version row plus one ok row per limit with its fallback and the guide pointer', () => withSandbox(async () => {
     const items = await doctor(devContext(REPO), { detect: detect(undefined) })
     const skipped = items.find(i => i.check === 'omp')
     expect(skipped?.level).toBe('warn')
@@ -22,7 +22,7 @@ describe('omp doctor: host limits (PARITY-10)', () => {
     const row = items.find(i => i.check === 'omp.companion-shell')
     expect(row?.level).toBe('ok')
     expect(row?.detail).toContain('. Fallback: the second opinion runs with read, grep and glob only')
-    expect(row?.detail).toEndWith('See the Host limits table in README.md.')
+    expect(row?.detail).toEndWith('See the host limits at https://stack.buracle.dev/harnesses/#host-limits.')
     expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
     expect(items.filter(i => hostLimitsOf('omp').some(l => l.id === i.check)).map(i => i.check)).toEqual(hostLimitsOf('omp').map(l => l.id))
   }))

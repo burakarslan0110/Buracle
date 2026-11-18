@@ -1,0 +1,53 @@
+{
+  "lang": "tr",
+  "locale": "tr_TR",
+  "name": "Türkçe",
+  "siteName": "Buracle Stack",
+  "skip": "İçeriğe geç",
+  "home": "Buracle Stack ana sayfası",
+  "nav": {
+    "label": "Ana menü",
+    "docs": "Belgeler",
+    "github": "GitHub"
+  },
+  "language": {
+    "label": "English",
+    "hint": "Read this page in English"
+  },
+  "theme": {
+    "toDark": "Koyu temaya geç",
+    "toLight": "Açık temaya geç"
+  },
+  "copy": "Kopyala",
+  "copied": "Kopyalandı",
+  "copyFailed": "Metni seçip kopyala",
+  "copyLabel": "Komutu kopyala",
+  "motion": {
+    "pause": "Animasyonları duraklat",
+    "play": "Animasyonları oynat"
+  },
+  "docs": {
+    "label": "Belge sayfaları",
+    "menu": "Sayfalar",
+    "onThisPage": "Bu sayfada",
+    "edit": "Bu sayfayı GitHub'da düzenle",
+    "pager": "Önceki ve sonraki sayfa",
+    "prev": "Önceki",
+    "next": "Sonraki",
+    "table": "Yana kayan tablo",
+    "code": "Kod"
+  },
+  "footer": {
+    "label": "Alt bilgi",
+    "license": "Buracle Stack, MIT lisansıyla açık kaynaklıdır.",
+    "source": "Kaynak kodu",
+    "issues": "Sorun bildir",
+    "releases": "Sürümler"
+  },
+  "notFound": {
+    "title": "Sayfa bulunamadı",
+    "body": "Bu adreste bir sayfa yok. Belgeler değişirken taşınmış olabilir.",
+    "home": "Ana sayfaya dön",
+    "docs": "Belgeleri aç"
+  }
+}

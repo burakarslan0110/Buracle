@@ -27,6 +27,7 @@ TypeScript, and the CLI runs from source.
 | One test file | `bun test tests/engine/txn.test.ts` |
 | Skill lint | `bun src/cli/main.ts skills lint canonical/skills` |
 | CLI help | `bun src/cli/main.ts --help` |
+| Build the guide site | `bun site/build.ts` (writes `site/dist/`, git-ignored) |
 
 Release checks: run all three before every commit. GitHub Actions runs them on every push to a branch other
 than `main`, on macOS arm64 and Linux x64, with the Bun in `.bun-version`, and every job has to pass.
@@ -75,6 +76,11 @@ CI also parses the install script with `bash -n scripts/install.sh`. Run that af
   committed is `canonical/skills/buracle/references/commands.md`, which `build` refreshes. `harness/codex/AGENTS.md` is
   output for users' Codex, not guidance for this repository.
 - `tests/` mirrors `src/`, with fixtures in `tests/fixtures/<area>/`.
+- `site/` is the bilingual guide at https://stack.buracle.dev (GitHub Pages). Each topic is one Markdown page in
+  `site/content/en/` and the same page in `site/content/tr/`; `home.json` and `ui.json` hold the landing and UI text.
+  `site/build.ts` (no dependencies, `Bun.markdown`) renders it with `site/templates/` and `site/assets/` into `site/dist/`
+  and serves `scripts/install.sh` as `/install.sh`. `site/video/` is the launch video's source and `site/media/` holds the
+  MP4s, posters and the README GIF.
 
 ## Conventions
 
@@ -111,8 +117,9 @@ CI also parses the install script with `bash -n scripts/install.sh`. Run that af
   is category D, the recognition of text in the user's language: whole-message control words, the reply to a held consent
   question, memory query stopwords and inflections, secret-word redaction, case folding and the MCP categories' trigger
   phrases. Its Turkish words stay as matching data behind English identifiers and comments. A new file with category D
-  data needs an entry, with its reason, in the allowlist of `tests/workflow/language-guard.test.ts`. The one Turkish
-  document is `README.tr.md`, a translation of `README.md` kept in step with it. The ab-test fixture under
+  data needs an entry, with its reason, in the allowlist of `tests/workflow/language-guard.test.ts`. The Turkish
+  documents are `README.tr.md`, kept in step with `README.md`, and the Turkish edition of the guide in
+  `site/content/tr/`, kept in step with `site/content/en/`. The ab-test fixture under
   `tests/fixtures/ab-test/plan-format/` holds Turkish prompts and plans in the format before the English standard (the
   measured input of PRD 2026-11-04 R9), allowlisted in the same test.
 
@@ -125,7 +132,8 @@ CI also parses the install script with `bash -n scripts/install.sh`. Run that af
   `~/.gemini`, `~/.agents`, `~/.buracle` (the brain included) or `~/Documents/Buracle` (the old memory vault).
   `tests/zz-real-home-untouched.test.ts` fails the run when one of the folders it fingerprints changed.
 - `tests/workflow/doc-lint.test.ts` checks that every repository path `README.md` and this file name in
-  backticks exists, and that their links resolve. Update them when you move or rename a file.
+  backticks exists, and that their links resolve. Update them when you move or rename a file. It also checks that the
+  Harnesses page of both guide editions lists every record of `src/adapters/shared/host-limits.ts`.
 
 ## Branches and releases
 
@@ -135,10 +143,12 @@ CI also parses the install script with `bash -n scripts/install.sh`. Run that af
   `v<major.minor>.*` tag (or the `package.json` version while it has no release): one commit on `main` and a
   `v<version>` release with the install script. Raise major or minor in `package.json` to start a new line. A push that
   changes only the test suite releases nothing.
+- The guide deploys to GitHub Pages after a release, and by hand from the Pages workflow. A push that changes only
+  `site/` releases nothing, so redeploy a site-only fix by hand.
 - `harness/` is not in the `dev` tree. The `release` and `posix-install` jobs build it into the release tree, so `main`
   holds it as before.
-- The released tree leaves out `RELEASE_DROPS` (`tests/` and `bunfig.toml`, in `.github/workflows/ci.yml`), so
-  released code must not depend on them. The `posix-install` job installs that tree before the release. The
+- The released tree leaves out `RELEASE_DROPS` (`tests/`, `bunfig.toml` and `site/`, in `.github/workflows/ci.yml`), so
+  released code must not depend on them. The README links the guide and its GIF by absolute URL for that reason. The `posix-install` job installs that tree before the release. The
   install script clones `main`, and `buracle update` follows the checkout's upstream.
 
 ## Gotchas

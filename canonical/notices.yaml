@@ -1,4 +1,8 @@
 notices:
+  - id: 1.0.0-guide-site
+    since: 1.0.0
+    until: 1.1.0
+    message: "Buracle Stack 1.0.0 is out. The full guide, in English and Turkish, now lives at https://stack.buracle.dev, and the README is a short start page. A new install uses `curl -fsSL https://stack.buracle.dev/install.sh | bash`; your installed copy keeps updating with `buracle update` as before."
   - id: 0.8.10-buracle-stack
     since: 0.8.10
     until: 0.9.0

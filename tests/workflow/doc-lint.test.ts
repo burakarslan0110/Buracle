@@ -252,10 +252,11 @@ describe('doc lint: language and links', () => {
 })
 
 describe('doc lint: host limits (PRD 2026-11-04 R20)', () => {
-  test('both READMEs list every limit and partial record of host-limits.ts in their Host limits table', () => {
+  // The READMEs are short since 1.0.0; the table lives on the Harnesses page of both editions of the site guide.
+  test('both editions of the guide list every limit and partial record of host-limits.ts in their host limits table', () => {
     const recorded = HOST_LIMITS.filter(l => l.kind !== 'native').map(l => l.id)
     expect(recorded.length).toBeGreaterThanOrEqual(18)
-    for (const [file, heading] of [['README.md', '### Host limits'], ['README.tr.md', '### Harness sınırları']] as const) {
+    for (const [file, heading] of [[join('site', 'content', 'en', 'harnesses.md'), '## Host limits'], [join('site', 'content', 'tr', 'harnesses.md'), '## Harness sınırları']] as const) {
       const text = read(join(REPO, file))
       const start = text.indexOf(heading)
       expect({ file, hasHeading: start >= 0 }).toEqual({ file, hasHeading: true })

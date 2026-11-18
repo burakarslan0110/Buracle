@@ -1,0 +1,610 @@
+{
+  "title": "Buracle Stack: the layer that brings your coding agents together",
+  "description": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY CLI get one setup, one shared memory, the same guards and workflows that end with proof.",
+  "hero": {
+    "eyebrow": "Open source · macOS and Linux · MIT",
+    "title": "The layer that brings your coding agents together",
+    "lede": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY CLI get one setup, one shared memory, the same guards and workflows that end with proof.",
+    "installLabel": "Install with one command",
+    "command": "curl -fsSL https://stack.buracle.dev/install.sh | bash",
+    "docs": {
+      "text": "Read the guide",
+      "href": "install.md"
+    },
+    "film": "Watch the film",
+    "orbitLabel": "Seven coding agents on an orbit around one layer, Buracle Stack, with its MCP servers on the inner ring. Pick an agent to see how Buracle Stack plugs into it.",
+    "pick": "Pick an agent to see how it plugs in.",
+    "invoke": "Workflows start with"
+  },
+  "harnesses": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "source": "claude-code",
+      "folder": "~/.claude",
+      "files": [
+        "settings.json",
+        "rules/",
+        "plugin"
+      ],
+      "plugs": "A plugin with skills, rules, review agents, MCP servers, command hooks and a status line.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "codex",
+      "name": "Codex CLI",
+      "source": "codex",
+      "folder": "~/.codex",
+      "files": [
+        "config.toml",
+        "hooks.json",
+        "AGENTS.md"
+      ],
+      "plugs": "Command hooks in `hooks.json`, MCP servers in `config.toml`, an `AGENTS.md` block and exec policy rules.",
+      "invoke": "$plan-build"
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "source": "opencode",
+      "folder": "~/.config/opencode",
+      "files": [
+        "opencode.jsonc",
+        "AGENTS.md",
+        "plugin"
+      ],
+      "plugs": "Server and TUI plugins that run the shared hook pipeline inside OpenCode.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "omp",
+      "name": "Oh My Pi",
+      "source": "oh-my-pi",
+      "folder": "~/.omp/agent",
+      "files": [
+        "AGENTS.md",
+        "mcp.json",
+        "lsp.json"
+      ],
+      "plugs": "An omp plugin whose extension runs the hook pipeline in process.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "qwen",
+      "name": "Qwen Code",
+      "source": "qwen-code",
+      "folder": "~/.qwen",
+      "files": [
+        "settings.json",
+        "QWEN.md"
+      ],
+      "plugs": "Hooks and MCP servers in `settings.json`, a `QWEN.md` block, path rules, review agents and commands.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "pi",
+      "name": "Pi",
+      "source": "pi",
+      "folder": "~/.pi/agent",
+      "files": [
+        "AGENTS.md",
+        "mcp.json",
+        "extensions/"
+      ],
+      "plugs": "An extension for the hooks, an `AGENTS.md` block and MCP servers in `mcp.json`.",
+      "invoke": "/skill:plan-build"
+    },
+    {
+      "id": "agy",
+      "name": "AGY CLI",
+      "source": "agy",
+      "folder": "~/.gemini/config",
+      "files": [
+        "hooks.json",
+        "mcp_config.json",
+        "plugins/"
+      ],
+      "plugs": "Command hooks in `hooks.json`, MCP servers in `mcp_config.json` and a plugin with rules and review agents.",
+      "invoke": "/plan-build"
+    }
+  ],
+  "numbers": {
+    "label": "Buracle Stack in numbers",
+    "items": [
+      {
+        "value": 7,
+        "label": "coding agents set up from one source"
+      },
+      {
+        "value": 9,
+        "label": "MCP servers, routed per question"
+      },
+      {
+        "value": 6,
+        "label": "language servers in the toolchain"
+      },
+      {
+        "value": 26,
+        "label": "hooks guarding every tool call"
+      },
+      {
+        "value": 13,
+        "label": "skills, the same text in every agent"
+      },
+      {
+        "value": 4,
+        "label": "workflows that end with proof"
+      }
+    ]
+  },
+  "video": {
+    "eyebrow": "The film",
+    "label": "Buracle Stack in 55 seconds",
+    "src": "buracle-stack-en.mp4",
+    "poster": "poster-en.jpg"
+  },
+  "memory": {
+    "eyebrow": "Memory",
+    "title": "One brain, shared by every agent",
+    "body": [
+      "A decision you make in Codex CLI is there when Claude Code starts the next session. Each project has its own brain, and the person brain keeps what holds in every project.",
+      "Memories cite the files they are about, so `memory_search` with `files:` finds every memory about a file. The Console draws the same network: press `G` there."
+    ],
+    "example": "An example brain, invented for this page",
+    "label": "An example brain seen from above: the project brain on the left, the person brain on the right. Each bright node is a memory. Select one to read it.",
+    "listLabel": "Read the example memories as a list",
+    "project": {
+      "name": "Project brain",
+      "sub": "acme-shop"
+    },
+    "person": {
+      "name": "Person brain",
+      "sub": "every project"
+    },
+    "card": {
+      "kind": "Kind",
+      "origin": "Origin",
+      "explicit": "explicit: you said it",
+      "inferred": "inferred: the agent concluded it",
+      "cites": "Cites",
+      "written": "Written in",
+      "recalled": "Recalled in"
+    },
+    "memories": [
+      {
+        "id": "d3",
+        "kind": "decision",
+        "layer": "project",
+        "title": "Totals are computed in cents, never in floats",
+        "origin": "explicit",
+        "written": "codex",
+        "recalled": "claude",
+        "files": [
+          "src/billing/total.ts"
+        ]
+      },
+      {
+        "id": "g1",
+        "kind": "gotcha",
+        "layer": "project",
+        "title": "sumItems stopped one item early: the loop bound was items.length - 1",
+        "origin": "inferred",
+        "written": "claude",
+        "recalled": "opencode",
+        "files": [
+          "src/billing/total.ts"
+        ]
+      },
+      {
+        "id": "d2",
+        "kind": "decision",
+        "layer": "project",
+        "title": "CSV exports stream rows instead of building the file in memory",
+        "origin": "inferred",
+        "written": "opencode",
+        "recalled": "codex",
+        "files": [
+          "src/reports/export.ts"
+        ]
+      },
+      {
+        "id": "r1",
+        "kind": "reference",
+        "layer": "project",
+        "title": "Next.js cache tags: unstable_cache with tags, then revalidateTag",
+        "origin": "inferred",
+        "written": "qwen",
+        "recalled": "claude",
+        "files": [
+          "app/api/invoices/route.ts"
+        ]
+      },
+      {
+        "id": "p1",
+        "kind": "procedure",
+        "layer": "project",
+        "title": "Release: pnpm build, pnpm test, then tag the version",
+        "origin": "inferred",
+        "written": "omp",
+        "recalled": "pi",
+        "files": [
+          "package.json"
+        ]
+      },
+      {
+        "id": "k1",
+        "kind": "knowledge",
+        "layer": "project",
+        "title": "Finance reads the reports every Monday at 09:00 UTC",
+        "origin": "explicit",
+        "written": "claude",
+        "recalled": "agy",
+        "files": [
+          "src/reports/export.ts"
+        ]
+      },
+      {
+        "id": "y1",
+        "kind": "preference",
+        "layer": "person",
+        "title": "Commit messages in the imperative, under 60 characters",
+        "origin": "explicit",
+        "written": "claude",
+        "recalled": "codex"
+      },
+      {
+        "id": "y2",
+        "kind": "preference",
+        "layer": "person",
+        "title": "Reply in Turkish, keep code and commits in English",
+        "origin": "explicit",
+        "written": "codex",
+        "recalled": "qwen"
+      },
+      {
+        "id": "p2",
+        "kind": "procedure",
+        "layer": "person",
+        "title": "Run the type checker before every commit",
+        "origin": "inferred",
+        "written": "pi",
+        "recalled": "omp"
+      },
+      {
+        "id": "g2",
+        "kind": "gotcha",
+        "layer": "person",
+        "title": "On Apple silicon, Homebrew lives in /opt/homebrew, not /usr/local",
+        "origin": "inferred",
+        "written": "agy",
+        "recalled": "opencode"
+      }
+    ]
+  },
+  "loops": {
+    "eyebrow": "Workflows",
+    "title": "Workflows that loop until the work is proven",
+    "sub": "Each workflow writes down what it will do, starts every behavior change with a failing test, gets an independent review and ends only when the result is proven.",
+    "tabsLabel": "Workflows",
+    "when": "Use it when",
+    "phasesLabel": "Phases",
+    "example": "Example",
+    "footnote": "In /plan-build and /goal-build a stop guard keeps the turn open until the plan is VERIFIED. Say stop, wait or hold on to pause.",
+    "cases": {
+      "text": "Six cases, step by step",
+      "href": "flows.md"
+    },
+    "items": [
+      {
+        "command": "/plan-build",
+        "when": "You want a reviewed plan approved before any code.",
+        "phases": [
+          {
+            "name": "Plan"
+          },
+          {
+            "name": "Plan review",
+            "gate": true
+          },
+          {
+            "name": "Your approval",
+            "gate": true
+          },
+          {
+            "name": "Build",
+            "detail": "RED → GREEN per task"
+          },
+          {
+            "name": "Verify",
+            "detail": "changes review, real run, E2E"
+          },
+          {
+            "name": "Your sign-off",
+            "gate": true
+          },
+          {
+            "name": "VERIFIED"
+          }
+        ],
+        "loopBack": {
+          "from": 4,
+          "to": 3,
+          "text": "A failed check adds fix tasks and goes back to Build."
+        },
+        "example": "/plan-build add CSV export to the reports page"
+      },
+      {
+        "command": "/goal-build",
+        "when": "The end state is clear and the path is found by building.",
+        "phases": [
+          {
+            "name": "Goal and oracle"
+          },
+          {
+            "name": "Contract with pass/fail criteria"
+          },
+          {
+            "name": "Review and lock",
+            "gate": true
+          },
+          {
+            "name": "Build round"
+          },
+          {
+            "name": "Judge every criterion",
+            "gate": true
+          },
+          {
+            "name": "Verify"
+          },
+          {
+            "name": "Hand back"
+          }
+        ],
+        "loopBack": {
+          "from": 4,
+          "to": 3,
+          "text": "Failing criteria become the next round's tasks."
+        },
+        "example": "/goal-build search p95 under 200 ms on the seed data"
+      },
+      {
+        "command": "/bugfix",
+        "when": "One behavior is broken and you want proof it is fixed.",
+        "phases": [
+          {
+            "name": "Reproduce"
+          },
+          {
+            "name": "Root cause as file:line"
+          },
+          {
+            "name": "RED test that fails for the reported reason",
+            "gate": true
+          },
+          {
+            "name": "Fix at the source"
+          },
+          {
+            "name": "Prove on the real program"
+          },
+          {
+            "name": "Quality gate",
+            "gate": true
+          },
+          {
+            "name": "Finish"
+          }
+        ],
+        "loopBack": {
+          "from": 2,
+          "to": 1,
+          "text": "A test that passes before the fix means the root cause is wrong: back to Investigate."
+        },
+        "example": "/bugfix invoice total skips the last line item"
+      },
+      {
+        "command": "/requirements",
+        "when": "The problem or the scope is still unclear.",
+        "phases": [
+          {
+            "name": "Understand"
+          },
+          {
+            "name": "Research"
+          },
+          {
+            "name": "Ideate"
+          },
+          {
+            "name": "Clarify"
+          },
+          {
+            "name": "Propose"
+          },
+          {
+            "name": "Converge"
+          },
+          {
+            "name": "PRD and your approval",
+            "gate": true
+          },
+          {
+            "name": "Hand off to `/plan-build` or `/goal-build`"
+          }
+        ],
+        "example": "/requirements saved searches for the reports page"
+      }
+    ]
+  },
+  "tools": {
+    "eyebrow": "Tools",
+    "title": "Each question goes to the tool built for it",
+    "sub": "Routing sends each kind of question to one of nine MCP servers. Pick a server to see the question it answers and what it adds.",
+    "routerLabel": "The nine MCP servers",
+    "ask": "The agent asks",
+    "servers": [
+      {
+        "id": "context7",
+        "source": "context7",
+        "by": "by Upstash",
+        "adds": "Current docs for the library version you use, so the agent stops guessing APIs.",
+        "q": "How do I tag cache entries in Next.js 15?"
+      },
+      {
+        "id": "codegraph",
+        "source": "codegraph",
+        "by": "by colbymchenry",
+        "adds": "A graph of symbols, callers and impact, so every change comes with its blast radius.",
+        "q": "Who calls sumItems?"
+      },
+      {
+        "id": "semble",
+        "source": "semble",
+        "by": "by MinishLab",
+        "adds": "Semantic code search that finds code by what it does.",
+        "q": "Where do we parse dates?"
+      },
+      {
+        "id": "grep",
+        "source": "grep-app",
+        "by": "by Vercel (grep.app)",
+        "adds": "Real usage from public GitHub code.",
+        "q": "How do other projects configure this?"
+      },
+      {
+        "id": "web-search",
+        "source": "open-websearch",
+        "by": "by Aas-ee (open-websearch)",
+        "adds": "Web search without an API key.",
+        "q": "What's new in the latest Bun release?"
+      },
+      {
+        "id": "web-fetch",
+        "source": "fetcher-mcp",
+        "by": "by jae-jae (fetcher-mcp)",
+        "adds": "Reads a page in a headless browser and returns clean text.",
+        "q": "Read this release page and list the breaking changes."
+      },
+      {
+        "id": "chrome-devtools",
+        "source": "chrome-devtools-mcp",
+        "by": "by the Chrome DevTools team",
+        "adds": "Drives a real Chrome: clicks, screenshots, console and Lighthouse.",
+        "q": "Are there console errors on the checkout page?"
+      },
+      {
+        "id": "buracle-memory",
+        "source": "cortexdb",
+        "by": "on CortexDB",
+        "adds": "The shared brain: every agent searches, reads and writes the same memory.",
+        "q": "What did we decide about the cache last time?"
+      },
+      {
+        "id": "lsp",
+        "by": "part of Buracle Stack",
+        "adds": "Diagnostics, definitions and references from six language servers, for Codex and OpenCode.",
+        "q": "Any type errors in this file?"
+      }
+    ],
+    "stripLabel": "Language servers and tools in the toolchain",
+    "strip": [
+      {
+        "source": "typescript",
+        "name": "TypeScript"
+      },
+      {
+        "source": "pyright",
+        "name": "Pyright"
+      },
+      {
+        "source": "go",
+        "name": "Go"
+      },
+      {
+        "source": "rust",
+        "name": "Rust"
+      },
+      {
+        "source": "csharp",
+        "name": "C#"
+      },
+      {
+        "source": "java",
+        "name": "Java"
+      },
+      {
+        "source": "ripgrep",
+        "name": "ripgrep"
+      },
+      {
+        "source": "ast-grep",
+        "name": "ast-grep"
+      },
+      {
+        "source": "jq",
+        "name": "jq"
+      },
+      {
+        "source": "github-cli",
+        "name": "GitHub CLI"
+      },
+      {
+        "source": "ruff",
+        "name": "Ruff"
+      },
+      {
+        "source": "shellcheck",
+        "name": "ShellCheck"
+      },
+      {
+        "source": "golangci-lint",
+        "name": "golangci-lint"
+      },
+      {
+        "source": "bun",
+        "name": "Bun"
+      },
+      {
+        "source": "nodejs",
+        "name": "Node.js"
+      },
+      {
+        "source": "uv",
+        "name": "uv"
+      }
+    ],
+    "guards": {
+      "title": "Guards answer before a tool runs",
+      "items": [
+        {
+          "verdict": "deny",
+          "tool": "shell",
+          "command": "rm -rf ~",
+          "label": "denied"
+        },
+        {
+          "verdict": "ask",
+          "tool": "shell",
+          "command": "git push --force origin feature-x",
+          "label": "asks you"
+        },
+        {
+          "verdict": "deny",
+          "tool": "write",
+          "command": ".env",
+          "label": "denied"
+        }
+      ]
+    }
+  },
+  "close": {
+    "title": "Set it up once.",
+    "command": "curl -fsSL https://stack.buracle.dev/install.sh | bash"
+  },
+  "credits": {
+    "title": "Built on open source",
+    "body": "Buracle Stack stands on these projects. Every mark belongs to its owner.",
+    "link": "Every project and its license"
+  }
+}

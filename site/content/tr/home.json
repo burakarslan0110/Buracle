@@ -1,0 +1,610 @@
+{
+  "title": "Buracle Stack: kodlama ajanlarını bir araya getiren katman",
+  "description": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi ve AGY CLI tek bir kuruluma, ortak bir hafızaya, aynı korumalara ve kanıtla biten iş akışlarına kavuşur.",
+  "hero": {
+    "eyebrow": "Açık kaynak · macOS ve Linux · MIT",
+    "title": "Kodlama ajanlarını bir araya getiren katman",
+    "lede": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi ve AGY CLI tek bir kuruluma, ortak bir hafızaya, aynı korumalara ve kanıtla biten iş akışlarına kavuşur.",
+    "installLabel": "Tek komutla kur",
+    "command": "curl -fsSL https://stack.buracle.dev/install.sh | bash",
+    "docs": {
+      "text": "Kılavuzu oku",
+      "href": "install.md"
+    },
+    "film": "Filmi izle",
+    "orbitLabel": "Tek bir katmanın, Buracle Stack'in çevresinde dönen yedi kodlama ajanı. İç halkada MCP sunucuları var. Buracle Stack'in bir ajana nasıl bağlandığını görmek için o ajanı seç.",
+    "pick": "Nasıl bağlandığını görmek için bir ajan seç.",
+    "invoke": "İş akışı komutu"
+  },
+  "harnesses": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "source": "claude-code",
+      "folder": "~/.claude",
+      "files": [
+        "settings.json",
+        "rules/",
+        "plugin"
+      ],
+      "plugs": "Skill'ler, kurallar, inceleme ajanları, MCP sunucuları, komut hook'ları ve durum satırıyla gelen bir eklenti.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "codex",
+      "name": "Codex CLI",
+      "source": "codex",
+      "folder": "~/.codex",
+      "files": [
+        "config.toml",
+        "hooks.json",
+        "AGENTS.md"
+      ],
+      "plugs": "`hooks.json` içinde komut hook'ları, `config.toml` içinde MCP sunucuları, bir `AGENTS.md` bloğu ve exec policy kuralları.",
+      "invoke": "$plan-build"
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "source": "opencode",
+      "folder": "~/.config/opencode",
+      "files": [
+        "opencode.jsonc",
+        "AGENTS.md",
+        "plugin"
+      ],
+      "plugs": "Ortak hook hattını OpenCode'un içinde çalıştıran sunucu ve TUI eklentileri.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "omp",
+      "name": "Oh My Pi",
+      "source": "oh-my-pi",
+      "folder": "~/.omp/agent",
+      "files": [
+        "AGENTS.md",
+        "mcp.json",
+        "lsp.json"
+      ],
+      "plugs": "Hook hattını aynı süreç içinde çalıştıran bir extension'a sahip omp eklentisi.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "qwen",
+      "name": "Qwen Code",
+      "source": "qwen-code",
+      "folder": "~/.qwen",
+      "files": [
+        "settings.json",
+        "QWEN.md"
+      ],
+      "plugs": "`settings.json` içinde hook'lar ve MCP sunucuları, bir `QWEN.md` bloğu, yol kuralları, inceleme ajanları ve komutlar.",
+      "invoke": "/plan-build"
+    },
+    {
+      "id": "pi",
+      "name": "Pi",
+      "source": "pi",
+      "folder": "~/.pi/agent",
+      "files": [
+        "AGENTS.md",
+        "mcp.json",
+        "extensions/"
+      ],
+      "plugs": "Hook'lar için bir extension, bir `AGENTS.md` bloğu ve `mcp.json` içinde MCP sunucuları.",
+      "invoke": "/skill:plan-build"
+    },
+    {
+      "id": "agy",
+      "name": "AGY CLI",
+      "source": "agy",
+      "folder": "~/.gemini/config",
+      "files": [
+        "hooks.json",
+        "mcp_config.json",
+        "plugins/"
+      ],
+      "plugs": "`hooks.json` içinde komut hook'ları, `mcp_config.json` içinde MCP sunucuları ve kurallarla inceleme ajanlarını taşıyan bir eklenti.",
+      "invoke": "/plan-build"
+    }
+  ],
+  "numbers": {
+    "label": "Rakamlarla Buracle Stack",
+    "items": [
+      {
+        "value": 7,
+        "label": "tek kaynaktan kurulan kodlama ajanı"
+      },
+      {
+        "value": 9,
+        "label": "soruya göre yönlendirilen MCP sunucusu"
+      },
+      {
+        "value": 6,
+        "label": "araç zincirindeki dil sunucusu"
+      },
+      {
+        "value": 26,
+        "label": "her araç çağrısını denetleyen hook"
+      },
+      {
+        "value": 13,
+        "label": "her ajanda aynı metinle çalışan skill"
+      },
+      {
+        "value": 4,
+        "label": "kanıtla biten iş akışı"
+      }
+    ]
+  },
+  "video": {
+    "eyebrow": "Film",
+    "label": "55 saniyede Buracle Stack",
+    "src": "buracle-stack-tr.mp4",
+    "poster": "poster-tr.jpg"
+  },
+  "memory": {
+    "eyebrow": "Hafıza",
+    "title": "Bütün ajanların paylaştığı tek beyin",
+    "body": [
+      "Codex CLI'da verdiğin bir karar, Claude Code bir sonraki oturumu açtığında orada olur. Her projenin kendi beyni vardır. Kişi beyni de her projede geçerli olanı saklar.",
+      "Hafızalar ilgili oldukları dosyaları anar. `memory_search`'e `files:` verirsen bir dosyayla ilgili bütün hafızaları bulur. Konsol aynı ağı çizer: orada `G` tuşuna bas."
+    ],
+    "example": "Örnek bir beyin, bu sayfa için kurgulandı",
+    "label": "Üstten görülen örnek bir beyin: solda proje beyni, sağda kişi beyni. Her parlak düğüm bir hafızadır. Okumak için birini seç.",
+    "listLabel": "Örnek hafızaları liste olarak oku",
+    "project": {
+      "name": "Proje beyni",
+      "sub": "acme-shop"
+    },
+    "person": {
+      "name": "Kişi beyni",
+      "sub": "her proje"
+    },
+    "card": {
+      "kind": "Tür",
+      "origin": "Kaynak",
+      "explicit": "explicit: sen söyledin",
+      "inferred": "inferred: ajan çıkardı",
+      "cites": "Andığı dosya",
+      "written": "Yazan:",
+      "recalled": "Hatırlayan:"
+    },
+    "memories": [
+      {
+        "id": "d3",
+        "kind": "decision",
+        "layer": "project",
+        "title": "Toplamlar kuruş cinsinden hesaplanır, hiçbir zaman ondalık sayıyla değil",
+        "origin": "explicit",
+        "written": "codex",
+        "recalled": "claude",
+        "files": [
+          "src/billing/total.ts"
+        ]
+      },
+      {
+        "id": "g1",
+        "kind": "gotcha",
+        "layer": "project",
+        "title": "sumItems bir kalem erken duruyordu: döngü sınırı items.length - 1 idi",
+        "origin": "inferred",
+        "written": "claude",
+        "recalled": "opencode",
+        "files": [
+          "src/billing/total.ts"
+        ]
+      },
+      {
+        "id": "d2",
+        "kind": "decision",
+        "layer": "project",
+        "title": "CSV dışa aktarma dosyayı bellekte kurmaz, satırları akış olarak yazar",
+        "origin": "inferred",
+        "written": "opencode",
+        "recalled": "codex",
+        "files": [
+          "src/reports/export.ts"
+        ]
+      },
+      {
+        "id": "r1",
+        "kind": "reference",
+        "layer": "project",
+        "title": "Next.js önbellek etiketleri: etiketli unstable_cache, ardından revalidateTag",
+        "origin": "inferred",
+        "written": "qwen",
+        "recalled": "claude",
+        "files": [
+          "app/api/invoices/route.ts"
+        ]
+      },
+      {
+        "id": "p1",
+        "kind": "procedure",
+        "layer": "project",
+        "title": "Sürüm: pnpm build, pnpm test, ardından sürüm etiketi",
+        "origin": "inferred",
+        "written": "omp",
+        "recalled": "pi",
+        "files": [
+          "package.json"
+        ]
+      },
+      {
+        "id": "k1",
+        "kind": "knowledge",
+        "layer": "project",
+        "title": "Finans ekibi raporları her pazartesi 09:00 UTC'de okur",
+        "origin": "explicit",
+        "written": "claude",
+        "recalled": "agy",
+        "files": [
+          "src/reports/export.ts"
+        ]
+      },
+      {
+        "id": "y1",
+        "kind": "preference",
+        "layer": "person",
+        "title": "Commit mesajları emir kipinde ve 60 karakterin altında olsun",
+        "origin": "explicit",
+        "written": "claude",
+        "recalled": "codex"
+      },
+      {
+        "id": "y2",
+        "kind": "preference",
+        "layer": "person",
+        "title": "Türkçe yanıt ver, kod ve commit'ler İngilizce kalsın",
+        "origin": "explicit",
+        "written": "codex",
+        "recalled": "qwen"
+      },
+      {
+        "id": "p2",
+        "kind": "procedure",
+        "layer": "person",
+        "title": "Her commit'ten önce tip denetimini çalıştır",
+        "origin": "inferred",
+        "written": "pi",
+        "recalled": "omp"
+      },
+      {
+        "id": "g2",
+        "kind": "gotcha",
+        "layer": "person",
+        "title": "Apple silikonda Homebrew /usr/local'da değil, /opt/homebrew'da durur",
+        "origin": "inferred",
+        "written": "agy",
+        "recalled": "opencode"
+      }
+    ]
+  },
+  "loops": {
+    "eyebrow": "İş akışları",
+    "title": "İş kanıtlanana kadar dönen iş akışları",
+    "sub": "Her iş akışı ne yapacağını önce yazar, her davranış değişikliğine başarısız bir testle başlar, bağımsız incelemeden geçer ve ancak sonuç kanıtlanınca biter.",
+    "tabsLabel": "İş akışları",
+    "when": "Ne zaman",
+    "phasesLabel": "Aşamalar",
+    "example": "Örnek",
+    "footnote": "/plan-build ve /goal-build'de durdurma koruması plan VERIFIED olana kadar turu açık tutar. Duraklatmak için dur, bekle ya da hold on yaz.",
+    "cases": {
+      "text": "Adım adım altı vaka",
+      "href": "flows.md"
+    },
+    "items": [
+      {
+        "command": "/plan-build",
+        "when": "Kod yazılmadan önce incelenmiş bir planı onaylamak istediğinde.",
+        "phases": [
+          {
+            "name": "Plan"
+          },
+          {
+            "name": "Plan incelemesi",
+            "gate": true
+          },
+          {
+            "name": "Senin onayın",
+            "gate": true
+          },
+          {
+            "name": "Yapım",
+            "detail": "her görevde RED → GREEN"
+          },
+          {
+            "name": "Doğrulama",
+            "detail": "değişiklik incelemesi, gerçek çalıştırma, E2E"
+          },
+          {
+            "name": "Son onayın",
+            "gate": true
+          },
+          {
+            "name": "VERIFIED"
+          }
+        ],
+        "loopBack": {
+          "from": 4,
+          "to": 3,
+          "text": "Başarısız bir kontrol düzeltme görevleri ekler ve Yapım'a döner."
+        },
+        "example": "/plan-build raporlar sayfasına CSV dışa aktarma ekle"
+      },
+      {
+        "command": "/goal-build",
+        "when": "Varılacak nokta belli, yol yaparak bulunacaksa.",
+        "phases": [
+          {
+            "name": "Hedef ve ölçüt"
+          },
+          {
+            "name": "Geçti/kaldı ölçütlü sözleşme"
+          },
+          {
+            "name": "İnceleme ve kilit",
+            "gate": true
+          },
+          {
+            "name": "Yapım turu"
+          },
+          {
+            "name": "Her ölçütü yargıla",
+            "gate": true
+          },
+          {
+            "name": "Doğrulama"
+          },
+          {
+            "name": "Teslim"
+          }
+        ],
+        "loopBack": {
+          "from": 4,
+          "to": 3,
+          "text": "Geçemeyen ölçütler bir sonraki turun görevleri olur."
+        },
+        "example": "/goal-build seed verisinde arama p95 200 ms altında"
+      },
+      {
+        "command": "/bugfix",
+        "when": "Tek bir davranış bozuksa ve düzeldiğinin kanıtını istiyorsan.",
+        "phases": [
+          {
+            "name": "Yeniden üret"
+          },
+          {
+            "name": "Kök neden (dosya:satır)"
+          },
+          {
+            "name": "Bildirilen nedenle düşen RED testi",
+            "gate": true
+          },
+          {
+            "name": "Kaynağında düzelt"
+          },
+          {
+            "name": "Gerçek programda kanıtla"
+          },
+          {
+            "name": "Kalite kapısı",
+            "gate": true
+          },
+          {
+            "name": "Bitir"
+          }
+        ],
+        "loopBack": {
+          "from": 2,
+          "to": 1,
+          "text": "Test düzeltmeden önce geçiyorsa kök neden yanlıştır, araştırmaya dönülür."
+        },
+        "example": "/bugfix fatura toplamı son kalemi atlıyor"
+      },
+      {
+        "command": "/requirements",
+        "when": "Sorun ya da kapsam henüz netleşmediyse.",
+        "phases": [
+          {
+            "name": "Anla"
+          },
+          {
+            "name": "Araştır"
+          },
+          {
+            "name": "Fikir üret"
+          },
+          {
+            "name": "Netleştir"
+          },
+          {
+            "name": "Öner"
+          },
+          {
+            "name": "Uzlaş"
+          },
+          {
+            "name": "PRD ve onayın",
+            "gate": true
+          },
+          {
+            "name": "`/plan-build` ya da `/goal-build`'e devret"
+          }
+        ],
+        "example": "/requirements raporlar sayfası için kayıtlı aramalar"
+      }
+    ]
+  },
+  "tools": {
+    "eyebrow": "Araçlar",
+    "title": "Her soru, onun için yapılmış araca gider",
+    "sub": "Yönlendirme her soru türünü dokuz MCP sunucusundan birine gönderir. Hangi soruyu yanıtladığını ve ne kattığını görmek için bir sunucu seç.",
+    "routerLabel": "Dokuz MCP sunucusu",
+    "ask": "Ajan soruyor",
+    "servers": [
+      {
+        "id": "context7",
+        "source": "context7",
+        "by": "Upstash'in projesi",
+        "adds": "Kullandığın sürümün güncel belgeleri. Ajan API'leri tahmin etmez.",
+        "q": "Next.js 15'te önbellek kayıtlarını nasıl etiketlerim?"
+      },
+      {
+        "id": "codegraph",
+        "source": "codegraph",
+        "by": "colbymchenry'nin projesi",
+        "adds": "Sembollerin, çağıranların ve etkinin grafiği. Her değişiklik etki alanıyla gelir.",
+        "q": "sumItems'ı kim çağırıyor?"
+      },
+      {
+        "id": "semble",
+        "source": "semble",
+        "by": "MinishLab'in projesi",
+        "adds": "Kodu ne yaptığına göre bulan anlamsal arama.",
+        "q": "Tarihleri nerede ayrıştırıyoruz?"
+      },
+      {
+        "id": "grep",
+        "source": "grep-app",
+        "by": "Vercel'in hizmeti (grep.app)",
+        "adds": "Açık GitHub kodundan gerçek kullanım örnekleri.",
+        "q": "Başka projeler bunu nasıl yapılandırıyor?"
+      },
+      {
+        "id": "web-search",
+        "source": "open-websearch",
+        "by": "Aas-ee'nin projesi (open-websearch)",
+        "adds": "API anahtarı istemeyen web araması.",
+        "q": "Bun'ın son sürümünde neler değişti?"
+      },
+      {
+        "id": "web-fetch",
+        "source": "fetcher-mcp",
+        "by": "jae-jae'nin projesi (fetcher-mcp)",
+        "adds": "Sayfayı başsız tarayıcıda okuyup temiz metin döndürür.",
+        "q": "Bu sürüm sayfasını oku ve uyumu bozan değişiklikleri listele."
+      },
+      {
+        "id": "chrome-devtools",
+        "source": "chrome-devtools-mcp",
+        "by": "Chrome DevTools ekibinin projesi",
+        "adds": "Gerçek bir Chrome'u yönetir: tıklama, ekran görüntüsü, konsol ve Lighthouse.",
+        "q": "Ödeme sayfasında konsol hatası var mı?"
+      },
+      {
+        "id": "buracle-memory",
+        "source": "cortexdb",
+        "by": "CortexDB üzerinde",
+        "adds": "Ortak beyin: her ajan aynı hafızada arar, okur ve yazar.",
+        "q": "Önbellek için geçen sefer ne karar vermiştik?"
+      },
+      {
+        "id": "lsp",
+        "by": "Buracle Stack'in parçası",
+        "adds": "Altı dil sunucusundan tanı, tanım ve başvurular; Codex ve OpenCode için.",
+        "q": "Bu dosyada tip hatası var mı?"
+      }
+    ],
+    "stripLabel": "Araç zincirindeki dil sunucuları ve araçlar",
+    "strip": [
+      {
+        "source": "typescript",
+        "name": "TypeScript"
+      },
+      {
+        "source": "pyright",
+        "name": "Pyright"
+      },
+      {
+        "source": "go",
+        "name": "Go"
+      },
+      {
+        "source": "rust",
+        "name": "Rust"
+      },
+      {
+        "source": "csharp",
+        "name": "C#"
+      },
+      {
+        "source": "java",
+        "name": "Java"
+      },
+      {
+        "source": "ripgrep",
+        "name": "ripgrep"
+      },
+      {
+        "source": "ast-grep",
+        "name": "ast-grep"
+      },
+      {
+        "source": "jq",
+        "name": "jq"
+      },
+      {
+        "source": "github-cli",
+        "name": "GitHub CLI"
+      },
+      {
+        "source": "ruff",
+        "name": "Ruff"
+      },
+      {
+        "source": "shellcheck",
+        "name": "ShellCheck"
+      },
+      {
+        "source": "golangci-lint",
+        "name": "golangci-lint"
+      },
+      {
+        "source": "bun",
+        "name": "Bun"
+      },
+      {
+        "source": "nodejs",
+        "name": "Node.js"
+      },
+      {
+        "source": "uv",
+        "name": "uv"
+      }
+    ],
+    "guards": {
+      "title": "Korumalar araç çalışmadan önce yanıt verir",
+      "items": [
+        {
+          "verdict": "deny",
+          "tool": "shell",
+          "command": "rm -rf ~",
+          "label": "engellendi"
+        },
+        {
+          "verdict": "ask",
+          "tool": "shell",
+          "command": "git push --force origin feature-x",
+          "label": "sana sorar"
+        },
+        {
+          "verdict": "deny",
+          "tool": "write",
+          "command": ".env",
+          "label": "engellendi"
+        }
+      ]
+    }
+  },
+  "close": {
+    "title": "Bir kez kur, her ajanda kullan.",
+    "command": "curl -fsSL https://stack.buracle.dev/install.sh | bash"
+  },
+  "credits": {
+    "title": "Açık kaynak üzerine kurulu",
+    "body": "Buracle Stack bu projelerin üzerinde duruyor. Her logo sahibine aittir.",
+    "link": "Her proje ve lisansı"
+  }
+}

@@ -110,13 +110,13 @@ describe('opencode doctor', () => {
     expect(other.find(i => i.check === 'opencode.version')?.detail).toContain('`opencode upgrade` (to 1.19.0 or newer), then `opencode upgrade --major`')
   }))
 
-  test('host limits (PARITY-10): the summary row is ok on every version; each limit is a row with its fallback and the README pointer', () => withSandbox(async () => {
+  test('host limits (PARITY-10): the summary row is ok on every version; each limit is a row with its fallback and the guide pointer', () => withSandbox(async () => {
     const ctx = adapterContext()
     const items = await doctor(ctx, fake('2.0.30', {}))
     expect(level(items, 'opencode.limits')).toBe('ok')
     const row = items.find(i => i.check === 'opencode.stop-veto')
     expect(row?.level).toBe('ok')
-    expect(row?.detail).toContain('. Fallback: a capped re-prompt after `session.execution.succeeded`. See the Host limits table in README.md.')
+    expect(row?.detail).toContain('. Fallback: a capped re-prompt after `session.execution.succeeded`. See the host limits at https://stack.buracle.dev/harnesses/#host-limits.')
     expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
     const newer = (await doctor(ctx, fake('2.9.0', {}))).find(i => i.check === 'opencode.limits')
     expect(newer?.level).toBe('ok')

@@ -1,0 +1,53 @@
+{
+  "lang": "en",
+  "locale": "en_US",
+  "name": "English",
+  "siteName": "Buracle Stack",
+  "skip": "Skip to content",
+  "home": "Buracle Stack home page",
+  "nav": {
+    "label": "Main",
+    "docs": "Docs",
+    "github": "GitHub"
+  },
+  "language": {
+    "label": "Türkçe",
+    "hint": "Bu sayfayı Türkçe oku"
+  },
+  "theme": {
+    "toDark": "Switch to the dark theme",
+    "toLight": "Switch to the light theme"
+  },
+  "copy": "Copy",
+  "copied": "Copied",
+  "copyFailed": "Select the text and copy it",
+  "copyLabel": "Copy the command",
+  "motion": {
+    "pause": "Pause animations",
+    "play": "Play animations"
+  },
+  "docs": {
+    "label": "Docs pages",
+    "menu": "Pages",
+    "onThisPage": "On this page",
+    "edit": "Edit this page on GitHub",
+    "pager": "Previous and next page",
+    "prev": "Previous",
+    "next": "Next",
+    "table": "Table that scrolls sideways",
+    "code": "Code"
+  },
+  "footer": {
+    "label": "Footer",
+    "license": "Buracle Stack is open source under the MIT License.",
+    "source": "Source code",
+    "issues": "Report an issue",
+    "releases": "Releases"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "There is no page at this address. It may have moved when the docs changed.",
+    "home": "Go to the home page",
+    "docs": "Open the docs"
+  }
+}
