@@ -232,7 +232,6 @@ function loadLogos(problems: string[]): Logos {
     // A language server keeps its full name, "Go (gopls)": the project credited is the server in the brackets.
     const logo: Logo = { name: e.kind === 'lsp' ? e.name : e.name.split(' (')[0] as string, href }
     const file = typeof e.logoFile === 'string' ? e.logoFile : undefined
-    const mono = typeof e.monoFile === 'string' ? e.monoFile : undefined
     if (file !== undefined) {
       if (!existsSync(join(LOGO_DIR, file))) problems.push(`${label}[${i}]: ${file} is missing from site/assets/logos`)
       else logo.src = `/assets/logos/${file}`
