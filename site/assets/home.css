@@ -17,11 +17,6 @@
 .label { display: block; margin-bottom: var(--space-2xs); font-size: var(--text-sm); font-weight: 500; color: var(--color-ink-2); }
 .go { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-accent); font-weight: 500; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 0.25em; transition: text-decoration-color var(--dur-micro) var(--ease-out); }
 .go:hover { text-decoration-color: currentColor; }
-.motion { position: absolute; right: var(--space-sm); bottom: var(--space-sm); z-index: 2; display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--color-rule-2); border-radius: 50%; background: color-mix(in srgb, var(--color-paper-2) 80%, transparent); color: var(--color-ink-2); cursor: pointer; transition: color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out); }
-.motion:hover { color: var(--color-ink); border-color: var(--color-accent); }
-.motion .i-play { display: none; }
-.motion[aria-pressed="true"] .i-play { display: block; }
-.motion[aria-pressed="true"] .i-pause { display: none; }
 section { position: relative; }
 main > section:not(.hero) { padding-block: var(--section-pad); }
 
@@ -105,7 +100,6 @@ main > section:not(.hero) { padding-block: var(--section-pad); }
 .orbit-caption > * { animation: swap var(--dur-long) var(--ease-settle); }
 .cap-name { font-size: var(--text-lg); font-weight: 600; color: var(--color-ink); }
 .cap-invoke code { color: var(--color-accent); }
-.orbit-fig .motion { right: 0; bottom: auto; top: 0; }
 
 .numbers { list-style: none; padding: var(--space-xl) 0 0; margin-top: var(--space-2xl); display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-lg); border-top: 1px solid var(--color-rule); }
 .numbers li { display: grid; gap: var(--space-2xs); align-content: start; }
@@ -171,7 +165,6 @@ main > section:not(.hero) { padding-block: var(--section-pad); }
 .bm.is-on .bm-dot { r: 9px; }
 .bm:focus-visible .bm-ring { stroke: var(--color-focus); stroke-width: 3; stroke-opacity: 1; }
 @keyframes halo { 0%, 100% { fill: color-mix(in srgb, var(--sc) 14%, transparent); } 50% { fill: color-mix(in srgb, var(--sc) 32%, transparent); } }
-.brain .motion { bottom: 0; right: 0; }
 .brain-list { margin-top: var(--space-2xl); font-size: var(--text-sm); color: var(--color-ink-2); }
 .brain-list summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--color-accent); }
 .brain-list > ul { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); margin-top: var(--space-md); }
@@ -263,7 +256,6 @@ main > section:not(.hero) { padding-block: var(--section-pad); }
 .srv:focus-visible .srv-face { outline: 2px solid var(--color-focus); outline-offset: 3px; }
 .srv[aria-pressed="true"] { color: var(--color-ink); }
 .srv[aria-pressed="true"] .srv-face { border-color: var(--color-accent); scale: 1.12; box-shadow: 0 0 0 5px var(--color-accent-subtle), 0 14px 40px -12px var(--color-glow-2); }
-.router .motion { top: 0; bottom: auto; right: 0; }
 
 .strip-box { margin-top: var(--space-3xl); display: grid; gap: var(--space-md); }
 .strip-label { text-align: center; font-size: var(--text-sm); color: var(--color-ink-2); }

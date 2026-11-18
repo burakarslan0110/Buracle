@@ -118,7 +118,6 @@ const UI_SHAPE: Shape = {
   nav: { label: 'string', docs: 'string', github: 'string' },
   language: { label: 'string', hint: 'string' },
   copy: 'string', copied: 'string', copyFailed: 'string', copyLabel: 'string',
-  motion: { pause: 'string', play: 'string' },
   docs: { label: 'string', menu: 'string', onThisPage: 'string', edit: 'string', pager: 'string', prev: 'string', next: 'string', table: 'string', code: 'string' },
   footer: { label: 'string', license: 'string', source: 'string', issues: 'string', releases: 'string', maker: 'string', role: 'string' },
   notFound: { title: 'string', body: 'string', home: 'string', docs: 'string' },

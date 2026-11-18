@@ -18,10 +18,6 @@
   "copied": "Copied",
   "copyFailed": "Select the text and copy it",
   "copyLabel": "Copy the command",
-  "motion": {
-    "pause": "Pause animations",
-    "play": "Play animations"
-  },
   "docs": {
     "label": "Docs pages",
     "menu": "Pages",

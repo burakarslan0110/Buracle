@@ -71,7 +71,7 @@ describe('landing: the orbit', () => {
       expect([...fig.matchAll(/class="orbit-item tool-item"/g)]).toHaveLength(9)
       expect(fig).toContain('<div class="ring ring-tools" aria-hidden="true">')
       expect(fig).toContain('<figcaption class="sr-only" id="orbit-label">')
-      expect(fig).toContain('data-motion-toggle')
+      expect(fig).not.toContain('data-motion-toggle')
     }
   })
 })

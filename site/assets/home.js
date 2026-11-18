@@ -1,14 +1,13 @@
 // The landing page in motion: the orbit lights one harness after another, the brain recalls one memory after another,
 // the workflow ring runs its light round the phases and the router sends one question after another to its server.
 // Every scene is whole in the HTML; this file only moves it and wires its controls. Nothing moves on its own under
-// reduced motion, while a scene is off screen, while the page is hidden or after the visitor pressed pause; a scene the
+// reduced motion, while a scene is off screen, while the page is hidden; a scene the
 // visitor has used stops its own tour so it never takes the choice back.
 (function () {
   'use strict'
   var root = document.documentElement
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
-  var paused = false
-  var canMove = function () { return !reduced.matches && !paused && document.visibilityState === 'visible' }
+  var canMove = function () { return !reduced.matches && document.visibilityState === 'visible' }
   var $ = function (sel, el) { return (el || document).querySelector(sel) }
   var $$ = function (sel, el) { return Array.prototype.slice.call((el || document).querySelectorAll(sel)) }
 
@@ -30,7 +29,7 @@
     return t
   }
 
-  // ---- Reveal and the pause buttons ------------------------------------------------------------------------------
+  // ---- Reveal --------------------------------------------------------------------------------------
   if ('IntersectionObserver' in window) {
     root.classList.add('reveal-on')
     var io = new IntersectionObserver(function (entries) {
@@ -38,20 +37,6 @@
     }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' })
     $$('.reveal').forEach(function (el) { io.observe(el) })
   }
-  var toggles = $$('[data-motion-toggle]')
-  function setPaused(p) {
-    paused = p
-    root.classList.toggle('is-paused', p)
-    toggles.forEach(function (b) {
-      b.setAttribute('aria-pressed', String(p))
-      b.setAttribute('aria-label', p ? b.getAttribute('data-play') : b.getAttribute('data-pause'))
-    })
-  }
-  toggles.forEach(function (b) {
-    if (reduced.matches) return
-    b.hidden = false
-    b.addEventListener('click', function () { setPaused(!paused) })
-  })
 
   // ---- Numbers: count up once when they come into view ----------------------------------------------------------
   var nums = $('.numbers')

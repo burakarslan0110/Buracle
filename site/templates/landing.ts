@@ -12,7 +12,6 @@ import type { BrainMemory, HomeData, LandingExtras, Logo, Loop, Media, PageConte
 const FAVICON = '/assets/favicon.svg'
 const GLOBE = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>'
 const PLAY = '<svg class="icon i-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l10-6.5z"/></svg>'
-const PAUSE = '<svg class="icon i-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6v12M15 6v12"/></svg>'
 const BACK = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4"/></svg>'
 const SHELL = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7l5 5-5 5M12 17h7"/></svg>'
 const PEN = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>'
@@ -23,11 +22,6 @@ const r1 = (v: number): number => Math.round(v * 10) / 10
 function mark(logo: Logo | undefined, px: number, alt = ''): string {
   if (logo?.src === undefined) return GLOBE
   return `<img src="${logo.src}" alt="${escapeHtml(alt)}" width="${px}" height="${px}" loading="lazy" decoding="async">`
-}
-
-/** The one pause button every moving scene carries; they all switch the same page-wide state (home.js). */
-function motionButton(ctx: PageContext): string {
-  return `<button class="motion" type="button" data-motion-toggle data-pause="${escapeHtml(ctx.ui.motion.pause)}" data-play="${escapeHtml(ctx.ui.motion.play)}" aria-label="${escapeHtml(ctx.ui.motion.pause)}" aria-pressed="false" hidden>${PAUSE}${PLAY}</button>`
 }
 
 function head(id: string, eyebrow: string, title: string, lead?: string): string {
@@ -45,7 +39,7 @@ const serverLogo = (x: LandingExtras, s: Server): Logo | undefined => (s.source 
 // ---------------------------------------------------------------------------------------------------------------
 // 1. Hero: the headline and the install command beside the orbit, the numbers under both.
 
-function orbit(ctx: PageContext, home: HomeData, x: LandingExtras): string {
+function orbit(home: HomeData, x: LandingExtras): string {
   const h = home.hero
   const n = home.harnesses.length
   const agents = home.harnesses.map((a, i) => {
@@ -77,7 +71,6 @@ function orbit(ctx: PageContext, home: HomeData, x: LandingExtras): string {
       </div>
       <p class="orbit-caption" data-orbit-caption aria-live="polite"><span class="cap-hint">${escapeHtml(h.pick)}</span></p>
       ${captions}
-      ${motionButton(ctx)}
     </figure>`
 }
 
@@ -97,7 +90,7 @@ function hero(ctx: PageContext, home: HomeData, x: LandingExtras): string {
       </div>
       <p class="hero-cta"><a class="btn btn-solid" href="${escapeHtml(h.docs.href)}">${escapeHtml(h.docs.text)}</a><a class="btn btn-line" href="#film">${PLAY}<span>${escapeHtml(h.film)}</span></a></p>
     </div>
-    ${orbit(ctx, home, x)}
+    ${orbit(home, x)}
   </div>
   <div class="wrap">
     <h2 class="sr-only" id="numbers-title">${escapeHtml(n.label)}</h2>
@@ -139,7 +132,7 @@ function card(home: HomeData, x: LandingExtras, m: BrainMemory): string {
         <p class="bc-path">${agent(m.written, g.card.written)}<span class="bc-arrow" aria-hidden="true"></span>${agent(m.recalled, g.card.recalled)}</p>`
 }
 
-function memory(ctx: PageContext, home: HomeData, x: LandingExtras): string {
+function memory(home: HomeData, x: LandingExtras): string {
   const g = home.memory
   const model = layoutBrain(g.memories)
   const first = g.memories.find(m => m.id === model.nodes.find(nd => nd.mem !== undefined)?.mem) ?? (g.memories[0] as BrainMemory)
@@ -165,7 +158,6 @@ function memory(ctx: PageContext, home: HomeData, x: LandingExtras): string {
         <p class="hemi" data-side="person"><span>${escapeHtml(g.person.name)}</span><small>${escapeHtml(g.person.sub)}</small></p>
         ${brainSvg(model, g.memories, 'brain-title')}
       </div>
-      ${motionButton(ctx)}
     </figure>
     ${cards}
   </div>
@@ -249,7 +241,7 @@ function serverFace(x: LandingExtras, s: Server, px: number): string {
   return `<span class="lsp-marks">${marks}</span>`
 }
 
-function tools(ctx: PageContext, home: HomeData, x: LandingExtras): string {
+function tools(home: HomeData, x: LandingExtras): string {
   const t = home.tools
   const n = t.servers.length
   const servers = t.servers.map((s, i) => {
@@ -277,7 +269,6 @@ function tools(ctx: PageContext, home: HomeData, x: LandingExtras): string {
         <svg class="router-beam" aria-hidden="true" focusable="false"><path data-beam d=""/><circle data-beam-dot r="4"/></svg>
         <ul class="servers" aria-label="${escapeHtml(t.routerLabel)}">${servers}</ul>
       </div>
-      ${motionButton(ctx)}
     </div>
     <div class="strip-box">
       <p class="strip-label" id="strip-label">${escapeHtml(t.stripLabel)}</p>
@@ -309,8 +300,8 @@ export function landingPage(ctx: PageContext, home: HomeData, media: Media, extr
   return page(ctx, 'home', `<main id="main">
 ${hero(ctx, home, extras)}
 ${film(home, media)}
-${memory(ctx, home, extras)}
+${memory(home, extras)}
 ${loops(home)}
-${tools(ctx, home, extras)}
+${tools(home, extras)}
 </main>`, home.close, openSource(home, extras))
 }

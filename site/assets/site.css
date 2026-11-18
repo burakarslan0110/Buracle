@@ -224,7 +224,6 @@ button { font: inherit; color: inherit; }
 /* Motion: nothing moves under reduced motion. Scrolling stays instant, so keyboard focus is in view the moment it
    lands. The landing page adds its own motion in home.css. */
 @keyframes swap { from { opacity: 0; transform: translateY(6px); } }
-:root.is-paused *, :root.is-paused *::before, :root.is-paused *::after { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

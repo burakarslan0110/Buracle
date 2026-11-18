@@ -18,10 +18,6 @@
   "copied": "Kopyalandı",
   "copyFailed": "Metni seçip kopyala",
   "copyLabel": "Komutu kopyala",
-  "motion": {
-    "pause": "Animasyonları duraklat",
-    "play": "Animasyonları oynat"
-  },
   "docs": {
     "label": "Belge sayfaları",
     "menu": "Sayfalar",
