@@ -1,8 +1,7 @@
 name: Pages
 
-# Builds the site at https://stack.buracle.dev (site/build.ts) and deploys it to GitHub Pages. CI calls it after a
-# release; run it by hand to publish a docs change that released nothing. site/ lives on dev only (the release tree
-# leaves it out), so a manual run builds dev unless you name another ref.
+# Builds the site at https://stack.buracle.dev (site/build.ts) and deploys it to GitHub Pages. CI calls it after the
+# checks of every push to dev; run it by hand to rebuild the site from another ref (dev by default).
 #
 # The custom domain is set in the repository's Pages settings: a deployment from Actions ignores the CNAME file the
 # build writes. The github-pages environment must allow the branch the run comes from (dev).

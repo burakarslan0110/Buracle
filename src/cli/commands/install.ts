@@ -806,7 +806,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     // The generated files are rebuilt only when they differ and the install may write; the install
     // itself writes runtime-config.json, so a declined or dry run leaves the home folder alone.
     let built = await runBuildFlow({ check: true, ...scope })
-    // A dev checkout has no built harness/ at all: it is built without asking, since nothing can be installed without it.
+    // A fresh checkout has no built harness/ at all: it is built without asking, since nothing can be installed without it.
     const unbuilt = !hasBuiltHarness(opsDeps.repoRoot())
     if (built.report.errors.length === 0 && built.report.drift.length > 0 && !opts.dryRun && (unbuilt || opts.yes || io.stdin.isTTY)) {
       steps.start('build', 'Rebuilding the generated files')

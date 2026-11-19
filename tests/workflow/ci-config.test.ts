@@ -5,8 +5,8 @@ import { parse } from 'yaml'
 import type { Harness } from '../../src/core/events'
 
 // .github/workflows/ci.yml cannot be run here; these tests pin what a push to a branch relies on: the install job
-// installs the latest release of each harness, the jobs the release waits for exist, and a published release deploys
-// the website through .github/workflows/pages.yml.
+// installs the latest release of each harness, the jobs the release waits for exist, main only fast-forwards to
+// a tested dev commit, and every push to dev deploys the website through .github/workflows/pages.yml.
 
 const FILE = join(import.meta.dir, '..', '..', '.github', 'workflows', 'ci.yml')
 const HAS_CI = existsSync(FILE)
@@ -56,29 +56,20 @@ describe.skipIf(!HAS_CI)('ci.yml', () => {
     expect(workflow.jobs['release']?.needs).toEqual(['checks', 'posix-install'])
   })
 
-  test('the release says whether it published, on every way out of its script', () => {
-    const release = workflow.jobs['release']
-    expect(release?.outputs?.['published']).toBe('${{ steps.publish.outputs.published }}')
-    const publish = (release?.steps ?? []).find(s => s.id === 'publish')
-    const script = publish?.run ?? ''
-    const lines = script.split('\n').map(l => l.trim())
-    const exits = lines.flatMap((l, i) => (/^exit 0$/.test(l) ? [i] : []))
-    expect(exits.length).toBeGreaterThan(0)
-    for (const i of exits) expect(lines[i - 1]).toBe('echo "published=false" >> "$GITHUB_OUTPUT"')
-    expect(lines.filter(Boolean).at(-1)).toBe('echo "published=true" >> "$GITHUB_OUTPUT"')
-    expect(lines.filter(l => l.includes('published=')).length).toBe(exits.length + 1)
+  test('the release only fast-forwards main to the tested commit and never builds a tree of its own', () => {
+    const script = (workflow.jobs['release']?.steps ?? []).map(s => s.run ?? '').join('\n')
+    expect(script).toContain('git push origin "$GITHUB_SHA:refs/heads/main"')
+    expect(script).toContain('merge-base --is-ancestor')
+    expect(script).not.toMatch(/commit-tree|--force|push -f|read-tree|\bbuild\b/)
+    expect(workflow.env?.['RELEASE_DROPS']).toBeUndefined()
   })
 
-  test('the pages job waits for the release, runs only when it published, and calls the Pages workflow', () => {
+  test('every push to dev that passes the checks deploys the site through the Pages workflow', () => {
     const job = workflow.jobs['pages']
-    expect([job?.needs].flat()).toEqual(['release'])
-    expect(job?.if?.replace(/\s+/g, ' ')).toBe("needs.release.outputs.published == 'true'")
+    expect([job?.needs].flat()).toEqual(['checks'])
+    expect(job?.if?.replace(/\s+/g, ' ')).toBe("github.event_name == 'push' && github.ref_name == 'dev'")
     expect(job?.uses).toBe('./.github/workflows/pages.yml')
     expect(job?.permissions).toEqual({ contents: 'read', pages: 'write', 'id-token': 'write' })
-  })
-
-  test('the release tree leaves out the website as well as the test suite', () => {
-    expect((workflow.env?.['RELEASE_DROPS'] ?? '').split(/\s+/)).toEqual(['tests', 'bunfig.toml', 'site'])
   })
 })
 

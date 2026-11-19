@@ -7,17 +7,14 @@ Every file in `assets/` that the film uses, with its source and licence. The sit
 
 | File | Source | Licence |
 | --- | --- | --- |
-| `assets/music/buracle-drive.m4a` | Original 40 s track for this film, synthesized from code by `music/score.py` (120 BPM, A minor, one chord per bar, numpy and scipy, seeded noise; its three drops are on the exact frames 6.0, 22.0 and 34.0 s, see `tools/check-sync.mjs`). No samples or third-party recordings. | CC0 1.0 (dedicated to the public domain with the film) |
+| `assets/music/buracle-drive.m4a` | Original 40 s track for this film, synthesized from code (120 BPM, A minor, one chord per bar, numpy and scipy, seeded noise; its three drops are on the exact frames 6.0, 22.0 and 34.0 s). No samples or third-party recordings. | CC0 1.0 (dedicated to the public domain with the film) |
 
-Rebuild it with `python3 music/score.py /tmp/score.wav` (needs numpy and scipy; without a local install,
-`uv run --with numpy --with scipy python music/score.py /tmp/score.wav`), then
-`ffmpeg -i /tmp/score.wav -c:a aac -b:a 224k assets/music/buracle-drive.m4a`.
 
 ## Sound effects
 
 All of them are the trimmed and normalised OGG previews from the CC0 library of the `sound-effects` skill (its
 `sfx/manifest.json` lists the same source pages). The licences were taken from that manifest and were not re-opened
-page by page for this round. The cue list that places them is `tools/write-sfx.mjs`.
+page by page for this round.
 
 | File | Source | Licence |
 | --- | --- | --- |
@@ -68,7 +65,7 @@ page by page for this round. The cue list that places them is `tools/write-sfx.m
 
 The marks identify the coding agents Buracle Stack sets up and the projects it credits. Every mark belongs to its owner;
 showing it does not mean the owner endorses Buracle Stack. The film shows them unchanged, at a readable size, next to the
-product's name or folder. `tools/inline-logos.mjs` inlines these files into `index.html` with their ids prefixed.
+product's name or folder.
 
 | File | Product | Logo source | Logo licence and trademark |
 | --- | --- | --- | --- |

@@ -109,7 +109,7 @@ T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --c
 bun test
 ```
 
-CI runs these on macOS (arm64) and Linux (x64). Work lands on `dev`, and every passing push that changes the released files publishes the next version on `main`. Read [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md) before you send a change. If you find a bug or miss a feature, [open an issue](https://github.com/burakarslan0110/Buracle-Stack/issues).
+CI runs these on macOS (arm64) and Linux (x64). Work lands on `dev`, and every passing push moves `main` to that commit and rebuilds the site. Read [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md) before you send a change. If you find a bug or miss a feature, [open an issue](https://github.com/burakarslan0110/Buracle-Stack/issues).
 
 ## License
 

@@ -23,7 +23,7 @@
       Pace: scenes of 4 to 9 s. The headline sits in one slot (top left) and is in place before the picture under it
       moves. Every line of text stays still and legible for at least 2.0 s. Nothing ever sits on top of a letter:
       logos, chips, badges, lines, cards and the stamp route around text or wait until it is gone.
-      `tools/legibility-gate.mjs` proves it every 0.1 s for both languages. There is no carried shape: each scene
+      The legibility gate proved it every 0.1 s for both languages. There is no carried shape: each scene
       enters through an object of the previous one (the logos, the Memory module, a slide, a cut on the beat).
 
       Colour: one accent (#c4b5fd) for highlighted words, lit chips and lines; green for proof (GREEN, VERIFIED);
@@ -36,7 +36,7 @@
       criteria, rounds, judged, research, PRD, approved, about, cites, tag, DENIED, ASK, MASKED, MCP, the memory
       card, file names, commands, statuses, settings and harness names.
 
-      Music: music/score.py, an original track synthesized from code, 120 BPM in A minor (one beat = 0.5 s, one bar
+      Music: an original track synthesized from code, 120 BPM in A minor (one beat = 0.5 s, one bar
       = 2 s). The three drops sit on the downbeat of a bar and on the exact frame of the picture, each after one
       sixteenth of silence, each with a crash, a sub boom and a slam: 6.0 (the lock), 22.0 (VERIFIED), 34.0 (the
       wordmark slam). Scene changes, VERIFIED and every reveal sit on a beat, an eighth or a sixteenth; whooshes start
@@ -478,9 +478,9 @@ and the user has not allowed that in this session.</div>
         <div class="head" id="h6" data-block></div>
       </div>
 
-      <!-- music: music/score.py (original, synthesized, CC0) -->
+      <!-- music: original, synthesized, CC0 -->
       <audio id="music" class="clip" src="assets/music/buracle-drive.m4a" data-start="0" data-duration="40" data-volume="0.62" data-track-index="1" data-audio-group="music"></audio>
-      <!-- sound effects: one CC0 sound per cue, written by tools/write-sfx.mjs from its cue list (sources in CREDITS.md) -->
+      <!-- sound effects: one CC0 sound per cue, (sources in CREDITS.md) -->
       <!-- sfx -->
       <audio id="sfx-01" class="clip" src="assets/sound/pop-kenney-interface-pluck-001.ogg" data-start="0.250" data-duration="0.1" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- Claude Code pops -->
       <audio id="sfx-02" class="clip" src="assets/sound/pop-kenney-interface-drop-001.ogg" data-start="0.375" data-duration="0.109" data-volume="0.5" data-track-index="3" data-audio-group="sfx"></audio><!-- Codex CLI pops -->
@@ -611,7 +611,7 @@ and the user has not allowed that in this session.</div>
       document.documentElement.lang = LANG;
 
       // ---------- the beat sheet in numbers (film seconds, 120 BPM: one beat 0.5 s, one bar 2 s) ----------
-      // The three big moments, each one an exact drop of the music (music/score.py reads the same numbers):
+      // The three big moments, each one an exact drop of the music (the music score used the same numbers):
       const LOCK_T = 6.0;   // the logos lock onto the layer
       const T_V = 22.0;     // /plan-build ends VERIFIED
       const T_WORD = 34.0;  // the wordmark slams onto the end card
@@ -663,7 +663,7 @@ and the user has not allowed that in this session.</div>
         { id: "pi", name: "Pi" },
         { id: "agy", name: "AGY CLI" },
       ];
-      const TILES = HARNESS.map((h) => $("t-" + h.id)); // static markup with inlined logos (tools/inline-logos.mjs)
+      const TILES = HARNESS.map((h) => $("t-" + h.id)); // static markup with inlined logos
 
       // ---------- the layer ----------
       const CELL_X = (k) => 272 + k * 278; // world px, left edge of module k
@@ -899,7 +899,7 @@ and the user has not allowed that in this session.</div>
 
       // ---------- tools (scene 5): a 3x3 grid of servers on the right, the questions on the left ----------
       const ORBS = ["context7", "chrome-devtools", "lsp", "codegraph", "web-fetch", "buracle-memory", "semble", "web-search", "grep"];
-      const ORB_EL = ORBS.map((id) => $("o-" + id)); // static markup with inlined logos (tools/inline-logos.mjs)
+      const ORB_EL = ORBS.map((id) => $("o-" + id)); // static markup with inlined logos
       const GRID = ORBS.map((_, k) => ({ x: 1050 + (k % 3) * 300, y: 330 + Math.floor(k / 3) * 230 }));
       ORB_EL.forEach((el, k) => set(el, { left: GRID[k].x - 60 + "px", top: GRID[k].y - 60 + "px" }));
       // each question types into its bubble over [tq, tq + 0.25], then a line routes it to its server (column 1 of its row)

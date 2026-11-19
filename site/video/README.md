@@ -41,21 +41,7 @@ the logos lock onto the layer (6.0 s), `/plan-build` is VERIFIED (22.0 s) and th
 (34.0 s). Each drop comes after one sixteenth of silence (everything, reverb tails included, goes quiet), so its first
 transient is unmistakable, and each has a crash, a sub boom and a slam that start on the very sample of the frame. The
 ground also flashes on the drop frame. The numbers are `LOCK_T`, `T_V` and `T_WORD` in `index.html` and `LOCK`,
-`VERIFIED` and `WORD` in `music/score.py`; change them together.
-
-The HyperFrames CLI (0.9.65) lets the audio of its render start one AAC frame (1024 samples, 21.3 ms) early, two thirds of
-a frame, which is audible on a drop. `render.sh` delays the audio by the same amount (`AUDIO_LATE`), and
-
-```sh
-node tools/check-sync.mjs ../media/buracle-stack-en.mp4
-```
-
-The music has no sudden jump in loudness: `music/score.py` fades it in from silence over the first 4 s (and raises the
-intro by 4 dB up to the first drop), and fades it out with a raised cosine over the last 4.5 s (`FADE_IN`, `INTRO_DB`,
-`FADE_OUT_START`).
-
-proves it: for each drop it prints the audio edge (the first loud sample after the silence) in ms against the drop time and
-whether the picture flashes on the drop frame. It exits 1 when the audio is more than 3 ms off.
+`VERIFIED` and `WORD` of the music score; change them together.
 
 ## Pace and legibility rules
 
@@ -67,77 +53,15 @@ whether the picture flashes on the drop frame. It exits 1 when the audio is more
   it is gone. Text only fades and rises: no blur, glow or scale while it is read, and it rests at scale 1 on whole
   pixels. Ligatures are off so commands read literally (`--force`).
 
-## Check legibility
+## Source only
 
-```sh
-node tools/legibility-gate.mjs            # both languages, every 0.1 s; exit code 1 on any finding
-node tools/legibility-gate.mjs --selftest # plants one violation of each kind; proves the gate catches them
-```
+This folder holds the film's source (`index.html` and `assets/`) and its credits. The tools that built it (the render
+script with its audio sync and loudness mastering, the legibility gate, the logo and sound-effect writers and the
+music score) and the HyperFrames project files are not kept in the repository; they are in the git history before the
+commit that removed them. The rendered film, poster and GIF are in `../media/`.
 
-The gate opens the film in the Chrome that HyperFrames renders with (`CHROME_PATH` overrides it), seeks every 0.1 s and
-fails on: any decorative element (`data-deco`, `data-deco-line`) or other text intersecting a visible text box or the
-wordmark, still readable text under 28 px, text readable for less than 2.0 s in one stretch, and still text resting
-on a scale other than 1 or carrying a blur, drop-shadow or text-shadow. `--lang tr`, `--json <file>` and
-`--shots 3,9.5 --out <dir>` (PNG frames) are there too. It needs Node 22+ and no packages.
-
-## Render both languages
-
-Needs Node 22 or newer, ffmpeg and ffprobe. From this folder:
-
-```sh
-./render.sh
-```
-
-The script runs the legibility gate, renders English with the CLI version that `package.json` pins
-(`hyperframes@0.9.65`) at 3840x2160 (device scale 2), downscales to 1920x1080 with Lanczos (H.264 CRF 18, so letters
-stay sharp on the dark gradients), masters the audio (two-pass loudnorm to -16 LUFS, true peak target -7.0 dBFS so the
-AAC file stays under -4 dBFS), adds `+faststart` and writes into `../media/`: `buracle-stack-en.mp4`,
-`poster-en.jpg` (the end card at 39.0 s) and `preview.gif` (10 fps, 720 px,
-six windows of the English film). It ends by printing each MP4's codec, size, duration and measured loudness, and runs `tools/check-sync.mjs` on it. Intermediate renders go to a temporary folder; set `WORK=<folder>` to keep them,
-`CRF=<n>` to change the video quality, `REUSE_RAW=1` to master the raw renders already in `$WORK` without rendering again, `SKIP_GATE=1` to skip the gate and `HYPERFRAMES_BIN=<launcher>` to use another
-CLI.
-
-One language by hand:
-
-```sh
-npx --yes hyperframes@0.9.65 render --quality high --resolution landscape-4k --variables '{"lang":"tr"}' -o /tmp/raw-tr.mp4
-```
-
-## Edit
-
-- Preview: `npx --yes hyperframes@0.9.65 preview`. Check: `npx --yes hyperframes@0.9.65 check`.
-- The copy of both languages is the `COPY` object at the top of the script in `index.html`.
-- The beat sheet (every timestamp with its picture and sound) is the comment at the top of `index.html`. The music is
-  120 BPM, so one beat is 0.5 s and one bar 2 s. Scene changes, the three drops and every reveal sit on a beat, an
-  eighth or a sixteenth; whooshes start a few frames before the move they carry.
-- `render(t)` draws every frame from the time alone. `layout()` measures the text once the fonts are loaded,
-  `tileState(i, t)` places the seven harness tiles in every scene and `stackCam(t)` is the camera on the layer. The
-  memory scene's constants are `S3_IN` to `KG_WALK`: the graph is `KN` (memories), `HUB` (the about, cites and tag hubs)
-  and the edges `layKg()` draws between them; the Decision that is written is node A (`SAVED_T`), the distillation is
-  `CANDS`, the search `KQ` and `HITS`. The workflows scene is `PHASES` and `PH_T` (the rail), `PLAN_VALS` and `PLAN_ROWS`
-  (the plan file), `TERM_ROWS` (the terminal: a command types, its result lands) and `WCARDS` (the other three workflows,
-  their text in `COPY.wf`).
-- Mark every new decorative element `data-deco` (or `data-deco-line` for an SVG stroke) so the gate checks it, and
-  run the gate after any change of timing or layout.
-- Logos: the harness and MCP tiles are static markup with every logo inlined as SVG, so a render never waits on an image
-  request. After changing `assets/logos/` or the lists, run `node tools/inline-logos.mjs`.
-- Sound effects: the cue list (time, file, volume, what it marks) is in `tools/write-sfx.mjs`; run
-  `node tools/write-sfx.mjs` to rewrite the `<audio>` clips at the end of `#root`. One CC0 sound per cue; overlapping
-  clips get their own Studio lane.
-- Music: `music/score.py` synthesizes the track (numpy and scipy). Its sections follow the beat sheet; rebuild the m4a
-  as `CREDITS.md` says when you move a scene, and keep `LOCK`, `VERIFIED` and `WORD` equal to `LOCK_T`, `T_V` and
-  `T_WORD` in `index.html` (see *The three drops*).
-
-## Known check warnings
-
-`npx hyperframes check` reports 0 errors. The warnings that stay are deliberate:
-
-- One file, one `render(t)` engine instead of sub-compositions (`composition_file_too_large`,
-  `nested_structure_needs_subcomposition`): the seven tiles cross scenes 1, 2, 3 and 7, so they live in one timeline.
-- `gsap_callback_dom_measurement`: `layout()` measures the text once the fonts are loaded, with every scene shown, so
-  the result does not depend on the seek order.
-- `line_unread` on the H01 and H20 verdicts: they are the real hook texts (22 words each), on screen 3.2 s and 2.9 s
-  against a 5.3 s heuristic floor. The badge (DENIED, ASK) and the first words carry the beat, and both stay past the
-  2.0 s floor of the legibility gate.
+The copy of both languages is the `COPY` object at the top of the script in `index.html`, and the beat sheet (every
+timestamp with its picture and sound) is the comment at the top of it. The music is 120 BPM, so one beat is 0.5 s and
+one bar 2 s.
 
 Sources and licences of every audio, logo and font file: `CREDITS.md`.

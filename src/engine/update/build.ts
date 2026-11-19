@@ -374,7 +374,7 @@ export function hasManifest(repoRoot: string): boolean {
   try { return statSync(join(repoRoot, MANIFEST_REL)).isFile() } catch { return false }
 }
 
-/** True when the checkout holds a built harness/ (a checkout cloned from main does; a dev checkout does not). */
+/** True when the checkout holds a built harness/ (a checkout of any branch has none until `buracle install` or `buracle build` writes it). */
 export function hasBuiltHarness(repoRoot: string): boolean {
   try { return statSync(join(repoRoot, 'harness')).isDirectory() } catch { return false }
 }

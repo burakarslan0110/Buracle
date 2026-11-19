@@ -17,7 +17,7 @@ not in this repository; the code and tests are the reference.
 | `src/workflow/` | Plans, flows, worktrees, review scope, project sync, lint, the session store, the second opinion | |
 | `src/memory/` | The Brain on CortexDB: store, MCP server, capture, handoff, backup, the Console (`src/memory/ui/`) | Prefixed ids live in `src/memory/store.ts` only |
 | `src/usage/` | Per-harness usage collectors and status bars | |
-| `harness/` | Generated output listed in `harness/.manifest.json`; not committed on `dev`, built by CI for `main` | Never edited by hand |
+| `harness/` | Generated output listed in `harness/.manifest.json`; not committed on any branch | Never edited by hand |
 
 The CLI is `src/cli/main.ts` (a thin entry), `src/cli/router.ts` and one module per command in `src/cli/commands/`.
 
@@ -130,7 +130,7 @@ newest is over a day old; the newest ten are kept. Nothing else runs in the back
 `buracle build` runs every adapter's generator over `canonical/` and `src/core/` and writes `harness/<harness>/`,
 `harness/agents-skills/` and `harness/hook-data.json`, plus the committed command reference and the local
 `docs/reference/`. Output is deterministic and every file is listed in `harness/.manifest.json`; only listed files are
-deleted as stale. CI builds `harness/` into the release tree for `main`, and `buracle install` and `buracle update`
+deleted as stale. `harness/` is committed on no branch, and `buracle install` and `buracle update`
 build it first in a checkout that has none.
 
 `buracle build --check` writes nothing. It builds twice into temporary roots and fails unless the trees are identical and
