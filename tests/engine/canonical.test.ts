@@ -77,7 +77,7 @@ describe('the real canonical/ tree', () => {
     expect(bundle.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))).toEqual(['pyright', 'typescript', 'gopls', 'rust-analyzer', 'csharp-ls', 'jdtls'])
     expect(bundle.tools.tools.filter(t => t.kind === 'lsp' && !t.required).map(t => t.name)).toEqual(['gopls', 'rust-analyzer', 'csharp-ls', 'jdtls'])
     expect(bundle.tools.tools.find(t => t.name === 'jdtls')?.lsp?.startup_timeout_ms).toBe(120000)
-    expect(bundle.tools.tools.find(t => t.name === 'csharp-ls')?.dotnet).toBe('csharp-ls')
+    expect(bundle.tools.tools.find(t => t.name === 'csharp-ls')?.dotnet).toBe('csharp-ls@0.28.0')
     expect(bundle.tools.tools.filter(t => t.lsp !== undefined).map(t => [t.lsp?.id, t.lsp?.replaces])).toEqual([
       ['pyright', ['pyright-lsp@claude-plugins-official']],
       ['typescript', ['typescript-lsp@claude-plugins-official']],

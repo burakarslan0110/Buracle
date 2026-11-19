@@ -148,8 +148,8 @@ describe('install sources', () => {
   })
 
   test('a .NET tool installs with `dotnet tool install` into the toolchain, only where dotnet is', () => withSandbox(async () => {
-    const cs: ToolSpec = { name: 'csharp-ls', check: ['csharp-ls', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: false, dotnet: 'csharp-ls', install: 'Install the .NET SDK' }
-    expect(installSources(cs, 'darwin', () => true).map(s => s.label)).toEqual(['dotnet tool install csharp-ls (Buracle Stack toolchain)'])
+    const cs: ToolSpec = { name: 'csharp-ls', check: ['csharp-ls', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: false, dotnet: 'csharp-ls@0.28.0', install: 'Install the .NET SDK' }
+    expect(installSources(cs, 'darwin', () => true).map(s => s.label)).toEqual(['dotnet tool install csharp-ls@0.28.0 (Buracle Stack toolchain)'])
     expect(installSources(cs, 'linux', () => true).map(s => s.kind)).toEqual(['dotnet'])
     expect(installSources(cs, 'darwin', c => c !== 'dotnet')).toEqual([])
     expect(installAdvice(cs, 'darwin')).toBe('Install the .NET SDK')
@@ -173,7 +173,7 @@ describe('install sources', () => {
     } finally {
       opsDeps.run = savedRun
     }
-    expect(calls).toEqual([[dotnet, 'tool', 'install', '--tool-path', toolPath, 'csharp-ls']])
+    expect(calls).toEqual([[dotnet, 'tool', 'install', '--tool-path', toolPath, 'csharp-ls', '--version', '0.28.0']])
   }))
 
   test('a rustup component installs with `rustup component add` before any package manager, only where rustup is', () => withSandbox(async () => {

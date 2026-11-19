@@ -192,7 +192,7 @@ tools:
     kind: lsp
     check: [csharp-ls, --version]
     version_regex: 'csharp-ls,? (\d+\.\d+\.\d+)'
-    dotnet: csharp-ls
+    dotnet: csharp-ls@0.28.0  # 0.29.0's NuGet package has no DotnetToolSettings.xml, so it cannot install
     install: Install the .NET SDK, then run `dotnet tool install --global csharp-ls`
     required: false
     purpose: C# language server; needs the .NET SDK

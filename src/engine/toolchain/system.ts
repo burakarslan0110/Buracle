@@ -139,7 +139,9 @@ async function runInstaller(s: InstallSource, timeoutMs: number): Promise<{ ok: 
     case 'dotnet': {
       const toolPath = join(paths.toolchainDir(), 'dotnet', 'tools')
       mkdirSync(toolPath, { recursive: true })
-      argv = [findExecutable('dotnet') ?? 'dotnet', 'tool', 'install', '--tool-path', toolPath, s.ref]
+      // `name@version` pins a release, for a tool whose newest package is broken upstream.
+      const [pkg = s.ref, version] = s.ref.split('@')
+      argv = [findExecutable('dotnet') ?? 'dotnet', 'tool', 'install', '--tool-path', toolPath, pkg, ...(version !== undefined ? ['--version', version] : [])]
       break
     }
     default: return { ok: false, error: `unsupported installer ${s.kind}` }
