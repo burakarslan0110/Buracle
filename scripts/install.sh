@@ -314,7 +314,16 @@ main() {
   # Buracle Stack: main only receives commits that passed CI on every platform; `buracle update` follows the branch it was cloned from.
   if [ -d "$DIR/.git" ]; then
     section_start "Buracle Stack" "updating $(tilde "$DIR")"
-    logged git -C "$DIR" pull --ff-only || { section_done fail "Buracle Stack" "git pull in $(tilde "$DIR") failed ${D} log $(tilde "$LOG")"; exit 1; }
+    # main is force-updated now and then, so a fast-forward can fail. A clean checkout then follows the upstream
+    # branch exactly (the old commits stay in the reflog); a checkout with local edits is left alone.
+    if ! logged git -C "$DIR" pull --ff-only; then
+      if [ -z "$(git -C "$DIR" status --porcelain 2>/dev/null)" ] && git -C "$DIR" rev-parse --verify --quiet '@{u}' >/dev/null; then
+        logged git -C "$DIR" reset --hard '@{u}' || { section_done fail "Buracle Stack" "git reset in $(tilde "$DIR") failed ${D} log $(tilde "$LOG")"; exit 1; }
+      else
+        section_done fail "Buracle Stack" "git pull in $(tilde "$DIR") failed and the checkout has local changes ${D} commit or stash them, then run this script again"
+        exit 1
+      fi
+    fi
   elif git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1; then
     section_start "Buracle Stack" "cloning $BRANCH into $(tilde "$DIR")"
     logged git clone --branch "$BRANCH" "$REPO_URL" "$DIR" || { section_done fail "Buracle Stack" "git clone failed ${D} log $(tilde "$LOG")"; exit 1; }
