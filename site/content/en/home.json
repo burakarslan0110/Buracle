@@ -2,7 +2,7 @@
   "title": "Buracle Stack: the layer that brings your coding agents together",
   "description": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY CLI get one setup, one shared memory, the same guards and workflows that end with proof.",
   "hero": {
-    "eyebrow": "Open source · macOS and Linux · MIT",
+    "eyebrow": "Open source · macOS and Linux",
     "title": "The layer that brings your coding agents together",
     "lede": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY CLI get one setup, one shared memory, the same guards and workflows that end with proof.",
     "installLabel": "Install with one command",

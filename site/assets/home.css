@@ -307,7 +307,7 @@ main > section:not(.hero) { padding-block: var(--section-pad); }
   .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
   .cmd { flex-wrap: wrap; border-radius: 20px; }
   .cmd pre { flex-basis: 100%; }
-  .cmd .copy { margin-left: auto; }
+  .cmd .copy { flex: 1 1 100%; border-radius: 14px; }
   .brain-list > ul { grid-template-columns: minmax(0, 1fr); }
   .tablist { display: flex; border-radius: 22px; }
   .tab { flex: 1 1 40%; padding-inline: var(--space-sm); }

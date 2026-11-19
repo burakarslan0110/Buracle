@@ -2,7 +2,7 @@
   "title": "Buracle Stack: kodlama ajanlarını bir araya getiren katman",
   "description": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi ve AGY CLI tek bir kuruluma, ortak bir hafızaya, aynı korumalara ve kanıtla biten iş akışlarına kavuşur.",
   "hero": {
-    "eyebrow": "Açık kaynak · macOS ve Linux · MIT",
+    "eyebrow": "Açık kaynak · macOS ve Linux",
     "title": "Kodlama ajanlarını bir araya getiren katman",
     "lede": "Claude Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi ve AGY CLI tek bir kuruluma, ortak bir hafızaya, aynı korumalara ve kanıtla biten iş akışlarına kavuşur.",
     "installLabel": "Tek komutla kur",
