@@ -21,12 +21,16 @@ describe('store', () => {
       const ref = projectRef('alpha')
       const lock = brainLockFile(refKey(ref))
       let released = false
-      const holder = withBrainLock(ref, async () => { await Bun.sleep(900); released = true }, { staleMs: 300 })
+      // The holder keeps the lock until the test lets go, so a slow runner cannot end it early.
+      let letGo!: () => void
+      const gate = new Promise<void>(resolve => { letGo = resolve })
+      const holder = withBrainLock(ref, async () => { await gate; released = true }, { staleMs: 300 })
       await Bun.sleep(100)
       const attempts: boolean[] = []
       for (let n = 0; n < 7; n++) { attempts.push(tryLock(lock, 300) !== undefined); await Bun.sleep(100) }
       expect(attempts).toEqual([false, false, false, false, false, false, false])
       await expect(withBrainLock(ref, async () => 'never', { timeoutMs: 50, staleMs: 300 })).rejects.toMatchObject({ code: 'busy', message: 'the memory of alpha is busy; try again' })
+      letGo()
       await holder
       expect(released).toBe(true)
       const release = tryLock(lock, 300)
