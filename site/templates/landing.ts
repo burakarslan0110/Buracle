@@ -62,9 +62,11 @@ function orbit(home: HomeData, x: LandingExtras): string {
       <figcaption class="sr-only" id="orbit-label">${escapeHtml(h.orbitLabel)}</figcaption>
       <div class="orbit">
         <div class="orbit-rings" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="ring ring-agents ring-threads" aria-hidden="true">
+          <svg class="threads" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${threads}</svg>
+        </div>
         <div class="ring ring-tools" aria-hidden="true">${tools}</div>
         <div class="ring ring-agents">
-          <svg class="threads" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${threads}</svg>
           <ul class="agents">${agents}</ul>
         </div>
         <div class="core" aria-hidden="true"><span class="core-pulse"></span><span class="core-pulse"></span><img src="${FAVICON}" alt="" width="40" height="40"><span class="core-name">Buracle Stack</span></div>
@@ -81,7 +83,6 @@ function hero(ctx: PageContext, home: HomeData, x: LandingExtras): string {
   <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
   <div class="wrap hero-in">
     <div class="hero-copy">
-      <p class="eyebrow">${escapeHtml(h.eyebrow)}</p>
       <h1 id="hero-title">${escapeHtml(h.title)}</h1>
       <p class="lede">${inline(h.lede)}</p>
       <div class="install">

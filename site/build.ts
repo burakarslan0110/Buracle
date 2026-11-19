@@ -89,7 +89,7 @@ const LINK = { text: 'string', href: 'string' } as const
 const HOME_SHAPE: Shape = {
   title: 'string',
   description: 'string',
-  hero: { eyebrow: 'string', title: 'string', lede: 'string', installLabel: 'string', command: 'string', docs: LINK, film: 'string', orbitLabel: 'string', pick: 'string', invoke: 'string' },
+  hero: { title: 'string', lede: 'string', installLabel: 'string', command: 'string', docs: LINK, film: 'string', orbitLabel: 'string', pick: 'string', invoke: 'string' },
   harnesses: [{ id: 'string', name: 'string', source: 'string', folder: 'string', files: ['string'], plugs: 'string', invoke: 'string' }],
   numbers: { label: 'string', items: [{ value: 'number', label: 'string' }] },
   video: { eyebrow: 'string', label: 'string', src: 'string', poster: 'string' },

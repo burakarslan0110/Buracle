@@ -3,8 +3,8 @@
    without script; home.js adds the motion, and nothing moves under reduced motion (site.css). */
 
 /* Shared pieces */
-.cmd { display: flex; align-items: stretch; gap: var(--space-xs); padding: var(--space-2xs); border: 1px solid var(--color-rule-2); border-radius: 999px; background: color-mix(in srgb, var(--color-paper-2) 82%, transparent); backdrop-filter: blur(6px); }
-.cmd pre { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; padding: var(--space-xs) var(--space-md); font-size: var(--text-sm); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 999px; font-variant-ligatures: none; }
+.cmd { display: flex; align-items: stretch; gap: var(--space-xs); padding: var(--space-2xs); border: 1px solid var(--color-rule-2); border-radius: 999px; background: color-mix(in srgb, var(--color-paper-2) 82%, transparent); backdrop-filter: blur(6px); container-type: inline-size; }
+.cmd pre { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; padding: var(--space-xs) var(--space-md); font-size: var(--text-sm); line-height: 1.5; white-space: nowrap; overflow: hidden; border-radius: 999px; font-variant-ligatures: none; }
 .cmd-prompt { color: var(--color-muted); user-select: none; }
 .cmd .copy { align-self: center; border-radius: 999px; }
 
@@ -59,12 +59,12 @@ main > section:not(.hero) { padding-block: var(--section-pad); }
 .ring { position: absolute; inset: 0; }
 .ring-agents { animation: spin 96s linear infinite; }
 .ring-tools { animation: spin 140s linear infinite reverse; }
-.orbit:hover .ring, .orbit:hover .face, .orbit:focus-within .ring, .orbit:focus-within .face { animation-play-state: paused; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .agents { list-style: none; padding: 0; margin: 0; }
 .orbit-item { position: absolute; left: 50%; top: 50%; width: var(--d); height: var(--d); margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2); transform: rotate(var(--a)) translate(var(--r)) rotate(calc(-1 * var(--a))); }
 .agent-item { --d: clamp(48px, 15cqi, 84px); --r: 42cqi; }
 .tool-item { --d: clamp(26px, 7.4cqi, 42px); --r: 26cqi; }
+.ring-threads { pointer-events: none; }
 .ring-agents .face { animation: spin 96s linear infinite reverse; }
 .ring-tools .face { animation: spin 140s linear infinite; }
 .face { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; background: var(--color-paper-2); border: 1px solid var(--color-rule-2); box-shadow: 0 10px 30px -14px var(--color-shadow); }
@@ -306,7 +306,7 @@ main > section:not(.hero) { padding-block: var(--section-pad); }
   .hero { padding-top: var(--space-2xl); }
   .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
   .cmd { flex-wrap: wrap; border-radius: 20px; }
-  .cmd pre { flex-basis: 100%; }
+  .cmd pre { flex-basis: 100%; padding-inline: var(--space-2xs); font-size: min(var(--text-sm), 2.9cqi); }
   .cmd .copy { flex: 1 1 100%; border-radius: 14px; }
   .brain-list > ul { grid-template-columns: minmax(0, 1fr); }
   .tablist { display: flex; border-radius: 22px; }
